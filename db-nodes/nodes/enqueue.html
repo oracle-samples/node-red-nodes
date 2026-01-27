@@ -1,0 +1,122 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("enqueue", {
+    category: "oracledb",
+    paletteLabel: "enqueue",
+    defaults: {
+        name: { value: "" },
+        connection: { type: "db-connection", required: true },
+        queueName: { value: "" },
+        recipients: { value: "" },
+        userPayload: { value: ""}
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#4C825C",
+    icon: "font-awesome/fa-arrow-up",
+    label: function () {
+        return this.name || "enqueue";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="enqueue">
+    <div class="form-row">
+        <label for="node-input-name" style="width:auto">
+            <i class="fa fa-tag"></i> Name
+        </label>
+        
+        <input type="text" id="node-input-name">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-connection" style="width:auto">
+            <i class="fa fa-globe"></i> DB Connection
+        </label>
+
+        <input type="text" id="node-input-connection" placeholder="Select DB Connection" />
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-queueName" style="width:auto">
+            <i class="fa fa-list-ul"></i> Queue Name
+        </label>
+
+        <input type="text" id="node-input-queueName">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-subscriber" style="width:auto">
+            <i class="fa fa-users"></i> Recipients
+        </label>
+
+        <input type="text" id="node-input-recipients">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-userPayload" style="width:auto">
+            <i class="fa fa-list-ul"></i> User Payload
+        </label>
+
+        <div style="color:#777; font-size: 0.85em;">
+            Enter JSON array: <code>[ {...}, {...} ]</code>
+        </div>
+
+        <textarea 
+            id="node-input-userPayload" 
+            rows="5" 
+            style="width:100%; margin-top:5px;"
+        ></textarea>
+    </div>
+
+</script>
+
+
+<script type="text/x-red" data-help-name="enqueue">
+<p>Enqueues a JSON array of messages into an Oracle AQ. Each element becomes one AQ message.</p>
+
+<h3>Inputs</h3>
+<dl class="message-properties">
+    <dt>User Payload</dt>
+    <dd>JSON array of messages to enqueue (e.g. <code>[ {...}, {...} ]</code>).</dd>
+    <dt>DB Connection</dt><dd>Database configuration used for authentication</dd>
+    <dt>Queue Name</dt><dd>AQ to enqueue into.</dd>
+    <dt>Recipients</dt><dd>Optional recipients for multi-consumer queues.</dd>
+</dl>
+
+</script>

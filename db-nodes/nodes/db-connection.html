@@ -1,0 +1,218 @@
+<!--
+# Copyright (c) 2024 Oracle and/or its affiliates.
+# The Universal Permissive License (UPL), Version 1.0
+#
+# Subject to the condition set forth below, permission is hereby granted to any
+# person obtaining a copy of this software, associated documentation and/or data
+# (collectively the "Software"), free of charge and under any and all copyright
+# rights in the Software, and any and all patent rights owned or freely
+# licensable by each licensor hereunder covering either (i) the unmodified
+# Software as contributed to or provided by such licensor, or (ii) the Larger
+# Works (as defined below), to deal in both
+#
+# (a) the Software, and
+# (b) any piece of software and/or hardware listed in the
+#     lrgrwrks.txt file if one is included with the Software (each a "Larger
+#     Work" to which the Software is contributed by such licensors),
+#
+# without restriction, including without limitation the rights to copy, create
+# derivative works of, display, perform, and distribute the Software and make,
+# use, sell, offer for sale, import, export, have made, and have sold the
+# Software and the Larger Work(s), and to sublicense the foregoing rights on
+# either these or other terms.
+#
+# This license is subject to the following condition: The above copyright notice
+# and either this complete permission notice or at a minimum a reference to the
+# UPL must be included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("db-connection", {
+    category: "config",
+    color: "#4C825C",
+    defaults: {
+        usePool: { value: false },
+        authType: { value: "" },
+        tnsString: { value: "" },
+        externalAuth: { value: true },
+        scope: { value: "" },
+        configFileLocation: { value: "" },
+        profile: { value: "" },
+        fingerprint: { value: "" },
+        privateKeyLocation: { value: "" },
+        regionId: { value: "" },
+        tenancyOCID: { value: "" },
+        userOCID: { value: "" },
+        poolMin: { value: "" },
+        poolMax: { value: "" },
+        poolIncrement: { value: "" },
+        queueTimeout: { value: "" }
+    },
+    credentials: {
+        username: { type: "text" },
+        password: { type: "password" },
+        passphrase: { type: "password" }
+    },
+    label: function () {
+        return this.tnsString || "DB Connection";
+    },
+    oneditprepare: function () {
+
+        function updateAuthFields() {
+            let type = $("#node-config-input-authType").val();
+            const usePool = $("#node-config-input-usePool").is(":checked");
+
+            // hide all
+            $(".auth-section").hide();
+            $(".external-auth").hide();
+            $(".pool-options").hide();
+
+            if (usePool) $(".pool-options").show();
+            if (type === "basic") $(".auth-basic").show();
+            if (type === "config") $(".auth-config, .external-auth").show();
+            if (type === "instancePrincipal") $(".auth-ip, .external-auth").show();
+            if (type === "simple") $(".auth-simple, .external-auth").show();
+        }
+
+        // run on load
+        updateAuthFields();
+
+        // run when dropdown changes
+        $("#node-config-input-authType").on("change", updateAuthFields);
+        $("#node-config-input-usePool").on("change", updateAuthFields);
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="db-connection">
+
+<!-- AUTH TYPE -->
+<div class="form-row">
+    <label for="node-config-input-authType" style="width:120px;">Auth Type</label>
+
+    <select id="node-config-input-authType" style="width:200px;">
+        <option value="basic">Basic (User/Pass)</option>
+        <option value="config">Config File Auth</option>
+        <option value="instancePrincipal">Instance Principal</option>
+        <option value="simple">Simple Auth</option>
+    </select>
+</div>
+
+<!-- EXTERNAL AUTH -->
+<div class="form-row external-auth">
+    <label for="node-config-input-externalAuth" style="width:120px;">
+        External Auth
+    </label>
+    <input type="checkbox" id="node-config-input-externalAuth" style="margin-left:0; padding-left:0; width:auto;">
+</div>
+
+<!-- POOL SETTINGS -->
+<div class="form-row">
+    <label for="node-config-input-usePool" style="width:120px;">Use Pool</label>
+    <input type="checkbox" id="node-config-input-usePool" style="margin-left:0; width:auto;">
+</div>
+
+<div class="form-row pool-options">
+    <label for="node-config-input-poolMin">Pool Min</label>
+    <input type="text" id="node-config-input-poolMin">
+</div>
+
+<div class="form-row pool-options">
+    <label for="node-config-input-poolMax">Pool Max</label>
+    <input type="text" id="node-config-input-poolMax">
+</div>
+
+<div class="form-row pool-options">
+    <label for="node-config-input-poolIncrement">Pool Increment</label>
+    <input type="text" id="node-config-input-poolIncrement">
+</div>
+
+<div class="form-row pool-options">
+    <label for="node-config-input-queueTimeout">Queue Timeout (ms)</label>
+    <input type="text" id="node-config-input-queueTimeout">
+</div>
+
+<!-- BASIC AUTH -->
+<div class="auth-section auth-basic">
+    <div class="form-row">
+        <label for="node-config-input-username">Username</label>
+        <input type="text" id="node-config-input-username">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-password">Password</label>
+        <input type="password" id="node-config-input-password">
+    </div>
+</div>
+
+<!-- CONFIG FILE AUTH -->
+<div class="auth-section auth-config">
+    <div class="form-row">
+        <label for="node-config-input-configFileLocation">Config File Location</label>
+        <input type="text" id="node-config-input-configFileLocation" placeholder="/home/opc/.oci/config">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-profile">Profile</label>
+        <input type="text" id="node-config-input-profile" placeholder="DEFAULT">
+    </div>
+</div>
+
+<!-- SIMPLE AUTH -->
+<div class="auth-section auth-simple">
+    <div class="form-row">
+        <label for="node-config-input-fingerprint">Fingerprint</label>
+        <input type="text" id="node-config-input-fingerprint">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-privateKeyLocation">Private Key Location</label>
+        <input type="text" id="node-config-input-privateKeyLocation">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-passphrase">Passphrase</label>
+        <input type="password" id="node-config-input-passphrase">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-regionId">Region</label>
+        <input type="password" id="node-config-input-regionId">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-userOCID">User OCID</label>
+        <input type="text" id="node-config-input-userOCID">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-tenancyOCID">Tenancy OCID</label>
+        <input type="text" id="node-config-input-tenancyOCID">
+    </div>
+</div>
+
+<!-- SHARED SCOPE -->
+<div class="auth-section auth-config auth-ip">
+    <div class="form-row">
+        <label for="node-config-input-scope">Scope</label>
+        <input type="text" id="node-config-input-scope">
+    </div>
+</div>
+
+<!-- SHARED TNSSTRING -->
+<div class="auth-section auth-basic auth-config auth-ip auth-simple">
+    <div class="form-row">
+        <label for="node-config-input-tnsString">TNS String</label>
+        <textarea id="node-config-input-tnsString" rows="5" style="width:100%;"></textarea>
+    </div>
+</div>
+
+</script>

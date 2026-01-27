@@ -1,0 +1,126 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("get-organization-id", {
+    category: "oracle fusion scm",
+    paletteLabel: "get organization id",
+    defaults: {
+        name: { value: "" },
+        server: { type: "scm-server", required: true },
+        url: { value: "" },
+        organizationName: { value: "" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#4F7D7B",
+    icon: "font-awesome/fa-search",
+    label: function () {
+        return this.name || "get organization id";
+    },
+    oneditprepare: function () {
+
+        function setDefaultUrl() {
+            const serverNodeId = $("#node-input-server").val();
+            const serverNode = RED.nodes.node(serverNodeId);
+            const urlInput = $("#node-input-url");
+
+            if (serverNode && !urlInput.val()) {
+                const defaultUrl =
+                    `https://${serverNode.hostname}/fscmRestApi/resources/${serverNode.version}/inventoryStagedTransactions/`;
+                urlInput.val(defaultUrl);
+            }
+        }
+
+        setDefaultUrl();
+        
+        $("#node-input-server").on("change", setDefaultUrl);
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="get-organization-id">
+
+    <div class="form-row">
+        <label for="node-input-name">
+            <i class="fa fa-tag"></i> Name
+        </label>
+        
+        <input type="text" id="node-input-name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-server">
+            <i class="fa fa-globe"></i> SCM Server
+        </label>
+
+        <input type="text" id="node-input-server" placeholder="Select SCM Server">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-url">
+            <i class="fa fa-link"></i> URL
+        </label>
+
+        <div style="color:#777; font-size: 0.85em;">
+            Auto-filled from server selection
+        </div>
+
+        <input type="text" id="node-input-url" style="width:100%;">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-organizationName" style="width:140px;">
+            <i class="fa fa-list"></i> Organization Name
+        </label>
+
+        <input type="text" id="node-input-organizationName">
+    </div>
+
+</script>
+
+<script type="text/x-red" data-help-name="get-organization-id">
+<p>Retrieves Organization ID using the configured server and Organization Code.</p>
+
+<h3>Inputs</h3>
+<dl class="message-properties">
+    <dt>SCM Server</dt><dd>SCM configuration used for authentication and server connection.</dd>
+
+    <dt>URL</dt><dd>Auto-populated from the selected SCM Server configuration. Reads from inventoryOrganizations endpoint.</dd>
+
+    <dt>Organization Code</dt><dd>Organization Code used to look up Organization ID.</dd>
+</dl>
+</script>
