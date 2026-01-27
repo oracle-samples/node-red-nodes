@@ -1,0 +1,38 @@
+{
+  "name": "node-red-nodes",
+  "version": "1.0.0",
+  "description": "Node-RED nodes for Oracle Database and Oracle Fusion SCM Functionality",
+  "license": "UPL-1.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "oracledb": "^6.10.0",
+    "axios": "^1.13.2",
+    "https-proxy-agent": "^7.0.6"
+  },
+  "keywords": [
+    "node-red",
+    "oracle",
+    "db",
+    "scm"
+  ],
+  "node-red": {
+    "version": ">=2.0.0",
+    "nodes": {
+      "db-connection": "db-nodes/nodes/db-connection.js",
+      "dequeue": "db-nodes/nodes/dequeue.js",
+      "enqueue": "db-nodes/nodes/enqueue.js",
+      "sql": "db-nodes/nodes/sql.js",
+
+      "scm-server": "fusion-scm-nodes/nodes/scm-server.js",
+      "create-meter-reading": "fusion-scm-nodes/nodes/create-meter-reading.js",
+      "create-asset": "fusion-scm-nodes/nodes/create-asset.js",
+      "misc-transaction": "fusion-scm-nodes/nodes/misc-transaction.js",
+      "subinventory-quantity-transfer": "fusion-scm-nodes/nodes/subinventory-quantity-transfer.js",
+      "get-meter-reading": "fusion-scm-nodes/nodes/get-meter-reading.js",
+      "get-organization-id": "fusion-scm-nodes/nodes/get-organization-id.js",
+      "get-ib-asset": "fusion-scm-nodes/nodes/get-ib-asset.js"
+    }
+  }
+}

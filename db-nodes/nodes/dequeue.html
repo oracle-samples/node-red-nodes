@@ -1,0 +1,163 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("dequeue", {
+    category: "oracledb",
+    paletteLabel: "dequeue",
+    defaults: {
+        name: { value: "" },
+        connection: { type: "db-connection", required: true },
+        queueName: { value: "" },
+        subscriber: { value: "" },
+        wait: { value: 0 },
+        waitForever: { value: false },
+        batchSize: { value: 1 }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#4C825C",
+    icon: "font-awesome/fa-arrow-down",
+    align: "right",
+    label: function () {
+        return this.name || "dequeue";
+    },
+    oneditprepare: function () {
+        const waitField = document.getElementById("node-input-wait");
+        const waitForeverBox = document.getElementById("node-config-input-waitForever");
+
+        waitField.disabled = waitForeverBox.checked;
+
+        waitForeverBox.addEventListener("change", function () {
+            waitField.disabled = this.checked;
+        });
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="dequeue">
+    <div class="form-row">
+        <label for="node-input-name" style="width:auto">
+            <i class="fa fa-tag"></i> Name
+        </label>
+
+        <input type="text" id="node-input-name">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-connection" style="width:auto">
+            <i class="fa fa-globe"></i> DB Connection
+        </label>
+
+        <input type="text" id="node-input-connection" placeholder="Select DB Connection" />
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-queueName" style="width:auto">
+            <i class="fa fa-list-ul"></i> Queue Name
+        </label>
+
+        <input type="text" id="node-input-queueName">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-subscriber" style="width:auto">
+            <i class="fa fa-list-ul"></i> Subscriber
+        </label>
+        
+        <input type="text" id="node-input-subscriber">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-config-input-waitForever" style="width:160px;">
+            <i class="fa fa-hourglass"></i> Block Indefinitely
+        </label>
+
+        <input 
+            type="checkbox" 
+            id="node-config-input-waitForever" 
+            style="margin-left:0; width:auto;"
+        />
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-wait" style="width:auto">
+            <i class="fa fa-sort-numeric-asc"></i> Blocking Time (seconds)
+        </label>
+
+        <input 
+            type="number" 
+            id="node-input-wait" 
+            min="1" 
+            step="1" 
+            value="1"
+            style="width:80px;"
+        />
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-batchSize" style="width:auto">
+            <i class="fa fa-sort-numeric-asc"></i> Batch Size (messages)
+        </label>
+        <input 
+            type="number" 
+            id="node-input-batchSize" 
+            min="1" 
+            step="1" 
+            value="1"
+            style="width:80px"
+        />
+    </div>
+    
+</script>
+
+
+<script type="text/x-red" data-help-name="dequeue">
+<p>Retrieves messages from an Oracle AQ. 
+    Stores results in <code>msg.dequeued</code> 
+    and <code>msg.payload</code> so they can be referenced in other nodes.
+</p>
+
+<h3>Inputs</h3>
+<dl class="message-properties">
+  <dt>DB Connection</dt><dd>Database configuration used for authentication.</dd>
+  <dt>Queue Name</dt><dd>AQ to dequeue from.</dd>
+  <dt>Subscriber</dt><dd>Optional consumer name for multi-consumer queues.</dd>
+  <dt>Block Indefinitely</dt><dd>Waits indefinitely for messages.</dd>
+  <dt>Blocking Time</dt><dd>Timeout if not blocking indefinitely.</dd>
+  <dt>Batch Size</dt><dd>Number of messages to retrieve.</dd>
+</dl>
+</script>

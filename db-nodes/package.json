@@ -1,0 +1,26 @@
+{
+  "name": "db-nodes",
+  "version": "1.0.0",
+  "description": "Node-RED nodes for Oracle Database Functionality",
+  "license": "UPL-1.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "oracledb": "^6.10.0"
+  },
+  "keywords": [
+    "node-red",
+    "oracle",
+    "db"
+  ],
+  "node-red": {
+    "version": ">=2.0.0",
+    "nodes": {
+      "db-connection": "nodes/db-connection.js",
+      "dequeue": "nodes/dequeue.js",
+      "enqueue": "nodes/enqueue.js",
+      "sql": "nodes/sql.js"
+    }
+  }
+}

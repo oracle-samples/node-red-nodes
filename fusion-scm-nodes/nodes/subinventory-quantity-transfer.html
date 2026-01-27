@@ -1,0 +1,139 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("subinventory-quantity-transfer", {
+    category: "oracle fusion scm",
+    paletteLabel: "subinventory quantity transfer",
+    defaults: {
+        name: { value: "" },
+        server: { type: "scm-server", required: true },
+        url: { value: ""},
+        mappings: { value: "SourceCode: <set_value>\n\TransactionMode: <set_value>\n\SourceHeaderId: <set_value>\n\SourceLineId: <set_value>\n\UseCurrentCostFlag: <set_value>\n\TransactionTypeName: <set_value>\n\OrganizationId: <set_value>\n\ItemNumber: <set_value>\n\TransactionQuantity: <set_value>\n\TransactionUOM: <set_value>\n\TransactionUnitOfMeasure: <set_value>\n\TransactionDate: <set_value>\n\SubinventoryCode: <set_value>\n\ProcessStatus: <set_value>" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#4F7D7B",
+    icon: "font-awesome/fa-exchange",
+    label: function () {
+        return this.name || "subinventory quantity transfer";
+    },
+    oneditprepare: function () {
+
+        function setDefaultUrl() {
+            const serverNodeId = $("#node-input-server").val();
+            const serverNode = RED.nodes.node(serverNodeId);
+            const urlInput = $("#node-input-url");
+
+            if (serverNode && !urlInput.val()) {
+                const defaultUrl =
+                    `https://${serverNode.hostname}/fscmRestApi/resources/${serverNode.version}/inventoryStagedTransactions/`;
+                urlInput.val(defaultUrl);
+            }
+        }
+
+        setDefaultUrl();
+
+        $("#node-input-server").on("change", setDefaultUrl);
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="subinventory-quantity-transfer">
+    <div class="form-row">
+        <label for="node-input-name" style="width:auto">
+            <i class="fa fa-tag"></i> Name
+        </label>
+
+        <input type="text" id="node-input-name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-server" style="width:auto">
+            <i class="fa fa-globe"></i> SCM Server
+        </label>
+
+        <input type="text" id="node-input-server" placeholder="Select SCM Server" />
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-url" style="width:auto">
+            <i class="fa fa-link"></i> URL
+        </label>
+
+        <div style="color:#777; font-size: 0.85em;">
+            Auto-filled from server selection
+        </div>
+
+        <input type="text" id="node-input-url" style="width:100%;">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-mappings" style="width:auto">
+            <i class="fa fa-list-ul"></i> Payload Mappings
+        </label>
+
+    <div style="color:#777; font-size: 0.85em;">
+        <b>Format: key: value</b><br>
+        - value may be a field from dequeued data (ItemNumber: msg.dequeued.ItemNumber)<br>
+        - or a manually entered value (ItemNumber: 100100100)
+    </div>
+
+        <textarea id="node-input-mappings" style="width:100%; height:300px;"></textarea>
+    </div>
+
+</script>
+
+
+<script type="text/x-red" data-help-name="subinventory-quantity-transfer">
+<p>
+Creates a Subinventory Transfer in SCM.
+Moves inventory quantity from one subinventory to another within an organization.
+</p>
+
+<h3>Inputs</h3>
+
+<dl class="message-properties">
+    <dt>SCM Server</dt>
+    <dd>SCM configuration used for authentication.</dd>
+
+    <dt>URL</dt>
+    <dd>Auto-populated from SCM configuration fields. Inventory Staged Transactions endpoint.</dd>
+
+    <dt>Payload Mappings</dt>
+    <dd>Requires key: value format. Value may be a field from dequeued data  (e.g. <code>ItemNumber: msg.dequeued.ItemNumber</code>) or manually entered value.</dd>
+</dl>
+</script>

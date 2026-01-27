@@ -1,0 +1,174 @@
+[
+    {
+        "id": "e6f1d4553b898963",
+        "type": "tab",
+        "label": "SQL →  Enqueue →  Dequeue → If Not Found, Create Subscriber Example",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "2e498247dd561634",
+        "type": "sql",
+        "z": "e6f1d4553b898963",
+        "name": "",
+        "connection": "648c32eae9b1e56e",
+        "sqlcmd": "SELECT *\nFROM ALL_QUEUE_SUBSCRIBERS\nWHERE QUEUE_NAME = 'JSON_QUEUE'\nAND CONSUMER_NAME = 'MY_DEVICE';",
+        "maxrows": 1000,
+        "binds": "",
+        "x": 270,
+        "y": 100,
+        "wires": [
+            [
+                "8030254eb9bc1125"
+            ]
+        ]
+    },
+    {
+        "id": "ae056cc7dbd0af1a",
+        "type": "sql",
+        "z": "e6f1d4553b898963",
+        "name": "create subscriber",
+        "connection": "648c32eae9b1e56e",
+        "sqlcmd": "BEGIN \nDBMS_AQADM.ADD_SUBSCRIBER( queue_name => 'JSON_QUEUE', \nsubscriber => SYS.AQ$_AGENT('MY_DEVICE', NULL, NULL), \nrule => q'[ JSON_VALUE(tab.user_data, '$.endpoint') = 'iot/v1/device/credentials/request/MY-DEVICE' ]' ); \nEND; ",
+        "maxrows": 1000,
+        "binds": "",
+        "x": 630,
+        "y": 60,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d04f8b2bed3f8637",
+        "type": "enqueue",
+        "z": "e6f1d4553b898963",
+        "name": "",
+        "connection": "648c32eae9b1e56e",
+        "queueName": "JSON_QUEUE",
+        "recipients": "",
+        "userPayload": "[\n{\n  \"endpoint\": \"iot/v1/device/credentials/request/MY-DEVICE\",\n  \"data\": {\n    \"source\": \"test_data\"}\n}\n]",
+        "x": 600,
+        "y": 140,
+        "wires": [
+            [
+                "9b86a68426f36041"
+            ]
+        ]
+    },
+    {
+        "id": "9b86a68426f36041",
+        "type": "dequeue",
+        "z": "e6f1d4553b898963",
+        "name": "",
+        "connection": "648c32eae9b1e56e",
+        "queueName": "JSON_QUEUE",
+        "subscriber": "MY_DEVICE",
+        "wait": 0,
+        "waitForever": false,
+        "batchSize": 1,
+        "x": 780,
+        "y": 140,
+        "wires": [
+            [
+                "f1df839030440931"
+            ]
+        ]
+    },
+    {
+        "id": "8030254eb9bc1125",
+        "type": "switch",
+        "z": "e6f1d4553b898963",
+        "name": "",
+        "property": "payload.length",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "0",
+                "vt": "str"
+            },
+            {
+                "t": "gt",
+                "v": "0",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 430,
+        "y": 100,
+        "wires": [
+            [
+                "ae056cc7dbd0af1a"
+            ],
+            [
+                "d04f8b2bed3f8637"
+            ]
+        ]
+    },
+    {
+        "id": "f1df839030440931",
+        "type": "debug",
+        "z": "e6f1d4553b898963",
+        "name": "debug 50",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 960,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "0ace44e68e4722f4",
+        "type": "inject",
+        "z": "e6f1d4553b898963",
+        "name": "",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 110,
+        "y": 100,
+        "wires": [
+            [
+                "2e498247dd561634"
+            ]
+        ]
+    },
+    {
+        "id": "648c32eae9b1e56e",
+        "type": "db-connection",
+        "usePool": false,
+        "authType": "config",
+        "tnsString": "",
+        "externalAuth": true,
+        "scope": "",
+        "configFileLocation": "~/.oci/config",
+        "profile": "DEFAULT",
+        "fingerprint": "",
+        "privateKeyLocation": "",
+        "tenancyOCID": "",
+        "userOCID": "",
+        "poolMin": "",
+        "poolMax": "",
+        "poolIncrement": "",
+        "queueTimeout": ""
+    },
+    {
+        "id": "98fa68d02c51061f",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-db-nodes": "1.0.0"
+        }
+    }
+]

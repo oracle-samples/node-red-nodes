@@ -1,0 +1,237 @@
+[
+    {
+        "id": "4e260a9ffc513bbc",
+        "type": "tab",
+        "label": "Enqueue → Dequeue → Create Meter Reading → If Not Found, Create Asset Example",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "aa55ced4ff253edc",
+        "type": "debug",
+        "z": "4e260a9ffc513bbc",
+        "name": "debug 38",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 920,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "e477e4fc008cd7c3",
+        "type": "switch",
+        "z": "4e260a9ffc513bbc",
+        "name": "",
+        "property": "statusCode",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "201",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 730,
+        "y": 180,
+        "wires": [
+            [
+                "aa55ced4ff253edc"
+            ],
+            [
+                "7f4c054cb12baeb6"
+            ]
+        ]
+    },
+    {
+        "id": "2fbc8e32c898d5b4",
+        "type": "create-meter-reading",
+        "z": "4e260a9ffc513bbc",
+        "name": "",
+        "server": "a6349301075ee7ed",
+        "url": "",
+        "mappings": "AssetNumber: msg.dequeued.AssetNumber\nMeterCode: msg.dequeued.MeterCode\nReadingDate: msg.dequeued.ReadingDate\nMeterUsageCode: msg.dequeued.MeterUsageCode\nReadingValue: msg.dequeued.ReadingValue\nComments: msg.dequeued.Comments",
+        "x": 520,
+        "y": 180,
+        "wires": [
+            [
+                "e477e4fc008cd7c3"
+            ]
+        ]
+    },
+    {
+        "id": "7f4c054cb12baeb6",
+        "type": "create-asset",
+        "z": "4e260a9ffc513bbc",
+        "name": "",
+        "server": "a6349301075ee7ed",
+        "url": "",
+        "mappings": "AssetNumber: msg.dequeued.AssetNumber\nDescription: msg.dequeued.Description\nItemNumber: msg.dequeued.ItemNumber\nOperatingOrganizationCode: msg.dequeued.OperatingOrganizationCode\nCurrentLocationContextCode: msg.dequeued.CurrentLocationContextCode\nQuantity: msg.dequeued.Quantity\nMaintainableFlag: msg.dequeued.MaintainableFlag\nNewWoAllowedFlag: msg.dequeued.NewWoAllowedFlag",
+        "x": 930,
+        "y": 220,
+        "wires": [
+            [
+                "171a8087dc2577db"
+            ]
+        ]
+    },
+    {
+        "id": "47f2b87d6f2294d2",
+        "type": "dequeue",
+        "z": "4e260a9ffc513bbc",
+        "name": "",
+        "connection": "648c32eae9b1e56e",
+        "queueName": "JSON_QUEUE",
+        "subscriber": "ConsumerA",
+        "wait": 0,
+        "waitForever": false,
+        "batchSize": 1,
+        "x": 300,
+        "y": 180,
+        "wires": [
+            [
+                "2fbc8e32c898d5b4"
+            ]
+        ]
+    },
+    {
+        "id": "171a8087dc2577db",
+        "type": "debug",
+        "z": "4e260a9ffc513bbc",
+        "name": "debug 37",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1120,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "bfc9433bf1d28b4c",
+        "type": "inject",
+        "z": "4e260a9ffc513bbc",
+        "name": "",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 130,
+        "y": 100,
+        "wires": [
+            [
+                "a9ea2c8a7ddc0ee2"
+            ]
+        ]
+    },
+    {
+        "id": "b31d3d2b99d0b5d0",
+        "type": "debug",
+        "z": "4e260a9ffc513bbc",
+        "name": "debug 36",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 480,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "ea41120b5e0c138c",
+        "type": "inject",
+        "z": "4e260a9ffc513bbc",
+        "name": "",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 130,
+        "y": 180,
+        "wires": [
+            [
+                "47f2b87d6f2294d2"
+            ]
+        ]
+    },
+    {
+        "id": "a9ea2c8a7ddc0ee2",
+        "type": "enqueue",
+        "z": "4e260a9ffc513bbc",
+        "name": "",
+        "connection": "648c32eae9b1e56e",
+        "queueName": "JSON_QUEUE",
+        "recipients": "",
+        "userPayload": "[\n  {\n    \"AssetNumber\": <set_data>,\n    \"MeterCode\": <set_data>,\n    \"ReadingDate\": <set_data>,\n    \"MeterUsageCode\": <set_data>,\n    \"ReadingValue\": <set_data>,\n    \"Comments\": <set_data>,\n    \"Description\": <set_data>,\n    \"ItemNumber\": <set_data>,\n    \"OperatingOrganizationCode\": <set_data>,\n    \"CurrentLocationContextCode\": <set_data>,\n    \"Quantity\": <set_data>,\n    \"MaintainableFlag\": <set_data>,\n    \"NewWoAllowedFlag\": <set_data>\n  }\n]\n",
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "b31d3d2b99d0b5d0"
+            ]
+        ]
+    },
+    {
+        "id": "a6349301075ee7ed",
+        "type": "scm-server",
+        "tokenUrl": "",
+        "hostname": "",
+        "version": "",
+        "scope": "",
+        "proxyUrl": "",
+        "useProxy": false,
+        "tokenExpiryMins": ""
+    },
+    {
+        "id": "648c32eae9b1e56e",
+        "type": "db-connection",
+        "usePool": false,
+        "authType": "config",
+        "tnsString": "",
+        "externalAuth": true,
+        "scope": "",
+        "configFileLocation": "~/.oci/config",
+        "profile": "DEFAULT",
+        "fingerprint": "",
+        "privateKeyLocation": "",
+        "tenancyOCID": "",
+        "userOCID": "",
+        "poolMin": "",
+        "poolMax": "",
+        "poolIncrement": "",
+        "queueTimeout": ""
+    },
+    {
+        "id": "2a18a0ea2665b565",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-scm-nodes": "1.0.0",
+            "node-red-db-nodes": "1.0.0"
+        }
+    }
+]
