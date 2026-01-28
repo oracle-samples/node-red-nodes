@@ -77,7 +77,7 @@ npm install https-proxy-agent
 ```bash
 sudo dnf install oracle-instantclient-release-el8
 sudo dnf install oracle-instantclient-basic
-sudo dnf install oracle-instantclient-sqlplust
+sudo dnf install oracle-instantclient-sqlplus
 ```
 
 > **NOTE**: Oracle Linux typically installs Instant Client into the correct directory by default. If your system installs it elsewhere, make sure the directory follows this pattern:
