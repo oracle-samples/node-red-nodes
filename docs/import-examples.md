@@ -1,6 +1,6 @@
 # Import Examples into Node-RED
 
-This guide explains how to import the repository’s [db-nodes example](./db-nodes/examples/sql-enqueue-dequeue.json) and [fusion-scm-nodes example](./fusion-scm-nodes/examples/scm-meter-reading-asset-fallback.json) flows using the Node-RED editor.
+This guide explains how to import the repository’s [db-nodes example](../db-nodes/examples/sql-enqueue-dequeue.json) and [fusion-scm-nodes example](../fusion-scm-nodes/examples/scm-meter-reading-asset-fallback.json) flows using the Node-RED editor.
 
 ## Import a JSON flow using the Node-RED editor
 
