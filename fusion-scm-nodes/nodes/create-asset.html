@@ -60,7 +60,7 @@ RED.nodes.registerType("create-asset", {
 
             if (serverNode && !urlInput.val()) {
                 const defaultUrl =
-                    `https://${serverNode.hostname}/fscmRestApi/resources/${serverNode.version}/inventoryStagedTransactions/`;
+                    `https://${serverNode.hostname}/fscmRestApi/resources/${serverNode.version}/installedBaseAssets/`;
                 urlInput.val(defaultUrl);
             }
         }
