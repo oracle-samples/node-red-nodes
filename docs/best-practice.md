@@ -2,8 +2,6 @@
 
 This guide covers best practices for securely executing operations with these custom Node-RED nodes.
 
----
-
 ## Transactional Dequeue Processing
 
 For reliable message processing where failed operations return messages to the queue, use the begin/end transaction pattern:
@@ -16,8 +14,6 @@ Messages stay locked on the queue until end-transaction commits. If the flow fai
 
 **Standalone mode:** Dequeue can run without transaction nodes for simple use cases, but messages are auto-committed on dequeue and cannot be rolled back on downstream failure.
 
----
-
 ## Safe SQL Execution (SQL Node)
 
 1. Always use bind variables instead of string concatenation to prevent SQL injection
@@ -28,8 +24,6 @@ Messages stay locked on the queue until end-transaction commits. If the flow fai
 **autoCommit behavior:** The SQL node uses `autoCommit: false`. SELECT queries work as expected, but DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. For DML, use a PL/SQL block with an explicit `COMMIT`, or use begin/end transaction nodes.
 
 **Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message at runtime. Validate the source of `msg.sql` to avoid executing untrusted SQL.
-
----
 
 ## SCM Payload Mappings
 
@@ -48,13 +42,9 @@ All SCM transaction nodes use structured mapping rows with three source types:
 - Rows can be reordered by dragging — put the most important fields at the top for readability
 - Remove unused default rows to keep the mapping clean
 
----
-
 ## URL Override
 
 All SCM nodes auto-compute the endpoint URL from the scm-server hostname and version. If you need to target a different endpoint (e.g. a sandbox environment or custom REST resource), check the **Override URL** checkbox and provide the full URL.
-
----
 
 ## Connection Pool Recommendations
 

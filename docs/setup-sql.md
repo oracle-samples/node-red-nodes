@@ -12,8 +12,6 @@ In this guide you will:
 >
 > **Important:** Subscribers are case-sensitive!
 
----
-
 ## Creating a multi-consumer queue and subscriber
 
 ### Step 1 — Create a queue table and queue
@@ -39,8 +37,6 @@ BEGIN
 END;
 /
 ```
-
----
 
 ### Step 2 — Create subscriber
 
@@ -74,7 +70,6 @@ BEGIN
 END;
 /
 ```
----
 
 ### Step 3 - How to use these in Node-RED nodes
 

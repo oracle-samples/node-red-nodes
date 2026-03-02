@@ -2,16 +2,12 @@
 
 This guide includes all installation steps and verification steps.
 
----
-
 ## Prerequisites
 
 - Node-RED (v3.0+)
 - Node.js (v18+)
 - npm (comes with Node.js)
 - Oracle Instant Client 23c
-
----
 
 ## 1.1 Clone the Repository
 
@@ -31,8 +27,6 @@ git clone git@github.com:oracle-samples/node-red-nodes.git
 ```bash
 gh repo clone oracle-samples/node-red-nodes
 ```
-
----
 
 ## 1.2 Install Dependencies
 
@@ -54,7 +48,6 @@ sudo dnf install oracle-instantclient-sqlplus
 ```
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
----
 
 ## 1.3 Private Subnet Installation (Proxy + Registry Setup)
 
@@ -78,8 +71,6 @@ Configure npm proxy:
 npm config set proxy http://user-proxy-host:port
 npm config set https-proxy http://user-proxy-host:port
 ```
-
----
 
 ## 1.4 Verify Installation
 
