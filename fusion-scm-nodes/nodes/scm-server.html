@@ -33,102 +33,81 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
 -->
-
+ 
 <script type="text/javascript">
 RED.nodes.registerType("scm-server", {
     color: "#4F7D7B",
     category: "config",
     defaults: {
-        tokenUrl: { value: "" },
         hostname: { value: "" },
         version: { value: "" },
-        scope: {value: ""},
+        tokenUrl: { value: "" },
+        scope: { value: "" },
         proxyUrl: { value: "" },
         useProxy: { value: false },
-        tokenExpiryMins: { value: "" }
+        tokenExpiryMins: { value: 60 }
     },
     credentials: {
-        username:     { type: "text" },
+        username: { type: "text" },
         password: { type: "password" }
     },
     label: function() {
         return this.hostname || "SCM Server";
     },
     oneditprepare: function() {
-
         function toggleProxy() {
-            const useProxy = $("#node-config-input-useProxy").is(":checked");
-
-            if (useProxy) {
-                $("#proxy-row").show();
-            } else {
-                $("#proxy-row").hide();
-            }
+            var show = $("#node-config-input-useProxy").is(":checked");
+            $("#proxy-row").toggle(show);
         }
-
-        // initialize state
         toggleProxy();
-
-        // toggle on checkbox change
         $("#node-config-input-useProxy").on("change", toggleProxy);
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="scm-server">
-
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
     <div class="form-row">
-        <label for="node-config-input-username">Username</label>
-
-        <input type="text" id="node-config-input-username"></input>
+        <label for="node-config-input-hostname"><i class="fa fa-server"></i> Hostname</label>
+        <input type="text" id="node-config-input-hostname">
     </div>
-
     <div class="form-row">
-        <label for="node-config-input-password">Password</label>
-
-        <input type="password" id="node-config-input-password"></input>
+        <label for="node-config-input-version"><i class="fa fa-code-fork"></i> API Version</label>
+        <input type="text" id="node-config-input-version" placeholder="e.g. 11.13.18.05">
     </div>
+    </fieldset>
 
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
     <div class="form-row">
-        <label for="node-config-input-scope">Scope</label>
-
+        <label for="node-config-input-username"><i class="fa fa-user"></i> Client ID</label>
+        <input type="text" id="node-config-input-username">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-password"><i class="fa fa-key"></i> Client Secret</label>
+        <input type="password" id="node-config-input-password">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-tokenUrl"><i class="fa fa-link"></i> Token URL</label>
+        <input type="text" id="node-config-input-tokenUrl">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-scope"><i class="fa fa-shield"></i> Scope</label>
         <input type="text" id="node-config-input-scope">
     </div>
-
     <div class="form-row">
-        <label for="node-config-input-tokenUrl">Token URL</label>
-
-        <input type="text" id="node-config-input-tokenUrl"></input>
+        <label for="node-config-input-tokenExpiryMins"><i class="fa fa-clock-o"></i> Token Expiry (min)</label>
+        <input type="number" id="node-config-input-tokenExpiryMins" value="60" min="1" style="width:80px;">
     </div>
+    </fieldset>
 
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Network</legend>
     <div class="form-row">
-        <label for="node-config-input-hostname">Hostname</label>
-
-        <input type="text" id="node-config-input-hostname"></input>
+        <label for="node-config-input-useProxy" style="width:120px;"><i class="fa fa-exchange"></i> Use Proxy</label>
+        <input type="checkbox" id="node-config-input-useProxy" style="margin-left:0;width:auto;">
     </div>
-
-    <div class="form-row">
-        <label for="node-config-input-version">Version</label>
-        
-        <input type="text" id="node-config-input-version" placeholder="11.13.18.05">
-        </input>
-    </div>
-
-    <div class="form-row">
-        <label for="node-config-input-tokenExpiryMins">Token Expiry (minutes)</label>
-        <input type="number" id="node-config-input-tokenExpiryMins" placeholder="Default: 60">
-    </div>
-
-    <div class="form-row">
-        <label for="node-config-input-useProxy" style="width:120px;">Use Proxy</label>
-
-        <input type="checkbox" id="node-config-input-useProxy" style="margin-left:0; width:auto;">
-    </div>
-
     <div class="form-row" id="proxy-row">
-        <label for="node-config-input-proxyUrl">Proxy URL</label>
-
-        <input type="text" id="node-config-input-proxyUrl">
+        <label for="node-config-input-proxyUrl"><i class="fa fa-globe"></i> Proxy URL</label>
+        <input type="text" id="node-config-input-proxyUrl" placeholder="http://proxy.example.com:80">
     </div>
-
+    </fieldset>
 </script>

@@ -1,6 +1,6 @@
 {
   "name": "db-nodes",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "Node-RED nodes for Oracle Database Functionality",
   "license": "UPL-1.0",
   "engines": {
@@ -20,7 +20,9 @@
       "db-connection": "nodes/db-connection.js",
       "dequeue": "nodes/dequeue.js",
       "enqueue": "nodes/enqueue.js",
-      "sql": "nodes/sql.js"
+      "sql": "nodes/sql.js",
+      "begin-transaction": "nodes/begon-transaction.js",
+      "end-transaction": "nodes/end-transaction.js"
     }
   }
 }

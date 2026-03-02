@@ -37,80 +37,35 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps } = require("../lib/url.js")
-    
+    const { ensureHttps } = require("../lib/url.js");
+
     function CreateMeterReading(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        // convert text to key:path format
-        node.mappings = (config.mappings || "")
-            .split("\n")
-            .map(line => {
-                const [key, value] = line.split(":");
-                return { 
-                    key: key?.trim(), 
-                    inputValue: value?.trim()};
-            })
-            .filter(m => m.key && m.inputValue); // filter by valid inputs
-        
-        // attach server config node
+
         node.server = RED.nodes.getNode(config.server);
         if (!node.server) {
             node.status({ fill: "red", shape: "ring", text: "No SCM server" });
             node.error("No SCM Server configured");
             return;
         }
-        
-        // retrieve proxy settings from SCM server config node
-        const proxyUrl = node.server.proxyUrl;
-        const useProxy = node.server.useProxy;
 
-        let proxyAgent = null;
-        if (proxyUrl && useProxy) {
-            proxyAgent = new HttpsProxyAgent(proxyUrl);
-        } 
+        const mappings = parseMappings(config.mappings);
+        const proxyAgent = buildProxyAgent(node.server);
 
-        node.on("input", async(msg, send, done) => {
+        node.on("input", async (msg, send, done) => {
             try {
-                node.status({ fill: "yellow", shape: "dot", text: "retrieving token…" });
-                // get token from server config
+                node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                //build url using hostname and version stored in server
-                const url = config.url;
-                if (!config.url) {
-                    node.status({ fill: "red", shape: "ring", text: "Missing URL" });
-                    node.error("SCM Create Meter Reading: No URL provided");
-                    return;
-                }
+                const url = config.urlOverride || node.server.buildUrl("meterReadings");
+                ensureHttps(url);
 
-                //build payload
-                let payload = {};
+                const payload = resolvePayload(mappings, msg, RED);
 
-                for (const m of node.mappings) {
-                    const input = m.inputValue;
-
-                    if (input.startsWith("msg.")) {
-                        payload[m.key] = RED.util.getMessageProperty(msg,input.slice(4));
-                    } else {
-                        payload[m.key] = input;
-                    }
-                };
-
-                // ensure https urls only
-                try {
-                    ensureHttps(url);
-                } catch (err) {
-                    node.status({ fill: "red", shape: "ring", text: err.message });
-                    node.error(err.message)
-                    return done(err);
-                }
-
-                node.status({ fill: "yellow", shape: "dot", text: "updating…" });    
-
-                // POST with axios
+                node.status({ fill: "yellow", shape: "dot", text: "creating..." });
                 const response = await axios.post(url, payload, {
-                    httpAgent: proxyAgent || undefined,
+                    httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -120,23 +75,51 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-
-                node.status({ fill: "green", shape: "dot", text: "updated" });
-                send(msg)
+                node.status({ fill: "green", shape: "dot", text: "created" });
+                send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "Error" });
-
-                msg.error = err.message || err.toString();
-                msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || err.message;
-
-                node.error(msg.error, msg);
-                send(msg);
-                done(err);
+                handleError(node, msg, err, send, done);
             }
         });
-    }   
+    }
 
-    RED.nodes.registerType("create-meter-reading", CreateMeterReading)
+    function parseMappings(raw) {
+        if (Array.isArray(raw)) return raw;
+        try { return JSON.parse(raw); } catch(e) { return []; }
+    }
+
+    function resolvePayload(mappings, msg, RED) {
+        const payload = {};
+        for (const m of mappings) {
+            if (!m.scmField) continue;
+            if (m.sourceType === "dequeued") {
+                payload[m.scmField] = RED.util.getMessageProperty(msg, "dequeued." + (m.value || ""));
+            } else if (m.sourceType === "msg") {
+                payload[m.scmField] = RED.util.getMessageProperty(msg, m.value || "");
+            } else {
+                payload[m.scmField] = m.value || "";
+            }
+        }
+        return payload;
+    }
+
+    function buildProxyAgent(server) {
+        if (server.proxyUrl && server.useProxy) {
+            return new HttpsProxyAgent(server.proxyUrl);
+        }
+        return null;
+    }
+
+    function handleError(node, msg, err, send, done) {
+        node.status({ fill: "red", shape: "dot", text: "failed" });
+        msg.error = err.message || err.toString();
+        msg.statusCode = err.response?.status || 0;
+        msg.payload = err.response?.data || msg.error;
+        node.error(msg.error, msg);
+        send(msg);
+        done(err);
+    }
+
+    RED.nodes.registerType("create-meter-reading", CreateMeterReading);
 };

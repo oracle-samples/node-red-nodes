@@ -41,11 +41,11 @@ module.exports = function (RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        node.sqlcmd   = config.sqlcmd || "";
-        node.maxrows  = Number(config.maxrows) || 1000;
+        node.sqlSource = config.sqlSource || "editor";
+        node.sqlcmd = config.sqlcmd || "";
+        node.maxrows = Number(config.maxrows) || 1000;
         node.binds = config.binds || "";
 
-        // Get the shared db-connection config node
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
             node.status({ fill: "red", shape: "dot", text: "No DB connection" });
@@ -55,66 +55,59 @@ module.exports = function (RED) {
 
         node.on("input", async (msg, send, done) => {
             let connection;
-            let sql;
-            let binds;
-            let maxRows = node.maxrows;
 
             try {
-                node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
-
-                if (!node.sqlcmd) {
-                    node.status({ fill: "red", shape: "dot", text: "No SQL provided" });
-                    msg.error = "No SQL statement provided";
-                    send(msg);
-                    return done();
-                }
-
-                sql = node.sqlcmd.trim();
-
-                if (node.binds) {
-                    try {
-                        binds = JSON.parse(node.binds);
-                    } catch (err) {
-                        node.status({ fill: "red", shape: "dot", text: "Invalid binds" });
-                        msg.error = "Invalid binds: " + err;
-                        node.error(err, msg);
+                // Resolve SQL from editor or msg.sql
+                let sql;
+                if (node.sqlSource === "msg") {
+                    sql = msg.sql;
+                    if (!sql || typeof sql !== "string") {
+                        node.status({ fill: "red", shape: "dot", text: "No msg.sql" });
+                        const err = new Error("SQL Source is set to msg.sql but msg.sql is empty or not a string");
+                        node.error(err.message, msg);
                         return done(err);
                     }
                 } else {
-                    binds = [];
+                    sql = node.sqlcmd;
+                    if (!sql) {
+                        node.status({ fill: "red", shape: "dot", text: "No SQL provided" });
+                        const err = new Error("No SQL statement provided");
+                        node.error(err.message, msg);
+                        return done(err);
+                    }
                 }
-                
-                // cap maxRows to 1000
-                if (maxRows > 1000) maxRows = 1000;
+                sql = sql.trim();
 
-                // execute options
+                let binds = [];
+                if (node.binds) {
+                    try {
+                        binds = JSON.parse(node.binds);
+                    } catch (parseErr) {
+                        node.status({ fill: "red", shape: "dot", text: "invalid binds" });
+                        node.error("Invalid binds: " + parseErr.message, msg);
+                        return done(parseErr);
+                    }
+                }
+
+                let maxRows = node.maxrows;
+                if (maxRows > 10000) maxRows = 10000;
+
                 const options = {
                     autoCommit: false,
                     outFormat: oracledb.OUT_FORMAT_OBJECT,
                     maxRows: maxRows
                 };
-                
-                try {
-                    connection = await node.connection.getConnection();
-                } catch (err) {
-                    node.status({ fill: "red", shape: "ring", text: "DB connect failed" });
-                    node.error(err, msg);
-                    return done(err);
-                }
+
+                node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
+                connection = await node.connection.getConnection();
 
                 node.status({ fill: "yellow", shape: "dot", text: "executing..." });
-                
                 const res = await connection.execute(sql, binds, options);
                 const rows = res.rows || [];
-                
+
                 node.status({ fill: "green", shape: "dot", text: `rows: ${rows.length}` });
-
-                send({
-                    payload: rows,
-                    result: rows
-                });
+                send({ ...msg, payload: rows, result: rows });
                 done();
-
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "error" });
                 msg.error = { message: err.message, code: err.errorNum || null };
@@ -123,10 +116,8 @@ module.exports = function (RED) {
                 done(err);
             } finally {
                 if (connection) {
-                    try {
-                        await connection.close();
-                    } catch (err) {
-                        node.warn("Error closing connection: " + err.message);
+                    try { await connection.close(); } catch (e) {
+                        node.warn("Error closing connection: " + e.message);
                     }
                 }
             }

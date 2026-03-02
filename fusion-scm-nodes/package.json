@@ -1,6 +1,6 @@
 {
   "name": "fusion-scm-nodes",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "Node-RED nodes for Oracle Fusion SCM",
   "license": "UPL-1.0",
   "engines": {
@@ -25,7 +25,11 @@
       "subinventory-quantity-transfer": "nodes/subinventory-quantity-transfer.js",
       "get-meter-reading": "nodes/get-meter-reading.js",
       "get-organization-id": "nodes/get-organization-id.js",
-      "get-ib-asset": "nodes/get-ib-asset.js"
+      "get-ib-asset": "nodes/get-ib-asset.js",
+      "delete-transaction": "nodes/delete-transaction.js",
+      "fusion-request": "nodes/fusion-request.js",
+      "smo-transformer": "nodes/smo-transformer.js",
+      "scm-lookup": "nodes/scm-lookup.js"
     }
   }
 }

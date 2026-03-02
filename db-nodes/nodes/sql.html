@@ -39,73 +39,95 @@ RED.nodes.registerType("sql", {
     category: "oracledb",
     paletteLabel: "sql",
     defaults: {
-        name:       { value: "" },
+        name: { value: "" },
         connection: { type: "db-connection", required: true },
-        sqlcmd:     { value: "" },
-        maxrows:    { value: 1000 },
-        binds:      { value: "" } 
+        sqlSource: { value: "editor" },
+        sqlcmd: { value: "" },
+        maxrows: { value: 1000 },
+        binds: { value: "" }
     },
-    inputs: 1,
-    outputs: 1,
+    inputs: 1, outputs: 1,
     color: "#4C825C",
     icon: "font-awesome/fa-database",
-    label: function () {
-        return this.name || "sql";
+    label: function () { return this.name || "sql"; },
+    oneditprepare: function () {
+        function toggleSqlSource() {
+            var src = $("#node-input-sqlSource").val();
+            var isEditor = (src === "editor");
+            $("#node-input-sqlcmd").prop("disabled", !isEditor);
+            $("#sql-msg-hint").toggle(!isEditor);
+        }
+        toggleSqlSource();
+        $("#node-input-sqlSource").on("change", toggleSqlSource);
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="sql">
     <div class="form-row">
-        <label for="node-input-name" style="width:auto">
-            <i class="fa fa-tag"></i> Name
-        </label>
-
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
-
     <div class="form-row">
-        <label for="node-input-connection" style="width:auto">
-            <i class="fa fa-globe"></i> DB Connection
-        </label>
-
-        <input type="text" id="node-input-connection" placeholder="Select DB Connection">
+        <label for="node-input-connection"><i class="fa fa-database"></i> DB Connection</label>
+        <input type="text" id="node-input-connection">
     </div>
-
+    <hr/>
     <div class="form-row">
-        <label for="node-input-maxrows" style="width:auto">
-            <i class="fa fa-sort-numeric-asc"></i> Max Rows
-        </label>
-
-        <input type="number" id="node-input-maxrows" min="1" max="1000" style="width:80px">
+        <label for="node-input-sqlSource"><i class="fa fa-toggle-on"></i> SQL Source</label>
+        <select id="node-input-sqlSource" style="width:150px;">
+            <option value="editor">Editor</option>
+            <option value="msg">msg.sql</option>
+        </select>
     </div>
-
     <div class="form-row">
-        <label for="node-input-sqlcmd" style="width:auto">
-            <i class="fa fa-code"></i> SQL
-        </label>
-
-        <textarea id="node-input-sqlcmd" rows="4" style="width:100%;"></textarea>
+        <label for="node-input-sqlcmd"><i class="fa fa-code"></i> SQL</label>
+        <textarea id="node-input-sqlcmd" rows="6" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+        <div id="sql-msg-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;display:none;">
+            SQL will be read from <code>msg.sql</code> at runtime.
+        </div>
     </div>
-
     <div class="form-row">
-        <label for="node-input-binds" style="width:auto">
-            <i class="fa fa-list"></i> Binds (JSON)
-        </label>
-        
-        <textarea id="node-input-binds" rows="2" style="width:100%;"></textarea>
+        <label for="node-input-binds"><i class="fa fa-list"></i> Binds (JSON)</label>
+        <textarea id="node-input-binds" rows="2" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Optional bind variables as a JSON array or object.</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-maxrows"><i class="fa fa-sort-numeric-asc"></i> Max Rows</label>
+        <input type="number" id="node-input-maxrows" min="1" max="10000" style="width:80px;">
     </div>
 </script>
 
 <script type="text/x-red" data-help-name="sql">
-<p>Executes a SQL statement on database configured in DB Connection.</p>
+<p>Executes a SQL statement against an Oracle Database.</p>
 
-<h3>Inputs</h3>
+<h3>Configuration</h3>
 <dl class="message-properties">
-  <dt>DB Connection</dt><dd>Database configuration used for authentication.</dd>
-  <dt>SQL</dt><dd>SQL statement to execute.</dd>
-  <dt>Max Rows</dt><dd>Limits number of rows returned.</dd>
-  <dt>Binds (JSON)</dt><dd>Optional bind variables set as a JSON array.</dd>
+    <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
+    <dt>SQL Source</dt>
+    <dd><code>Editor</code> — uses the SQL written in the textarea below.
+    <code>msg.sql</code> — reads the SQL statement from <code>msg.sql</code> at runtime,
+    allowing dynamic queries from upstream nodes.</dd>
+    <dt>SQL</dt><dd>The SQL statement (when SQL Source is Editor).</dd>
+    <dt>Binds (JSON)</dt><dd>Optional bind variables as a JSON array (<code>[val1, val2]</code>) or
+    named object (<code>{"id": 123}</code>).</dd>
+    <dt>Max Rows</dt><dd>Maximum rows returned for SELECT queries (default: 1000, max: 10000).</dd>
 </dl>
 
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">array</span></dt>
+    <dd>Array of row objects for SELECT queries.</dd>
+    <dt>result <span class="property-type">array</span></dt>
+    <dd>Same as payload (for backward compatibility).</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure (message, code).</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Opens its own connection, executes the SQL, and closes the connection.</p>
+<p><b>Important:</b> This node uses <code>autoCommit: false</code>. SELECT queries
+work as expected. DML statements (INSERT, UPDATE, DELETE) are <b>not committed</b>
+and will be rolled back when the connection closes. To commit DML, use a PL/SQL block
+with an explicit <code>COMMIT</code>, or use the begin/end transaction nodes.</p>
 </script>

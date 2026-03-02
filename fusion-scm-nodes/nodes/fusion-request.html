@@ -35,21 +35,153 @@
 -->
 
 <script type="text/javascript">
-RED.nodes.registerType("create-asset", {
+RED.nodes.registerType("fusion-request", {
     category: "oracle fusion scm",
-    paletteLabel: "create asset",
+    paletteLabel: "fusion request",
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
+        transactionType: { value: "createAsset" },
+        method: { value: "POST" },
         urlOverride: { value: "" },
         overrideUrl: { value: false },
-        mappings: { value: '[{"scmField":"AssetNumber","sourceType":"dequeued","value":""},{"scmField":"Description","sourceType":"dequeued","value":""},{"scmField":"ItemNumber","sourceType":"dequeued","value":""},{"scmField":"OperatingOrganizationCode","sourceType":"dequeued","value":""},{"scmField":"CurrentLocationContextCode","sourceType":"dequeued","value":""},{"scmField":"Quantity","sourceType":"dequeued","value":""},{"scmField":"MaintainableFlag","sourceType":"dequeued","value":""},{"scmField":"NewWoAllowedFlag","sourceType":"dequeued","value":""}]' }
+        customPath: { value: "" },
+        mappings: { value: "[]" }
     },
-    inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-cube",
-    label: function () { return this.name || "create asset"; },
+    inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-cogs",
+    label: function () {
+        if (this.name) return this.name;
+        var labels = {
+            createAsset: "create asset",
+            createMeterReading: "create meter reading",
+            miscTransaction: "misc. transaction",
+            subinventoryQuantityTransfer: "subinventory transfer",
+            custom: "fusion request"
+        };
+        return labels[this.transactionType] || "fusion request";
+    },
     oneditprepare: function () {
-        scmMappingEditor.init(this);
-        scmUrlOverride.init(this, "installedBaseAssets");
+        var node = this;
+        
+        // Default mapping templates per transaction type
+        var defaultMappings = {
+            createAsset: [
+                {scmField:"AssetNumber",sourceType:"dequeued",value:""},
+                {scmField:"Description",sourceType:"dequeued",value:""},
+                {scmField:"ItemNumber",sourceType:"dequeued",value:""},
+                {scmField:"OperatingOrganizationCode",sourceType:"dequeued",value:""},
+                {scmField:"CurrentLocationContextCode",sourceType:"dequeued",value:""},
+                {scmField:"Quantity",sourceType:"dequeued",value:""},
+                {scmField:"MaintainableFlag",sourceType:"dequeued",value:""},
+                {scmField:"NewWoAllowedFlag",sourceType:"dequeued",value:""}
+            ],
+            createMeterReading: [
+                {scmField:"AssetNumber",sourceType:"dequeued",value:""},
+                {scmField:"MeterCode",sourceType:"dequeued",value:""},
+                {scmField:"ReadingDate",sourceType:"dequeued",value:""},
+                {scmField:"MeterUsageCode",sourceType:"dequeued",value:""},
+                {scmField:"ReadingValue",sourceType:"dequeued",value:""},
+                {scmField:"Comments",sourceType:"dequeued",value:""}
+            ],
+            miscTransaction: [
+                {scmField:"OrganizationName",sourceType:"dequeued",value:""},
+                {scmField:"OrganizationID",sourceType:"dequeued",value:""},
+                {scmField:"TransactionUnitOfMeasure",sourceType:"dequeued",value:""},
+                {scmField:"TransactionQuantity",sourceType:"dequeued",value:""},
+                {scmField:"ItemNumber",sourceType:"dequeued",value:""},
+                {scmField:"SubinventoryCode",sourceType:"dequeued",value:""},
+                {scmField:"TransactionType",sourceType:"dequeued",value:""},
+                {scmField:"SourceCode",sourceType:"dequeued",value:""},
+                {scmField:"UseCurrentCostFlag",sourceType:"dequeued",value:""}
+            ],
+            subinventoryQuantityTransfer: [
+                {scmField:"SourceCode",sourceType:"dequeued",value:""},
+                {scmField:"TransactionMode",sourceType:"dequeued",value:""},
+                {scmField:"SourceHeaderId",sourceType:"dequeued",value:""},
+                {scmField:"SourceLineId",sourceType:"dequeued",value:""},
+                {scmField:"UseCurrentCostFlag",sourceType:"dequeued",value:""},
+                {scmField:"TransactionTypeName",sourceType:"dequeued",value:""},
+                {scmField:"OrganizationId",sourceType:"dequeued",value:""},
+                {scmField:"ItemNumber",sourceType:"dequeued",value:""},
+                {scmField:"TransactionQuantity",sourceType:"dequeued",value:""},
+                {scmField:"TransactionUOM",sourceType:"dequeued",value:""},
+                {scmField:"TransactionUnitOfMeasure",sourceType:"dequeued",value:""},
+                {scmField:"TransactionDate",sourceType:"dequeued",value:""},
+                {scmField:"SubinventoryCode",sourceType:"dequeued",value:""},
+                {scmField:"ProcessStatus",sourceType:"dequeued",value:""}
+            ],
+            custom: []
+        };
+
+        var endpointMap = {
+            createAsset: "installedBaseAssets",
+            createMeterReading: "meterReadings",
+            subinventoryQuantityTransfer: "inventoryStagedTransactions",
+            miscTransaction: "inventoryStagedTransactions"
+        };
+
+        // Track whether user has edited mappings for current type
+        var _userEditedMappings = false;
+        var _lastAutoType = null;
+
+        function updateSections() {
+            var type = $("#node-input-transactionType").val();
+            var isCustom = (type === "custom");
+            $(".custom-path-row").toggle(isCustom);
+
+            // Update endpoint display
+            var serverNodeId = $("#node-input-server").val();
+            var serverNode = RED.nodes.node(serverNodeId);
+            if (serverNode && !isCustom) {
+                var ep = endpointMap[type] || "";
+                $("#fusion-url-display").text("https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + ep);
+            } else if (isCustom) {
+                $("#fusion-url-display").text("Using custom path below");
+            } else {
+                $("#fusion-url-display").text("");
+            }
+
+            // Only auto-populate mappings if switching type and user hasn't edited
+            if (type !== _lastAutoType && !_userEditedMappings) {
+                var template = defaultMappings[type] || [];
+                scmMappingEditor.renderAll(template);
+                _lastAutoType = type;
+            }
+        }
+
+        // Initialize mappings editor
+        var mappings = [];
+        try { mappings = JSON.parse(node.mappings); } catch(e) {}
+        if (!Array.isArray(mappings)) mappings = [];
+
+        // If mappings are empty, populate from current transaction type defaults
+        if (mappings.length === 0) {
+            var initType = node.transactionType || "createAsset";
+            mappings = defaultMappings[initType] || [];
+        }
+
+        scmMappingEditor.init({ mappings: JSON.stringify(mappings) });
+        _lastAutoType = node.transactionType;
+
+        // Mark user edited on any mapping interaction
+        $("#scm-mappings-container").on("change input", ".scm-field,.scm-value,.scm-source-type", function() {
+            _userEditedMappings = true;
+        });
+
+        // URL override
+        var $cb = $("#node-input-overrideUrl");
+        var $urlRow = $("#url-override-row");
+        function toggleUrl() { $urlRow.toggle($cb.is(":checked")); }
+        toggleUrl();
+        $cb.on("change", toggleUrl);
+
+        updateSections();
+        $("#node-input-transactionType").on("change", function() {
+            _userEditedMappings = false;
+            _lastAutoType = null;
+            updateSections();
+        });
+        $("#node-input-server").on("change", updateSections);
     },
     oneditsave: function () { this.mappings = scmMappingEditor.save(); }
 });
@@ -176,7 +308,7 @@ var scmUrlOverride = window.scmUrlOverride;
     .scm-drag-handle:hover { color:#555 !important; }
 </style>
 
-<script type="text/x-red" data-template-name="create-asset">
+<script type="text/x-red" data-template-name="fusion-request">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
@@ -187,8 +319,33 @@ var scmUrlOverride = window.scmUrlOverride;
     </div>
     <hr/>
     <div class="form-row">
+        <label for="node-input-transactionType"><i class="fa fa-bolt"></i> Transaction Type</label>
+        <select id="node-input-transactionType" style="width:70%;">
+            <option value="createAsset">Create Asset</option>
+            <option value="createMeterReading">Create Meter Reading</option>
+            <option value="miscTransaction">Misc. Transaction</option>
+            <option value="subinventoryQuantityTransfer">Subinventory Quantity Transfer</option>
+            <option value="custom">Custom</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-method"><i class="fa fa-arrow-right"></i> Method</label>
+        <select id="node-input-method" style="width:120px;">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="PATCH">PATCH</option>
+            <option value="DELETE">DELETE</option>
+        </select>
+    </div>
+    <hr/>
+    <div class="form-row">
         <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="scm-url-display" style="font-size:12px;color:#555;word-break:break-all;"></span>
+        <span id="fusion-url-display" style="font-size:12px;color:#555;word-break:break-all;"></span>
+    </div>
+    <div class="form-row custom-path-row" style="display:none;">
+        <label for="node-input-customPath"><i class="fa fa-pencil"></i> Custom Path</label>
+        <input type="text" id="node-input-customPath" style="width:100%;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint">
     </div>
     <div class="form-row">
         <label for="node-input-overrideUrl" style="width:auto;">
@@ -197,7 +354,7 @@ var scmUrlOverride = window.scmUrlOverride;
         </label>
     </div>
     <div class="form-row" id="url-override-row" style="display:none;">
-        <label for="node-input-urlOverride"><i class="fa fa-pencil"></i> Custom URL</label>
+        <label for="node-input-urlOverride"><i class="fa fa-pencil"></i> Override URL</label>
         <input type="text" id="node-input-urlOverride" style="width:100%;">
     </div>
     <hr/>
@@ -205,6 +362,7 @@ var scmUrlOverride = window.scmUrlOverride;
         <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
             Map SCM API fields to dequeued data, message properties, or static values. Drag &#9776; to reorder.
+            Selecting a new transaction type will populate default fields.
         </div>
     </div>
     <div class="form-row">
@@ -215,18 +373,29 @@ var scmUrlOverride = window.scmUrlOverride;
     </div>
 </script>
 
-<script type="text/x-red" data-help-name="create-asset">
-<p>Creates a new Installed Base Asset in Oracle Fusion SCM.</p>
+<script type="text/x-red" data-help-name="fusion-request">
+<p>A unified Oracle Fusion SCM request node that supports all common transaction types
+and custom endpoints in a single configurable interface.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Endpoint</dt><dd>Auto-built from server config. Check <b>Override URL</b> to use a custom endpoint.</dd>
+    <dt>Transaction Type</dt>
+    <dd>Selects the REST endpoint and pre-populates default field mappings:
+        <ul>
+            <li><b>Create Asset</b> &mdash; Installed Base Assets endpoint</li>
+            <li><b>Create Meter Reading</b> &mdash; Meter Readings endpoint</li>
+            <li><b>Misc. Transaction</b> &mdash; Inventory Staged Transactions endpoint</li>
+            <li><b>Subinventory Quantity Transfer</b> &mdash; Inventory Staged Transactions endpoint</li>
+            <li><b>Custom</b> &mdash; provide your own endpoint URL</li>
+        </ul>
+    </dd>
+    <dt>Method</dt><dd>HTTP method (GET, POST, PUT, PATCH, DELETE).</dd>
     <dt>Payload Mappings</dt>
     <dd>Map SCM API fields to values. Each row specifies:
         <ul>
             <li><b>SCM Field</b> &mdash; the API field name</li>
-            <li><b>Source</b> &mdash; <code>dequeued data</code> (reads from msg.dequeued), <code>msg property</code> (reads from any msg path), or <code>static value</code> (constant)</li>
-            <li><b>Value</b> &mdash; the field name, property path, or literal value depending on source type</li>
+            <li><b>Source</b> &mdash; <code>dequeued data</code> (reads from msg.dequeued), <code>msg property</code> (any msg path), or <code>static value</code></li>
+            <li><b>Value</b> &mdash; the field name, property path, or literal value</li>
         </ul>
     </dd>
 </dl>
@@ -237,5 +406,8 @@ var scmUrlOverride = window.scmUrlOverride;
     <dt>error <span class="property-type">string</span></dt><dd>Error message (only on failure).</dd>
 </dl>
 <h3>Details</h3>
-<p>Sends a <code>POST</code> request to the Installed Base Assets REST endpoint. The payload is built from the configured mappings. Authentication is handled automatically via the selected SCM Server's OAuth token.</p>
+<p>This is the primary SCM transaction node. Select a transaction type to auto-populate the endpoint
+and default field mappings, or choose <b>Custom</b> to target any Fusion SCM REST endpoint.</p>
+<p>For GET requests, mapped fields are sent as query parameters. For POST/PUT/PATCH, they are
+sent as the JSON request body.</p>
 </script>

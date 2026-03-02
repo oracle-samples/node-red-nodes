@@ -39,7 +39,7 @@ module.exports = function(RED) {
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
 
-    function CreateAsset(config) {
+    function DeleteTransactionNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
@@ -50,22 +50,41 @@ module.exports = function(RED) {
             return;
         }
 
-        // Parse structured mappings (JSON array from editor)
-        const mappings = parseMappings(config.mappings);    
-        const proxyAgent = buildProxyAgent(node.server);
+        const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
+            ? new HttpsProxyAgent(node.server.proxyUrl)
+            : null;
+
+        // Endpoint map by mode
+        const endpointMap = {
+            asset: "installedBaseAssets",
+            meter: "meterReadings",
+            misc: "inventoryStagedTransactions",
+            subinventory: "inventoryStagedTransactions"
+        };
 
         node.on("input", async (msg, send, done) => {
             try {
+                // Resolve transaction ID from config or msg
+                const txId = config.transactionInterfaceId || msg.transactionInterfaceId;
+                if (!txId) {
+                    node.status({ fill: "red", shape: "ring", text: "No transaction ID" });
+                    const err = new Error("No TransactionInterfaceId provided");
+                    node.error(err.message, msg);
+                    return done(err);
+                }
+
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                const url = config.urlOverride || node.server.buildUrl("installedBaseAssets");
-                ensureHttps(url);
+                // Build URL from mode or use override
+                const mode = config.mode || "misc";
+                const endpoint = endpointMap[mode] || "inventoryStagedTransactions";
+                const baseUrl = config.urlOverride || node.server.buildUrl(endpoint);
+                const finalUrl = `${baseUrl}/${txId}`;
+                ensureHttps(finalUrl);
 
-                const payload = resolvePayload(mappings, msg, RED);
-
-                node.status({ fill: "yellow", shape: "dot", text: "creating..." });
-                const response = await axios.post(url, payload, {
+                node.status({ fill: "yellow", shape: "dot", text: "deleting..." });
+                const response = await axios.delete(finalUrl, {
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -76,51 +95,20 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "created" });
+                node.status({ fill: "green", shape: "dot", text: "deleted" });
                 send(msg);
                 done();
             } catch (err) {
-                handleError(node, msg, err, send, done);
+                node.status({ fill: "red", shape: "dot", text: "delete failed" });
+                msg.error = err.message || err.toString();
+                msg.statusCode = err.response?.status || 0;
+                msg.payload = err.response?.data || msg.error;
+                node.error(msg.error, msg);
+                send(msg);
+                done(err);
             }
         });
     }
 
-    function parseMappings(raw) {
-        if (Array.isArray(raw)) return raw;
-        try { return JSON.parse(raw); } catch(e) { return []; }
-    }
-
-    function resolvePayload(mappings, msg, RED) {
-        const payload = {};
-        for (const m of mappings) {
-            if (!m.scmField) continue;
-            if (m.sourceType === "dequeued") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, "dequeued." + (m.value || ""));
-            } else if (m.sourceType === "msg") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, m.value || "");
-            } else {
-                payload[m.scmField] = m.value || "";
-            }
-        }
-        return payload;
-    }
-
-    function buildProxyAgent(server) {
-        if (server.proxyUrl && server.useProxy) {
-            return new HttpsProxyAgent(server.proxyUrl);
-        }
-        return null;
-    }
-
-    function handleError(node, msg, err, send, done) {
-        node.status({ fill: "red", shape: "dot", text: "failed" });
-        msg.error = err.message || err.toString();
-        msg.statusCode = err.response?.status || 0;
-        msg.payload = err.response?.data || msg.error;
-        node.error(msg.error, msg);
-        send(msg);
-        done(err);
-    }
-
-    RED.nodes.registerType("create-asset", CreateAsset);
+    RED.nodes.registerType("delete-transaction", DeleteTransactionNode);
 };
