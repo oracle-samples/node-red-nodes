@@ -1,16 +1,15 @@
 # Node-RED SCM Nodes
 
-This project provides a set of custom Node-RED nodes that integrate Oracle Fusion Cloud SCM with the OCI IoT Platform service. The nodes enable actions such as asset creation, meter readings, inventory transactions, and SCM lookups using Node-RED flows.
-
----
+This project provides a set of custom Node-RED nodes that integrate Oracle Fusion Cloud SCM with the OCI IoT Platform service. The nodes enable actions such as asset creation, meter readings, inventory transactions, SCM lookups, and telemetry-to-SMO transformation using Node-RED flows.
 
 ## Nodes
 
 | Node | Description |
 |------|-------------|
 | **scm-server** | Oracle Fusion Cloud SCM authentication, connection, and proxy config. |
-| **fusion-request** | General transaction node (Create Asset, Meter Reading, Misc. Transaction, Subinventory Transfer, Custom). |
-| **scm-lookup** | General lookup node (Asset, Meter Reading, Organization ID, Custom). |
+| **fusion-request** | Unified transaction node (Create Asset, Meter Reading, Misc. Transaction, Subinventory Transfer, Custom). |
+| **scm-lookup** | Unified lookup node (Asset, Meter Reading, Organization ID, Custom). |
+| **smo-transformer** | Transforms telemetry data into structured SMO event payloads with preset and custom event types. |
 | **create-asset** | Creates an Installed Base Asset. |
 | **create-meter-reading** | Creates a Meter Reading. |
 | **misc-transaction** | Creates a Miscellaneous Inventory Transaction (receipt or issue). |
@@ -19,8 +18,6 @@ This project provides a set of custom Node-RED nodes that integrate Oracle Fusio
 | **get-ib-asset** | Retrieves an asset by Serial Number. |
 | **get-meter-reading** | Retrieves meter readings by Asset Number. |
 | **get-organization-id** | Retrieves an organization by name. |
-
----
 
 ## Installation
 
@@ -60,8 +57,6 @@ npm install axios
 npm install https-proxy-agent
 ```
 
----
-
 ## Payload Mappings
 
 All SCM transaction nodes use structured mapping rows with three source types:
@@ -72,13 +67,19 @@ All SCM transaction nodes use structured mapping rows with three source types:
 | **msg property** | `msg.<value>` | Full property path (e.g. `payload.someField`) |
 | **static value** | Literal string | The constant value (e.g. `100100100`) |
 
----
+## SMO Transformer
+
+The smo-transformer converts incoming telemetry or message data into structured SMO event payloads. It supports 8 preset event types (CA_FAULT, CA_STATUS, CA_OPERATION_EXECUTION_START, etc.) that auto-populate field mappings when selected, plus custom event types.
+
+> **Important:** The smo-transformer processes one message at a time. When dequeuing in batches or receiving arrays, place a **split** node (fixed length: 1) before the smo-transformer to ensure individual message processing.
+
+**Typical flow:** `dequeue` → `split` (fixed length: 1) → `smo-transformer`
+
+See [Node Reference](../docs/node-reference.md) for full configuration details.
 
 ## Documentation
 
 You can find the online documentation for the Oracle Internet of Things Platform at [docs.cloud.oracle.com](https://docs.oracle.com/en-us/iaas/Content/internet-of-things).
-
----
 
 ## Examples
 
@@ -91,25 +92,17 @@ Example Node-RED flows are provided in the documentation showcasing different us
 Examples can be imported directly into the Node-RED editor.
 See [Import Examples Guide](../docs/import-examples.md).
 
----
-
 ## Contributing
 
 This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](../CONTRIBUTING.md).
-
----
 
 ## Security
 
 Please consult the [security guide](../SECURITY.md) for our responsible security vulnerability disclosure process.
 
----
-
 ## License
 
 See [LICENSE](../LICENSE.txt).
-
----
 
 ## Disclaimer
 

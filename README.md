@@ -2,8 +2,6 @@
 
 This project provides a set of custom Node-RED nodes that integrate the Oracle Database, Advanced Queues (AQ), and Oracle Fusion Cloud SCM with the OCI IoT Platform service.
 
----
-
 ## What's Included
 
 - **db-nodes**
@@ -15,6 +13,7 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 - **fusion-scm-nodes**
   - General transaction node (fusion-request)
   - General lookup node (scm-lookup)
+  - SMO Transformer
   - Create Asset
   - Create Meter Reading
   - Inventory transactions (misc, subinventory transfer)
@@ -22,8 +21,6 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
   - Lookup nodes (asset, meter reading, organization)
 
 > Detailed node-level documentation is available in [Node Reference](./docs/node-reference.md).
-
----
 
 ## Quick Start
 
@@ -34,8 +31,6 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 | Import examples into Node-RED | [Guide](./docs/import-examples.md) |
 | Best practices | [Guide](./docs/best-practice.md) |
 | Node reference | [Guide](./docs/node-reference.md) |
-
----
 
 ## Installation
 
@@ -88,13 +83,9 @@ sudo dnf install oracle-instantclient-sqlplus
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
 
----
-
 ## Documentation
 
 You can find the online documentation for the Oracle Internet of Things Platform at [docs.cloud.oracle.com](https://docs.oracle.com/en-us/iaas/Content/internet-of-things).
-
----
 
 ## Examples
 
@@ -107,25 +98,17 @@ Example Node-RED flows are provided in the documentation showcasing different us
 Examples can be imported directly into the Node-RED editor.
 See [Import Examples Guide](./docs/import-examples.md).
 
----
-
 ## Contributing
 
 This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](./CONTRIBUTING.md).
-
----
 
 ## Security
 
 Please consult the [security guide](./SECURITY.md) for our responsible security vulnerability disclosure process.
 
----
-
 ## License
 
 See [LICENSE](./LICENSE.txt).
-
----
 
 ## Disclaimer
 
