@@ -554,8 +554,15 @@
   </div>
 </script>
 
+
 <script type="text/html" data-help-name="smo-transformer">
   <p>Transforms incoming telemetry or message data into structured event payloads.</p>
+  <h3>Important: Use a Split Node for Batch Messages</h3>
+  <p>This node processes <b>one message at a time</b>. If the upstream node produces an array of messages
+  (e.g. from a dequeue with batch size greater than 1), you must place a <b>split</b> node before this node
+  configured with a <b>fixed length of 1</b>. Without the split node, the transformer receives the entire
+  array as a single payload and will not process individual messages correctly.</p>
+  <p>Typical flow: <code>dequeue</code> → <code>split</code> (fixed length: 1) → <code>smo-transformer</code></p>
   <h3>Quick Start</h3>
   <p>Select an event type from the dropdown to auto-populate field mappings, transforms, and composite settings. Drag ☰ handles to reorder mappings.</p>
   <h3>Key Behaviors</h3>
