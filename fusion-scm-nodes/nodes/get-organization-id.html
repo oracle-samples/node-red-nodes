@@ -41,86 +41,64 @@ RED.nodes.registerType("get-organization-id", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
-        url: { value: "" },
+        urlOverride: { value: "" },
+        overrideUrl: { value: false },
         organizationName: { value: "" }
     },
-    inputs: 1,
-    outputs: 1,
+    inputs: 1, outputs: 1,
     color: "#4F7D7B",
     icon: "font-awesome/fa-search",
-    label: function () {
-        return this.name || "get organization id";
-    },
+    label: function () { return this.name || "get organization id"; },
     oneditprepare: function () {
-
-        function setDefaultUrl() {
-            const serverNodeId = $("#node-input-server").val();
-            const serverNode = RED.nodes.node(serverNodeId);
-            const urlInput = $("#node-input-url");
-
-            if (serverNode && !urlInput.val()) {
-                const defaultUrl =
-                    `https://${serverNode.hostname}/fscmRestApi/resources/${serverNode.version}/inventoryStagedTransactions/`;
-                urlInput.val(defaultUrl);
-            }
-        }
-
-        setDefaultUrl();
-        
-        $("#node-input-server").on("change", setDefaultUrl);
+        var cb = $("#node-input-overrideUrl");
+        var row = $("#url-override-row");
+        function toggle() { row.toggle(cb.is(":checked")); }
+        toggle(); cb.on("change", toggle);
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="get-organization-id">
-
     <div class="form-row">
-        <label for="node-input-name">
-            <i class="fa fa-tag"></i> Name
-        </label>
-        
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
-
     <div class="form-row">
-        <label for="node-input-server">
-            <i class="fa fa-globe"></i> SCM Server
-        </label>
-
-        <input type="text" id="node-input-server" placeholder="Select SCM Server">
+        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server">
     </div>
-
+    <hr/>
     <div class="form-row">
-        <label for="node-input-url">
-            <i class="fa fa-link"></i> URL
-        </label>
-
-        <div style="color:#777; font-size: 0.85em;">
-            Auto-filled from server selection
-        </div>
-
-        <input type="text" id="node-input-url" style="width:100%;">
-    </div>
-
-    <div class="form-row">
-        <label for="node-input-organizationName" style="width:140px;">
-            <i class="fa fa-list"></i> Organization Name
-        </label>
-
+        <label for="node-input-organizationName" style="width:140px;"><i class="fa fa-list"></i> Organization Name</label>
         <input type="text" id="node-input-organizationName">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.organizationName</code>.</div>
     </div>
-
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-overrideUrl" style="width:auto;">
+            <input type="checkbox" id="node-input-overrideUrl" style="width:auto;vertical-align:middle;" />
+            <span style="font-size:12px;color:#666;"> Override URL</span>
+        </label>
+    </div>
+    <div class="form-row" id="url-override-row" style="display:none;">
+        <label for="node-input-urlOverride"><i class="fa fa-pencil"></i> Custom URL</label>
+        <input type="text" id="node-input-urlOverride" style="width:100%;">
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="get-organization-id">
-<p>Retrieves Organization ID using the configured server and Organization Code.</p>
-
-<h3>Inputs</h3>
+<p>Retrieves an Organization ID from Oracle Fusion SCM by organization name.</p>
+<h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>SCM Server</dt><dd>SCM configuration used for authentication and server connection.</dd>
-
-    <dt>URL</dt><dd>Auto-populated from the selected SCM Server configuration. Reads from inventoryOrganizations endpoint.</dd>
-
-    <dt>Organization Code</dt><dd>Organization Code used to look up Organization ID.</dd>
+    <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
+    <dt>Organization Name</dt><dd>The value to query by. If left blank, reads from <code>msg.organizationName</code> at runtime.</dd>
 </dl>
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>API response body containing the matching records.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
+    <dt>error <span class="property-type">string</span></dt><dd>Error message (only present on failure).</dd>
+</dl>
+<h3>Details</h3>
+<p>Sends a <code>GET</code> request to the Inventory Organizations endpoint, filtering by <code>OrganizationName</code>. Returns the matching organization record(s) including <code>OrganizationId</code> in <code>msg.payload</code>.</p>
 </script>

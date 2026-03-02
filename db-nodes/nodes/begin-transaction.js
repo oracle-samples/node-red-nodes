@@ -34,16 +34,18 @@
  SOFTWARE.
  */
 
-module.exports = function(RED) {
-    const oracledb = require("oracledb");
+/*
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ Licensed under the Universal Permissive License (UPL), Version 1.0.
+ See LICENSE.txt or https://opensource.org/licenses/UPL
+ */
 
-    function DbEnqueueNode(config) {
+module.exports = function(RED) {
+    function BeginTransactionNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        node.queueName = config.queueName;
-        node.recipients = config.recipients || null;
-        node.userPayload = config.userPayload;
+        node.timeoutSecs = Number(config.timeoutSecs) || 0;
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
@@ -52,63 +54,45 @@ module.exports = function(RED) {
         }
 
         node.on("input", async (msg, send, done) => {
-            let connection;
-            let arr;
-
             try {
+                // Reuse existing transaction connection if present
+                if (msg.transaction && msg.transaction.connection) {
+                    node.status({ fill: "green", shape: "dot", text: "transaction reused" });
+                    send(msg);
+                    return done();
+                }
+
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
-                connection = await node.connection.getConnection();
+                const connection = await node.connection.getConnection();
 
-                // Use configured payload, or fall back to msg.payload
-                const rawPayload = node.userPayload && node.userPayload.trim()
-                    ? node.userPayload
-                    : JSON.stringify(msg.payload);
+                msg.transaction = {
+                    connection: connection,
+                    startedAt: Date.now(),
+                    msgId: msg._msgid
+                };
 
-                try {
-                    arr = JSON.parse(rawPayload);
-                    if (!Array.isArray(arr)) {
-                        throw new Error("Payload must be a JSON array: [{...}, {...}]");
-                    }
-                } catch (parseErr) {
-                    node.status({ fill: "red", shape: "dot", text: "invalid payload" });
-                    msg.error = parseErr.message;
-                    node.error(parseErr, msg);
-                    return done(parseErr);
+                // Set up connection timeout if configured
+                if (node.timeoutSecs > 0) {
+                    msg.transaction._timeout = setTimeout(async () => {
+                        node.warn(`Transaction timed out after ${node.timeoutSecs}s — rolling back and closing connection`);
+                        node.status({ fill: "red", shape: "ring", text: `timed out (${node.timeoutSecs}s)` });
+                        try { await connection.rollback(); } catch (e) { /* ignore */ }
+                        try { await connection.close(); } catch (e) { /* ignore */ }
+                        // Mark connection as closed so end-transaction doesn't double-close
+                        if (msg.transaction) msg.transaction.connection = null;
+                    }, node.timeoutSecs * 1000);
                 }
 
-                const queue = await connection.getQueue(node.queueName, {
-                    payloadType: oracledb.DB_TYPE_JSON,
-                });
-
-                if (node.recipients) {
-                    queue.enqOptions.recipients = node.recipients;
-                }
-
-                const messages = arr.map(function (item) {
-                    return { payload: item };
-                });
-
-                await queue.enqMany(messages);
-                await connection.commit();
-
-                node.status({ fill: "green", shape: "dot", text: `enqueued ${messages.length}` });
-                send({ ...msg, payload: `Successfully enqueued ${messages.length} messages` });
+                node.status({ fill: "green", shape: "dot", text: "transaction started" });
+                send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "error" });
-                msg.error = { message: err.message, code: err.errorNum || null };
+                node.status({ fill: "red", shape: "ring", text: "DB connect failed" });
                 node.error(err, msg);
-                send(msg);
                 done(err);
-            } finally {
-                if (connection) {
-                    try { await connection.close(); } catch (e) {
-                        node.warn(`Failed to close connection: ${e.message}`);
-                    }
-                }
             }
         });
     }
 
-    RED.nodes.registerType("enqueue", DbEnqueueNode);
+    RED.nodes.registerType("begin-transaction", BeginTransactionNode);
 };

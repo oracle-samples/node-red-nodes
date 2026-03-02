@@ -35,7 +35,6 @@
  */
 
 module.exports = function (RED) {
-
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
 
@@ -60,9 +59,8 @@ module.exports = function (RED) {
         let proxyAgent = null;
         if (node.proxyUrl && node.useProxy) {
             proxyAgent = new HttpsProxyAgent(node.proxyUrl);
-        } 
+        }
 
-        // fetch token
         async function fetchToken() {
             try {
                 const basicAuth = Buffer
@@ -74,42 +72,38 @@ module.exports = function (RED) {
                     scope: node.scope
                 });
 
-                const response = await axios.post(node.tokenUrl, body.toString(),
-                    {   
-                        httpAgent: proxyAgent || undefined,
-                        proxy: false,
-                        headers: {
-                            "Authorization": "Basic " + basicAuth,
-                            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-                        }
+                const response = await axios.post(node.tokenUrl, body.toString(), {
+                    httpsAgent: proxyAgent || undefined,
+                    proxy: false,
+                    headers: {
+                        "Authorization": "Basic " + basicAuth,
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
                     }
-                );
+                });
 
                 const data = response.data;
                 node.accessToken = data.access_token;
-                
-                // convert from min to ms
-                const expiryMs = node.expiryMins * 60 * 1000;
-                node.tokenExpiry = Date.now() + expiryMs;
-
+                node.tokenExpiry = Date.now() + (node.expiryMins * 60 * 1000);
                 return node.accessToken;
-
-            } catch(err) {
+            } catch (err) {
                 node.error("Token fetch failed: " + err.message);
                 throw err;
             }
         }
 
-        // public method for CRUD nodes
         node.getToken = async function () {
-            const now = Date.now();
-
-            // check if token is valid or expired
-            if (!node.accessToken || now >= node.tokenExpiry) {
+            if (!node.accessToken || Date.now() >= node.tokenExpiry) {
                 return await fetchToken();
             }
-
             return node.accessToken;
+        };
+
+        /**
+         * Builds the base URL for a given REST endpoint.
+         * e.g. buildUrl("installedBaseAssets") => "https://hostname/fscmRestApi/resources/version/installedBaseAssets"
+         */
+        node.buildUrl = function (endpoint) {
+            return `https://${node.hostname}/fscmRestApi/resources/${node.version}/${endpoint}`;
         };
     }
 

@@ -39,7 +39,14 @@ module.exports = function(RED) {
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
 
-    function CreateAsset(config) {
+    const ENDPOINT_MAP = {
+        createAsset: "installedBaseAssets",
+        createMeterReading: "meterReadings",
+        subinventoryQuantityTransfer: "inventoryStagedTransactions",
+        miscTransaction: "inventoryStagedTransactions"
+    };
+
+    function FusionRequestNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
@@ -50,22 +57,56 @@ module.exports = function(RED) {
             return;
         }
 
-        // Parse structured mappings (JSON array from editor)
-        const mappings = parseMappings(config.mappings);    
-        const proxyAgent = buildProxyAgent(node.server);
+        const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
+            ? new HttpsProxyAgent(node.server.proxyUrl) : null;
+
+        let mappings = [];
+        try { mappings = JSON.parse(config.mappings || "[]"); } catch(e) { mappings = []; }
 
         node.on("input", async (msg, send, done) => {
             try {
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                const url = config.urlOverride || node.server.buildUrl("installedBaseAssets");
+                const txType = config.transactionType || "custom";
+                const method = (config.method || "POST").toUpperCase();
+
+                let url;
+                if (txType === "custom") {
+                    url = config.customPath || "";
+                } else {
+                    url = node.server.buildUrl(ENDPOINT_MAP[txType] || "");
+                }
+
+                if (config.urlOverride) url = config.urlOverride;
+
+                if (!url) {
+                    const err = new Error("No URL configured");
+                    node.status({ fill: "red", shape: "ring", text: "Missing URL" });
+                    node.error(err.message, msg);
+                    return done(err);
+                }
                 ensureHttps(url);
 
-                const payload = resolvePayload(mappings, msg, RED);
+                // Build payload from structured mappings
+                const payload = {};
+                for (const m of mappings) {
+                    if (!m.scmField) continue;
+                    if (m.sourceType === "dequeued") {
+                        payload[m.scmField] = RED.util.getMessageProperty(msg, "dequeued." + (m.value || ""));
+                    } else if (m.sourceType === "msg") {
+                        payload[m.scmField] = RED.util.getMessageProperty(msg, m.value || "");
+                    } else {
+                        payload[m.scmField] = m.value || "";
+                    }
+                }
 
-                node.status({ fill: "yellow", shape: "dot", text: "creating..." });
-                const response = await axios.post(url, payload, {
+                node.status({ fill: "yellow", shape: "dot", text: "requesting..." });
+                const response = await axios({
+                    method: method.toLowerCase(),
+                    url,
+                    data: (method !== "GET" && method !== "DELETE") ? payload : undefined,
+                    params: (method === "GET") ? payload : undefined,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -76,51 +117,20 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "created" });
+                node.status({ fill: "green", shape: "dot", text: "success" });
                 send(msg);
                 done();
             } catch (err) {
-                handleError(node, msg, err, send, done);
+                node.status({ fill: "red", shape: "dot", text: "failed" });
+                msg.error = err.message || err.toString();
+                msg.statusCode = err.response?.status || 0;
+                msg.payload = err.response?.data || msg.error;
+                node.error(msg.error, msg);
+                send(msg);
+                done(err);
             }
         });
     }
 
-    function parseMappings(raw) {
-        if (Array.isArray(raw)) return raw;
-        try { return JSON.parse(raw); } catch(e) { return []; }
-    }
-
-    function resolvePayload(mappings, msg, RED) {
-        const payload = {};
-        for (const m of mappings) {
-            if (!m.scmField) continue;
-            if (m.sourceType === "dequeued") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, "dequeued." + (m.value || ""));
-            } else if (m.sourceType === "msg") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, m.value || "");
-            } else {
-                payload[m.scmField] = m.value || "";
-            }
-        }
-        return payload;
-    }
-
-    function buildProxyAgent(server) {
-        if (server.proxyUrl && server.useProxy) {
-            return new HttpsProxyAgent(server.proxyUrl);
-        }
-        return null;
-    }
-
-    function handleError(node, msg, err, send, done) {
-        node.status({ fill: "red", shape: "dot", text: "failed" });
-        msg.error = err.message || err.toString();
-        msg.statusCode = err.response?.status || 0;
-        msg.payload = err.response?.data || msg.error;
-        node.error(msg.error, msg);
-        send(msg);
-        done(err);
-    }
-
-    RED.nodes.registerType("create-asset", CreateAsset);
+    RED.nodes.registerType("fusion-request", FusionRequestNode);
 };

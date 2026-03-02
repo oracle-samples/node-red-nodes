@@ -12,6 +12,8 @@ In this guide you will:
 >
 > **Important:** Subscribers are case-sensitive!
 
+---
+
 ## Creating a multi-consumer queue and subscriber
 
 ### Step 1 — Create a queue table and queue
@@ -38,6 +40,8 @@ END;
 /
 ```
 
+---
+
 ### Step 2 — Create subscriber
 
 This section shows two subscriber examples:
@@ -57,7 +61,6 @@ END;
 ```
 
 #### Example B - Create a subscriber called `HIGH_TEMP` with a rule
-
 Creates a subscriber called HIGH_TEMP with a rule that checks the JSON payload and only matches messages where `temp` is greater than 80.
 > **NOTE**: This rule only works if `temp` is actually present in the JSON payload being enqueued.
 
@@ -71,6 +74,7 @@ BEGIN
 END;
 /
 ```
+---
 
 ### Step 3 - How to use these in Node-RED nodes
 

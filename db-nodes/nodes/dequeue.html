@@ -47,22 +47,17 @@ RED.nodes.registerType("dequeue", {
         waitForever: { value: false },
         batchSize: { value: 1 }
     },
-    inputs: 1,
-    outputs: 1,
+    inputs: 1, outputs: 1,
     color: "#4C825C",
     icon: "font-awesome/fa-arrow-down",
     align: "right",
-    label: function () {
-        return this.name || "dequeue";
-    },
+    label: function () { return this.name || "dequeue"; },
     oneditprepare: function () {
-        const waitField = document.getElementById("node-input-wait");
-        const waitForeverBox = document.getElementById("node-config-input-waitForever");
-
-        waitField.disabled = waitForeverBox.checked;
-
-        waitForeverBox.addEventListener("change", function () {
-            waitField.disabled = this.checked;
+        var waitField = $("#node-input-wait");
+        var waitForeverBox = $("#node-input-waitForever");
+        waitField.prop("disabled", waitForeverBox.is(":checked"));
+        waitForeverBox.on("change", function () {
+            waitField.prop("disabled", $(this).is(":checked"));
         });
     }
 });
@@ -70,94 +65,69 @@ RED.nodes.registerType("dequeue", {
 
 <script type="text/x-red" data-template-name="dequeue">
     <div class="form-row">
-        <label for="node-input-name" style="width:auto">
-            <i class="fa fa-tag"></i> Name
-        </label>
-
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
-    
     <div class="form-row">
-        <label for="node-input-connection" style="width:auto">
-            <i class="fa fa-globe"></i> DB Connection
-        </label>
-
-        <input type="text" id="node-input-connection" placeholder="Select DB Connection" />
+        <label for="node-input-connection"><i class="fa fa-database"></i> DB Connection</label>
+        <input type="text" id="node-input-connection" />
     </div>
-
+    <hr/>
     <div class="form-row">
-        <label for="node-input-queueName" style="width:auto">
-            <i class="fa fa-list-ul"></i> Queue Name
-        </label>
-
+        <label for="node-input-queueName"><i class="fa fa-list-ul"></i> Queue Name</label>
         <input type="text" id="node-input-queueName">
     </div>
-
     <div class="form-row">
-        <label for="node-input-subscriber" style="width:auto">
-            <i class="fa fa-list-ul"></i> Subscriber
-        </label>
-        
+        <label for="node-input-subscriber"><i class="fa fa-user"></i> Subscriber</label>
         <input type="text" id="node-input-subscriber">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Optional consumer name for multi-consumer queues.</div>
     </div>
-    
+    <hr/>
     <div class="form-row">
-        <label for="node-config-input-waitForever" style="width:160px;">
-            <i class="fa fa-hourglass"></i> Block Indefinitely
-        </label>
-
-        <input 
-            type="checkbox" 
-            id="node-config-input-waitForever" 
-            style="margin-left:0; width:auto;"
-        />
+        <label for="node-input-waitForever" style="width:160px;"><i class="fa fa-hourglass"></i> Block Indefinitely</label>
+        <input type="checkbox" id="node-input-waitForever" style="margin-left:0;width:auto;">
     </div>
-
     <div class="form-row">
-        <label for="node-input-wait" style="width:auto">
-            <i class="fa fa-sort-numeric-asc"></i> Blocking Time (seconds)
-        </label>
-
-        <input 
-            type="number" 
-            id="node-input-wait" 
-            min="1" 
-            step="1" 
-            value="1"
-            style="width:80px;"
-        />
+        <label for="node-input-wait"><i class="fa fa-clock-o"></i> Blocking Time (sec)</label>
+        <input type="number" id="node-input-wait" min="0" step="1" value="0" style="width:80px;">
     </div>
-
     <div class="form-row">
-        <label for="node-input-batchSize" style="width:auto">
-            <i class="fa fa-sort-numeric-asc"></i> Batch Size (messages)
-        </label>
-        <input 
-            type="number" 
-            id="node-input-batchSize" 
-            min="1" 
-            step="1" 
-            value="1"
-            style="width:80px"
-        />
+        <label for="node-input-batchSize"><i class="fa fa-sort-numeric-asc"></i> Batch Size</label>
+        <input type="number" id="node-input-batchSize" min="1" step="1" value="1" style="width:80px;">
     </div>
-    
 </script>
 
-
 <script type="text/x-red" data-help-name="dequeue">
-<p>Retrieves messages from an Oracle AQ. 
-    Stores results in <code>msg.dequeued</code> 
-    and <code>msg.payload</code> so they can be referenced in other nodes.
-</p>
+<p>Retrieves messages from an Oracle Advanced Queue (AQ).</p>
 
-<h3>Inputs</h3>
+<h3>Configuration</h3>
 <dl class="message-properties">
-  <dt>DB Connection</dt><dd>Database configuration used for authentication.</dd>
-  <dt>Queue Name</dt><dd>AQ to dequeue from.</dd>
-  <dt>Subscriber</dt><dd>Optional consumer name for multi-consumer queues.</dd>
-  <dt>Block Indefinitely</dt><dd>Waits indefinitely for messages.</dd>
-  <dt>Blocking Time</dt><dd>Timeout if not blocking indefinitely.</dd>
-  <dt>Batch Size</dt><dd>Number of messages to retrieve.</dd>
+    <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
+    <dt>Queue Name</dt><dd>Name of the AQ to dequeue from.</dd>
+    <dt>Subscriber</dt><dd>Optional consumer name for multi-consumer queues.</dd>
+    <dt>Block Indefinitely</dt><dd>If checked, waits forever for messages (ignores Blocking Time).</dd>
+    <dt>Blocking Time</dt><dd>Seconds to wait before returning if no messages available.</dd>
+    <dt>Batch Size</dt><dd>Number of messages to dequeue per invocation.</dd>
 </dl>
+
+<h3>Outputs</h3>
+<p>One message is sent per dequeued item:</p>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>The dequeued message content.</dd>
+    <dt>dequeued <span class="property-type">object</span></dt><dd>Same as payload (for backward compatibility).</dd>
+</dl>
+
+<h3>Details</h3>
+<p><b>With transaction:</b> If <code>msg.transaction.connection</code> exists (from a
+<b>begin transaction</b> node), the dequeue uses that connection. Messages are dequeued
+in <code>LOCKED</code> mode with <code>VISIBILITY_ON_COMMIT</code>, meaning they stay on
+the queue until the <b>end transaction</b> node commits. If the flow fails, the message
+is rolled back and remains available for re-processing.</p>
+<p><b>Without transaction:</b> The node creates its own connection and commits immediately
+after dequeue. Messages are permanently removed from the queue regardless of what happens
+downstream. A warning is shown to indicate messages will not be protected by rollback.</p>
+
+<h3>Recommended Flow</h3>
+<p>For reliable processing, always use with transaction nodes:</p>
+<p><code>begin transaction</code> → <code>dequeue</code> → <i>(processing)</i> → <code>end transaction</code></p>
 </script>

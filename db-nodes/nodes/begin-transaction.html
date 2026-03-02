@@ -35,24 +35,23 @@
 -->
 
 <script type="text/javascript">
-RED.nodes.registerType("enqueue", {
+RED.nodes.registerType("begin-transaction", {
     category: "oracledb",
-    paletteLabel: "enqueue",
+    paletteLabel: "begin transaction",
     defaults: {
         name: { value: "" },
         connection: { type: "db-connection", required: true },
-        queueName: { value: "" },
-        recipients: { value: "" },
-        userPayload: { value: "" }
+        timeoutSecs: { value: 0 }
     },
     inputs: 1, outputs: 1,
     color: "#4C825C",
-    icon: "font-awesome/fa-arrow-up",
-    label: function () { return this.name || "enqueue"; }
+    icon: "font-awesome/fa-sign-in",
+    align: "right",
+    label: function () { return this.name || "begin transaction"; }
 });
 </script>
 
-<script type="text/x-red" data-template-name="enqueue">
+<script type="text/x-red" data-template-name="begin-transaction">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
@@ -63,48 +62,43 @@ RED.nodes.registerType("enqueue", {
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-queueName"><i class="fa fa-list-ul"></i> Queue Name</label>
-        <input type="text" id="node-input-queueName">
-    </div>
-    <div class="form-row">
-        <label for="node-input-recipients"><i class="fa fa-users"></i> Recipients</label>
-        <input type="text" id="node-input-recipients">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Optional recipients for multi-consumer queues.</div>
-    </div>
-    <hr/>
-    <div class="form-row">
-        <label for="node-input-userPayload"><i class="fa fa-code"></i> Payload</label>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
-            JSON array of messages to enqueue (e.g. <code>[{...}, {...}]</code>).
-            If empty, <code>msg.payload</code> is used at runtime.
+        <label for="node-input-timeoutSecs"><i class="fa fa-clock-o"></i> Timeout (seconds)</label>
+        <input type="number" id="node-input-timeoutSecs" min="0" step="1" value="0" style="width:80px;">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Auto-rollback if end-transaction isn't reached within this time. Set to 0 for no timeout.
         </div>
-        <textarea id="node-input-userPayload" rows="5" style="width:100%;margin-top:5px;"></textarea>
     </div>
 </script>
 
-<script type="text/x-red" data-help-name="enqueue">
-<p>Enqueues one or more JSON messages into an Oracle Advanced Queue (AQ).</p>
+<script type="text/x-red" data-help-name="begin-transaction">
+<p>Opens a database connection and stores it in <code>msg.transaction.connection</code>
+for use by downstream nodes (dequeue, sql, etc.).</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
-    <dt>Queue Name</dt><dd>Name of the AQ to enqueue into.</dd>
-    <dt>Recipients</dt><dd>Optional recipients for multi-consumer queues.</dd>
-    <dt>Payload</dt>
-    <dd>JSON array of messages. If the textarea is empty, <code>msg.payload</code> is used instead
-    (must be an array). Each array element becomes one AQ message.</dd>
+    <dt>DB Connection</dt><dd>Database configuration for authentication and connection.</dd>
+    <dt>Timeout (seconds)</dt>
+    <dd>Optional safety timeout. If the end-transaction node is not reached within this time,
+    the connection is automatically rolled back and closed. Set to <code>0</code> for no timeout.
+    This prevents connection leaks from stalled or errored flows.</dd>
 </dl>
 
 <h3>Outputs</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">string</span></dt>
-    <dd>Success message indicating how many messages were enqueued.</dd>
-    <dt>error <span class="property-type">object</span></dt>
-    <dd>Error details on failure (message, code).</dd>
+    <dt>msg.transaction.connection <span class="property-type">object</span></dt>
+    <dd>The live Oracle DB connection, passed downstream for use by other nodes.</dd>
+    <dt>msg.transaction.startedAt <span class="property-type">number</span></dt>
+    <dd>Timestamp (ms) when the transaction was opened.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>Opens its own connection, enqueues the messages, commits, and closes.
-Each element of the JSON array is enqueued as a separate AQ message with
-<code>DB_TYPE_JSON</code> payload type.</p>
+<p>Use this node <b>before</b> a <b>dequeue</b> node to create a managed transaction.
+The connection stays open until the <b>end transaction</b> node commits and closes it.
+If the downstream flow fails before reaching end-transaction, the dequeued message is
+never committed and remains available on the queue (automatic rollback on disconnect).</p>
+<p>If <code>msg.transaction.connection</code> already exists (e.g. from an upstream
+begin-transaction), the existing connection is reused.</p>
+
+<h3>Typical Flow</h3>
+<p><code>begin transaction</code> → <code>dequeue</code> → <i>(processing nodes)</i> → <code>end transaction</code></p>
 </script>

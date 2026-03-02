@@ -41,96 +41,201 @@ RED.nodes.registerType("create-meter-reading", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
-        url: { value: "" },
-        mappings: { value: "AssetNumber: <set_value>\n\MeterCode: <set_value>\n\ReadingDate: <set_value>\n\MeterUsageCode: <set_value>\n\ReadingValue: <set_value>\n\Comments: <set_value>" }
+        urlOverride: { value: "" },
+        overrideUrl: { value: false },
+        mappings: { value: '[{"scmField":"AssetNumber","sourceType":"dequeued","value":""},{"scmField":"MeterCode","sourceType":"dequeued","value":""},{"scmField":"ReadingDate","sourceType":"dequeued","value":""},{"scmField":"MeterUsageCode","sourceType":"dequeued","value":""},{"scmField":"ReadingValue","sourceType":"dequeued","value":""},{"scmField":"Comments","sourceType":"dequeued","value":""}]' }
     },
-    inputs: 1,
-    outputs: 1,
-    color: "#4F7D7B",
-    icon: "font-awesome/fa-tachometer",
-    label: function () {
-        return this.name || "create meter reading";
-    },
+    inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-tachometer",
+    label: function () { return this.name || "create meter reading"; },
     oneditprepare: function () {
-
-        function setDefaultUrl() {
-            const serverNodeId = $("#node-input-server").val();
-            const serverNode = RED.nodes.node(serverNodeId);
-            const urlInput = $("#node-input-url");
-
-            if (serverNode && !urlInput.val()) {
-                const defaultUrl =
-                    `https://${serverNode.hostname}/fscmRestApi/resources/${serverNode.version}/inventoryStagedTransactions/`;
-                urlInput.val(defaultUrl);
-            }
-        }
-
-        setDefaultUrl();
-
-        $("#node-input-server").on("change", setDefaultUrl);
-    }
+        scmMappingEditor.init(this);
+        scmUrlOverride.init(this, "meterReadings");
+    },
+    oneditsave: function () { this.mappings = scmMappingEditor.save(); }
 });
 
+// =====================================================================
+// Shared SCM mapping editor (reused across all SCM transaction nodes)
+// Only defined once; safe to include in multiple HTML files.
+// =====================================================================
+if (!window.scmMappingEditor) {
+window.scmMappingEditor = (function () {
+    function _escapeHtml(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    var _valueLabelMap = {
+        dequeued: "Field Name",
+        msg: "Property Path",
+        static: "Value"
+    };
+
+    var _valuePlaceholderMap = {
+        dequeued: "e.g. AssetNumber",
+        msg: "e.g. payload.someField",
+        static: "e.g. 100100100"
+    };
+
+    function _addRow(m) {
+        var srcType = m.sourceType || "dequeued";
+        var row = $(
+            '<div class="scm-mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<div class="scm-drag-handle" style="cursor:grab;padding:4px 2px;color:#999;font-size:16px;" title="Drag to reorder">&#9776;</div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;">SCM Field</label>' +
+                  '<input type="text" class="scm-field" value="' + _escapeHtml(m.scmField || "") + '" style="width:100%;" /></div>' +
+                '<div style="width:140px;"><label style="font-size:11px;color:#666;">Source</label>' +
+                  '<select class="scm-source-type" style="width:100%;">' +
+                    '<option value="dequeued"' + (srcType === "dequeued" ? ' selected' : '') + '>dequeued data</option>' +
+                    '<option value="msg"' + (srcType === "msg" ? ' selected' : '') + '>msg property</option>' +
+                    '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static value</option>' +
+                  '</select></div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="scm-value-label">' + (_valueLabelMap[srcType] || "Value") + '</label>' +
+                  '<input type="text" class="scm-value" value="' + _escapeHtml(m.value || "") + '" placeholder="' + (_valuePlaceholderMap[srcType] || "") + '" style="width:100%;" /></div>' +
+                '<div style="padding-top:14px;">' +
+                  '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.scm-mapping-row\').remove();">&times;</button></div>' +
+              '</div>' +
+            '</div>'
+        );
+        row.find(".scm-source-type").on("change", function () {
+            var type = $(this).val();
+            row.find(".scm-value-label").text(_valueLabelMap[type] || "Value");
+            row.find(".scm-value").attr("placeholder", _valuePlaceholderMap[type] || "");
+        });
+        $("#scm-mappings-container").append(row);
+    }
+
+    function renderAll(mappings) {
+        $("#scm-mappings-container").empty();
+        if (Array.isArray(mappings)) {
+            mappings.forEach(function (m) { _addRow(m); });
+        }
+    }
+
+    function init(node) {
+        var mappings = [];
+        try { mappings = JSON.parse(node.mappings); } catch(e) { mappings = []; }
+        if (!Array.isArray(mappings)) mappings = [];
+        renderAll(mappings);
+
+        $("#btn-add-scm-mapping").off("click").on("click", function () {
+            _addRow({ scmField: "", sourceType: "dequeued", value: "" });
+        });
+
+        $("#scm-mappings-container").sortable({
+            handle: ".scm-drag-handle", axis: "y", cursor: "grabbing",
+            opacity: 0.7, placeholder: "scm-sortable-placeholder", tolerance: "pointer"
+        });
+    }
+
+    function save() {
+        var mappings = [];
+        $("#scm-mappings-container .scm-mapping-row").each(function () {
+            var row = $(this);
+            var m = {
+                scmField: row.find(".scm-field").val().trim(),
+                sourceType: row.find(".scm-source-type").val(),
+                value: row.find(".scm-value").val().trim()
+            };
+            if (m.scmField) mappings.push(m);
+        });
+        return JSON.stringify(mappings);
+    }
+
+    return { init: init, save: save, renderAll: renderAll };
+})();
+var scmMappingEditor = window.scmMappingEditor;
+}
+
+if (!window.scmUrlOverride) {
+window.scmUrlOverride = (function () {
+    function init(node, endpoint) {
+        var $cb = $("#node-input-overrideUrl");
+        var $urlRow = $("#url-override-row");
+        var $display = $("#scm-url-display");
+
+        function update() {
+            var serverNodeId = $("#node-input-server").val();
+            var serverNode = RED.nodes.node(serverNodeId);
+            if (serverNode && $display.length) {
+                $display.text("https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint);
+            }
+            $urlRow.toggle($cb.is(":checked"));
+        }
+        update();
+        $cb.on("change", update);
+        $("#node-input-server").on("change", update);
+    }
+    return { init: init };
+})();
+var scmUrlOverride = window.scmUrlOverride;
+}
+
 </script>
+<style>    .scm-sortable-placeholder { border:2px dashed #4F7D7B; border-radius:4px; background:#eef5f4; height:50px; margin-bottom:6px; }
+    .scm-drag-handle:hover { color:#555 !important; }
+</style>
 
 <script type="text/x-red" data-template-name="create-meter-reading">
     <div class="form-row">
-        <label for="node-input-name" style="width:auto">
-            <i class="fa fa-tag"></i> Name
-        </label>
-
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
-
     <div class="form-row">
-        <label for="node-input-server" style="width:auto">
-            <i class="fa fa-globe"></i> SCM Server
-        </label>
-
-        <input type="text" id="node-input-server" placeholder="Select SCM Server" />
+        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" />
     </div>
-
+    <hr/>
     <div class="form-row">
-        <label for="node-input-url" style="width:auto">
-            <i class="fa fa-link"></i> URL
-        </label>
-
-        <div style="color:#777; font-size: 0.85em;">
-            Auto-filled from server selection
-        </div>
-
-        <input type="text" id="node-input-url" style="width:100%;">
+        <label><i class="fa fa-link"></i> Endpoint</label>
+        <span id="scm-url-display" style="font-size:12px;color:#555;word-break:break-all;"></span>
     </div>
-
     <div class="form-row">
-        <label for="node-input-mappings" style="width:auto">
-            <i class="fa fa-list-ul"></i> Payload Mappings
+        <label for="node-input-overrideUrl" style="width:auto;">
+            <input type="checkbox" id="node-input-overrideUrl" style="width:auto;vertical-align:middle;" />
+            <span style="font-size:12px;color:#666;"> Override URL</span>
         </label>
-
-        <div style="color:#777; font-size: 0.85em;">
-            <b>Format: key: value</b><br>
-            - value may be a field from dequeued data (AssetNumber: msg.dequeued.AssetNumber)<br>
-            - or a manually entered value (ReadingValue: 1999)
+    </div>
+    <div class="form-row" id="url-override-row" style="display:none;">
+        <label for="node-input-urlOverride"><i class="fa fa-pencil"></i> Custom URL</label>
+        <input type="text" id="node-input-urlOverride" style="width:100%;">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+            Map SCM API fields to dequeued data, message properties, or static values. Drag &#9776; to reorder.
         </div>
-
-        <textarea id="node-input-mappings" style="width:100%; height:250px;"></textarea>
+    </div>
+    <div class="form-row">
+        <div id="scm-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
+        <div style="margin-left:20px;margin-top:4px;">
+            <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-scm-mapping">+ Add Mapping</button>
+        </div>
     </div>
 </script>
 
-
 <script type="text/x-red" data-help-name="create-meter-reading">
-<p>Creates a new Meter Reading in SCM. 
-    Can use payload mappings to map fields from the dequeued message 
-    (msg.path is automatically set to msg.dequeued in the Dequeue Node) 
-    or manually entered values.
-</p>
-
-<h3>Inputs</h3>
-
+<p>Creates a new Meter Reading in Oracle Fusion SCM.</p>
+<h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>SCM Server</dt><dd>SCM configuration used for authentication.</dd>
-    <dt>URL</dt><dd>Auto-populated from SCM configuration fields. Meter Readings endpoint.</dd>
+    <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
+    <dt>Endpoint</dt><dd>Auto-built from server config. Check <b>Override URL</b> to use a custom endpoint.</dd>
     <dt>Payload Mappings</dt>
-    <dd>Requires key: value format. Value may be a field from dequeued data  (e.g. <code>AssetNumber: msg.dequeued.AssetNumber</code>) or manually entered value.</dd>
+    <dd>Map SCM API fields to values. Each row specifies:
+        <ul>
+            <li><b>SCM Field</b> &mdash; the API field name</li>
+            <li><b>Source</b> &mdash; <code>dequeued data</code> (reads from msg.dequeued), <code>msg property</code> (reads from any msg path), or <code>static value</code> (constant)</li>
+            <li><b>Value</b> &mdash; the field name, property path, or literal value depending on source type</li>
+        </ul>
+    </dd>
 </dl>
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>API response body on success, error details on failure.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
+    <dt>error <span class="property-type">string</span></dt><dd>Error message (only on failure).</dd>
+</dl>
+<h3>Details</h3>
+<p>Sends a <code>POST</code> request to the Meter Readings REST endpoint. The payload is built from the configured mappings. Authentication is handled automatically via the selected SCM Server.</p>
 </script>

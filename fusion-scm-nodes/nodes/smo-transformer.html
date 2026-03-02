@@ -1,0 +1,568 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+  // =========================================================================
+  // PRESET CONFIGURATIONS
+  // =========================================================================
+  var SMO_PRESETS = {
+    CA_FAULT: {
+      entityCodeFields: ["deviceId", "machineId"],
+      fieldMappings: [
+        { incomingField: "FAULT_CODE", smoField: "FAULT_CODE", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "faultCode", smoField: "FAULT_CODE", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "FAULT_TYPE", smoField: "FAULT_TYPE", transformType: "none", defaultValue: "Diagnostic", valueMap: {}, excludeFields: [] }
+      ],
+      enableNesting: false, nestingKey: "", enableComposite: false, requiredFields: [], splitFields: [], staleTimeout: 0
+    },
+    CA_STATUS: {
+      entityCodeFields: ["deviceId", "machineId"],
+      fieldMappings: [
+        { incomingField: "state", smoField: "STATUS", transformType: "valueMap", defaultValue: "", valueMap: { "0": "DOWN", "1": "IN_USE", "2": "IDLE" }, excludeFields: [] },
+        { incomingField: "status", smoField: "STATUS", transformType: "valueMap", defaultValue: "", valueMap: { "0": "DOWN", "1": "IN_USE", "2": "IDLE" }, excludeFields: [] }
+      ],
+      enableNesting: false, nestingKey: "", enableComposite: false, requiredFields: [], splitFields: [], staleTimeout: 0
+    },
+    CA_OPERATION_EXECUTION_START: {
+      entityCodeFields: ["deviceId", "machineId"],
+      fieldMappings: [
+        { incomingField: "WORK_ORDER_NUMBER", smoField: "WORK_ORDER_NUMBER", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "workOrderNumber", smoField: "WORK_ORDER_NUMBER", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "OPERATION_SEQUENCE", smoField: "OPERATION_SEQUENCE", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "operationSequence", smoField: "OPERATION_SEQUENCE", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] }
+      ],
+      enableNesting: false, nestingKey: "", enableComposite: true,
+      requiredFields: ["WORK_ORDER_NUMBER", "OPERATION_SEQUENCE"],
+      splitFields: [{ incomingField: "operationNumber", delimiter: "-", outputField1: "WORK_ORDER_NUMBER", outputField2: "OPERATION_SEQUENCE" }],
+      staleTimeout: 0
+    },
+    CA_OPERATION_EXECUTION_STOP: {
+      entityCodeFields: ["deviceId", "machineId"], fieldMappings: [],
+      enableNesting: false, nestingKey: "", enableComposite: false, requiredFields: [], splitFields: [], staleTimeout: 0
+    },
+    "CA_QUANTITY_REPORT_COMPLETE_REJECT": {
+      label: "CA_QUANTITY_REPORT (Complete | Reject)", eventTypeCodeOverride: "CA_QUANTITY_REPORT",
+      entityCodeFields: ["deviceId", "machineId"],
+      fieldMappings: [
+        { incomingField: "serialNumber", smoField: "SERIAL_NUMBER", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "goodQuantity", smoField: "QUANTITY_REPORT_TYPE", transformType: "valueMap", defaultValue: "", valueMap: { "__present__": "COMPLETE" }, excludeFields: [] },
+        { incomingField: "acceptQuantity", smoField: "QUANTITY_REPORT_TYPE", transformType: "valueMap", defaultValue: "", valueMap: { "__present__": "COMPLETE" }, excludeFields: [] },
+        { incomingField: "badQuantity", smoField: "QUANTITY_REPORT_TYPE", transformType: "valueMap", defaultValue: "", valueMap: { "__present__": "REJECT" }, excludeFields: [] },
+        { incomingField: "rejectQuantity", smoField: "QUANTITY_REPORT_TYPE", transformType: "valueMap", defaultValue: "", valueMap: { "__present__": "REJECT" }, excludeFields: [] },
+        { incomingField: "goodQuantity", smoField: "QUANTITY", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "acceptQuantity", smoField: "QUANTITY", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "badQuantity", smoField: "QUANTITY", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "rejectQuantity", smoField: "QUANTITY", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] }
+      ],
+      enableNesting: false, nestingKey: "", enableComposite: false, requiredFields: [], splitFields: [], staleTimeout: 0
+    },
+    "CA_QUANTITY_REPORT_INSPECT": {
+      label: "CA_QUANTITY_REPORT (Inspect)", eventTypeCodeOverride: "CA_QUANTITY_REPORT",
+      entityCodeFields: ["deviceId", "machineId"],
+      fieldMappings: [
+        { incomingField: "serialNumber", smoField: "SERIAL_NUMBER", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "", smoField: "QUANTITY_REPORT_TYPE", transformType: "staticValue", defaultValue: "INSPECT", valueMap: {}, excludeFields: [] },
+        { incomingField: "Quantity", smoField: "QUANTITY", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "height", smoField: "INSPECTION_CHARACTERISTICS", transformType: "collectFlat", defaultValue: "", valueMap: {}, excludeFields: [], collectFields: ["height", "width", "colour"] },
+        { incomingField: "inspectionData", smoField: "INSPECTION_CHARACTERISTICS", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [] }
+      ],
+      enableNesting: false, nestingKey: "", enableComposite: true,
+      requiredFields: ["QUANTITY", "INSPECTION_CHARACTERISTICS"],
+      splitFields: [], staleTimeout: 0
+    },
+    CA_OPERATIONAL_PARAMETERS: {
+      entityCodeFields: ["deviceId", "machineId"],
+      fieldMappings: [
+        { incomingField: "temperature", smoField: "PARAMETER_CODE_1", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "pressure", smoField: "PARAMETER_CODE_2", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "fanMode", smoField: "PARAMETER_CODE_3", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "controlUnitState", smoField: "PARAMETER_CODE_4", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] }
+      ],
+      enableNesting: false, nestingKey: "", enableComposite: false, requiredFields: [], splitFields: [], staleTimeout: 0
+    },
+    CA_METERS: {
+      entityCodeFields: ["deviceId", "machineId"],
+      fieldMappings: [
+        { incomingField: "odometer", smoField: "METER_CODE_1", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "fuelLevel", smoField: "METER_CODE_2", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] },
+        { incomingField: "operatingTimeInHours", smoField: "METER_CODE_3", transformType: "string", defaultValue: "", valueMap: {}, excludeFields: [] }
+      ],
+      enableNesting: true, nestingKey: "METER_READINGS", enableComposite: false, requiredFields: [], splitFields: [], staleTimeout: 0
+    }
+  };
+
+  var EVENT_TYPE_ORDER = [
+    "CA_FAULT", "CA_STATUS", "CA_OPERATION_EXECUTION_START", "CA_OPERATION_EXECUTION_STOP",
+    "CA_QUANTITY_REPORT_COMPLETE_REJECT", "CA_QUANTITY_REPORT_INSPECT",
+    "CA_OPERATIONAL_PARAMETERS", "CA_METERS"
+  ];
+
+  // =========================================================================
+  // NODE REGISTRATION
+  // =========================================================================
+  RED.nodes.registerType("smo-transformer", {
+    category: "oracle fusion scm",
+    color: "#4F7D7B",
+    defaults: {
+      name: { value: "" }, eventTypeCode: { value: "CA_FAULT" }, selectedPreset: { value: "CA_FAULT" },
+      customEventType: { value: "" }, entityCodeFields: { value: '["deviceId","machineId"]' },
+      fieldMappings: { value: "[]" }, enableNesting: { value: false }, nestingKey: { value: "" },
+      enableComposite: { value: false }, requiredFields: { value: "[]" }, splitFields: { value: "[]" },
+      customJsonata: { value: "" }, staleTimeout: { value: 0 }
+    },
+    inputs: 1, outputs: 1, icon: "cog.svg",
+    label: function () {
+      if (this.name) return this.name;
+      var preset = SMO_PRESETS[this.selectedPreset];
+      var label = preset && preset.label ? preset.label : (this.eventTypeCode || "smo transformer");
+      return label + (this.enableComposite ? " (composite)" : "");
+    },
+    paletteLabel: "smo transformer",
+
+    oneditprepare: function () {
+      var node = this;
+      var _userReady = false;
+      var _loadedPreset = node.selectedPreset || "CA_FAULT";
+      var $presetSelect = $("#node-input-selectedPreset");
+      var currentPreset = _loadedPreset;
+
+      EVENT_TYPE_ORDER.forEach(function (key) {
+        var preset = SMO_PRESETS[key];
+        $presetSelect.append($("<option>").val(key).text(preset.label || key));
+      });
+      if (!SMO_PRESETS[currentPreset] && currentPreset !== "__custom__") {
+        $presetSelect.append($("<option>").val(currentPreset).text(currentPreset + " (custom)"));
+      }
+      $presetSelect.append($("<option>").val("__custom__").text("+ Add Custom Event Type..."));
+      $presetSelect.val(currentPreset);
+
+      $presetSelect.on("change", function () {
+        var selected = $(this).val();
+        if (!_userReady || selected === _loadedPreset) return;
+        _loadedPreset = null;
+        if (selected === "__custom__") {
+          $("#custom-event-type-row").show();
+          $("#node-input-eventTypeCode").val("");
+          renderEntityCodeFields(["deviceId", "machineId"]);
+          renderFieldMappings([]);
+          $("#node-input-enableNesting").prop("checked", false).trigger("change");
+          $("#node-input-nestingKey").val("");
+          $("#node-input-enableComposite").prop("checked", false).trigger("change");
+          renderRequiredFields([]); renderSplitFields([]); $("#node-input-staleTimeout").val(0);
+          return;
+        }
+        $("#custom-event-type-row").hide();
+        if (SMO_PRESETS[selected]) applyPreset(SMO_PRESETS[selected], selected);
+      });
+
+      $("#btn-add-custom-event").on("click", function () {
+        var customVal = $("#node-input-customEventType").val().trim();
+        if (customVal) {
+          SMO_PRESETS[customVal] = { entityCodeFields: ["deviceId","machineId"], fieldMappings: [],
+            enableNesting: false, nestingKey: "", enableComposite: false, requiredFields: [], splitFields: [], staleTimeout: 0 };
+          $presetSelect.find('option[value="__custom__"]').before($("<option>").val(customVal).text(customVal + " (custom)"));
+          $presetSelect.val(customVal); $("#node-input-customEventType").val(""); $("#custom-event-type-row").hide();
+          _loadedPreset = null;
+          applyPreset(SMO_PRESETS[customVal], customVal);
+        }
+      });
+      if (currentPreset === "__custom__") $("#custom-event-type-row").show();
+
+      var entityFields = parseJson(node.entityCodeFields, ["deviceId", "machineId"]);
+      renderEntityCodeFields(entityFields);
+      $("#btn-add-entity-field").on("click", function () { addEntityCodeFieldRow(""); });
+
+      var mappings = parseJson(node.fieldMappings, []);
+      renderFieldMappings(mappings);
+      $("#btn-add-mapping").on("click", function () {
+        addFieldMappingRow({ incomingField: "", smoField: "", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [], collectFields: [] });
+      });
+
+      // Enable drag-to-reorder (jQuery UI sortable is loaded by Node-RED)
+      $("#field-mappings-container").sortable({
+        handle: ".mapping-drag-handle", axis: "y", cursor: "grabbing",
+        opacity: 0.7, placeholder: "mapping-sortable-placeholder", tolerance: "pointer"
+      });
+
+      $("#node-input-enableNesting").on("change", function () { $("#nesting-key-row").toggle($(this).is(":checked")); });
+      if (node.enableNesting) $("#nesting-key-row").show();
+      $("#node-input-enableComposite").on("change", function () { $(".composite-config").toggle($(this).is(":checked")); });
+      if (node.enableComposite) $(".composite-config").show();
+
+      var reqFields = parseJson(node.requiredFields, []);
+      renderRequiredFields(reqFields);
+      $("#btn-add-required-field").on("click", function () { addRequiredFieldRow(""); });
+
+      var splitFields = parseJson(node.splitFields, []);
+      renderSplitFields(splitFields);
+      $("#btn-add-split-field").on("click", function () {
+        addSplitFieldRow({ incomingField: "", delimiter: "-", outputField1: "", outputField2: "" });
+      });
+
+      $("#btn-toggle-advanced").on("click", function () {
+        $("#advanced-section").toggle();
+        $(this).text($("#advanced-section").is(":visible") ? "▼ Advanced" : "▶ Advanced");
+      });
+
+      function applyPreset(preset, presetKey) {
+        $("#node-input-eventTypeCode").val(preset.eventTypeCodeOverride || presetKey);
+        renderEntityCodeFields(preset.entityCodeFields || ["deviceId", "machineId"]);
+        renderFieldMappings(preset.fieldMappings || []);
+        $("#node-input-enableNesting").prop("checked", preset.enableNesting || false).trigger("change");
+        $("#node-input-nestingKey").val(preset.nestingKey || "");
+        $("#node-input-enableComposite").prop("checked", preset.enableComposite || false).trigger("change");
+        renderRequiredFields(preset.requiredFields || []);
+        renderSplitFields(preset.splitFields || []);
+        $("#node-input-staleTimeout").val(preset.staleTimeout || 0);
+      }
+
+      var fm = node.fieldMappings;
+      var isNewNode = (fm === "[]" || (Array.isArray(fm) && fm.length === 0));
+      if (SMO_PRESETS[currentPreset] && isNewNode) applyPreset(SMO_PRESETS[currentPreset], currentPreset);
+
+      setTimeout(function () { _userReady = true; }, 0);
+    },
+
+    oneditsave: function () {
+      var entityFields = [];
+      $("#entity-code-fields-container .entity-field-row").each(function () {
+        var val = $(this).find("input").val().trim();
+        if (val) entityFields.push(val);
+      });
+      this.entityCodeFields = JSON.stringify(entityFields);
+
+      var mappings = [];
+      $("#field-mappings-container .mapping-row").each(function () {
+        var row = $(this);
+        var mapping = {
+          incomingField: row.find(".mapping-incoming").val().trim(),
+          smoField: row.find(".mapping-smo").val().trim(),
+          transformType: row.find(".mapping-transform").val(),
+          defaultValue: row.find(".mapping-default").val().trim()
+        };
+        if (mapping.transformType === "valueMap") {
+          var valueMap = {};
+          row.find(".value-map-entry").each(function () {
+            var k = $(this).find(".vmap-key").val().trim();
+            var v = $(this).find(".vmap-value").val().trim();
+            if (k) valueMap[k] = v;
+          });
+          mapping.valueMap = valueMap;
+        }
+        if (mapping.transformType === "dynamicSift") {
+          var excludes = [];
+          row.find(".exclude-field-entry").each(function () { var v = $(this).find("input").val().trim(); if (v) excludes.push(v); });
+          mapping.excludeFields = excludes;
+        }
+        if (mapping.transformType === "collectFlat") {
+          var collectFields = [];
+          row.find(".collect-flat-section .exclude-field-entry").each(function () { var v = $(this).find("input").val().trim(); if (v) collectFields.push(v); });
+          mapping.collectFields = collectFields;
+        }
+        var noIncomingOk = (mapping.transformType === "staticValue" || mapping.transformType === "collectFlat");
+        if (mapping.smoField && (mapping.incomingField || noIncomingOk)) mappings.push(mapping);
+      });
+      this.fieldMappings = JSON.stringify(mappings);
+
+      var reqFields = [];
+      $("#required-fields-container .required-field-row").each(function () { var val = $(this).find("input").val().trim(); if (val) reqFields.push(val); });
+      this.requiredFields = JSON.stringify(reqFields);
+
+      var splitFields = [];
+      $("#split-fields-container .split-field-row").each(function () {
+        var row = $(this);
+        var sf = { incomingField: row.find(".split-incoming").val().trim(), delimiter: row.find(".split-delimiter").val() || "-",
+          outputField1: row.find(".split-output1").val().trim(), outputField2: row.find(".split-output2").val().trim() };
+        if (sf.incomingField) splitFields.push(sf);
+      });
+      this.splitFields = JSON.stringify(splitFields);
+
+      var selectedPreset = $("#node-input-selectedPreset").val();
+      if (selectedPreset === "__custom__") {
+        var customVal = $("#node-input-customEventType").val().trim();
+        if (customVal) { this.selectedPreset = customVal; this.eventTypeCode = customVal; $("#node-input-eventTypeCode").val(customVal); }
+      } else {
+        this.selectedPreset = selectedPreset;
+        var preset = SMO_PRESETS[selectedPreset];
+        var etc = (preset && preset.eventTypeCodeOverride) ? preset.eventTypeCodeOverride : selectedPreset;
+        this.eventTypeCode = etc; $("#node-input-eventTypeCode").val(etc);
+      }
+    }
+  });
+
+  // =======================================================================
+  // UI HELPER FUNCTIONS
+  // =======================================================================
+  function parseJson(str, defaultVal) {
+    if (Array.isArray(str)) return str;
+    if (typeof str === "object" && str !== null) return str;
+    try { return JSON.parse(str); } catch (e) { return defaultVal; }
+  }
+
+  function renderEntityCodeFields(fields) {
+    $("#entity-code-fields-container").empty();
+    fields.forEach(function (f) { addEntityCodeFieldRow(f); });
+  }
+  function addEntityCodeFieldRow(value) {
+    var row = $('<div class="entity-field-row" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+      '<input type="text" value="' + escapeHtml(value) + '" style="flex:1;" />' +
+      '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).parent().remove();">✕</button></div>');
+    $("#entity-code-fields-container").append(row);
+  }
+
+  function renderFieldMappings(mappings) {
+    $("#field-mappings-container").empty();
+    mappings.forEach(function (m) { addFieldMappingRow(m); });
+  }
+
+  function addFieldMappingRow(mapping) {
+    var tt = mapping.transformType || "none";
+    var opts =
+      '<option value="none"'       + (tt === "none"       ? " selected" : "") + '>None</option>' +
+      '<option value="string"'     + (tt === "string"     ? " selected" : "") + '>String</option>' +
+      '<option value="number"'     + (tt === "number"     ? " selected" : "") + '>Number</option>' +
+      '<option value="staticValue"'+ (tt === "staticValue"? " selected" : "") + '>Static Value</option>' +
+      '<option value="valueMap"'   + (tt === "valueMap"   ? " selected" : "") + '>Value Map</option>' +
+      '<option value="nestedObject"'+(tt === "nestedObject"?" selected" : "") + '>Nested Object</option>' +
+      '<option value="collectFlat"'+ (tt === "collectFlat"? " selected" : "") + '>Collect Flat Fields</option>' +
+      '<option value="dynamicSift"'+ (tt === "dynamicSift"? " selected" : "") + '>Dynamic Sift</option>';
+    var dv = mapping.defaultValue || "";
+    var isStatic = (tt === "staticValue");
+
+    var row = $(
+      '<div class="mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:8px;background:#fafafa;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+          '<div class="mapping-drag-handle" style="cursor:grab;padding:4px 2px;color:#999;font-size:16px;" title="Drag to reorder">☰</div>' +
+          '<div style="flex:1;" class="incoming-field-col">' +
+            '<label style="font-size:11px;color:#666;">Incoming Field</label>' +
+            '<input type="text" class="mapping-incoming" value="' + escapeHtml(mapping.incomingField || "") + '" style="width:100%;" /></div>' +
+          '<div style="flex:1;"><label style="font-size:11px;color:#666;">Outgoing Field</label>' +
+            '<input type="text" class="mapping-smo" value="' + escapeHtml(mapping.smoField || "") + '" style="width:100%;" /></div>' +
+          '<div style="flex:1;"><label style="font-size:11px;color:#666;">Transform</label>' +
+            '<select class="mapping-transform" style="width:100%;">' + opts + '</select></div>' +
+          '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="default-value-label">' + (isStatic ? 'Value' : 'Default Value') + '</label>' +
+            '<input type="text" class="mapping-default" value="' + escapeHtml(dv) + '" style="width:100%;" /></div>' +
+          '<div style="padding-top:14px;"><button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.mapping-row\').remove();">✕</button></div>' +
+        '</div>' +
+        '<div class="static-value-hint" style="' + (isStatic ? '' : 'display:none;') + 'margin:0 0 6px 28px;font-size:11px;color:#888;">Writes a constant value to the outgoing field. No incoming field needed.</div>' +
+        '<div class="value-map-section" style="display:none;margin-top:6px;padding:6px;background:#f0f0f0;border-radius:3px;">' +
+          '<label style="font-size:11px;font-weight:bold;color:#666;">Value Mappings</label>' +
+          '<div class="value-map-help-text" style="display:none;font-size:11px;color:#888;margin:4px 0;">Tip: Use the special key <code>__present__</code> to map based on field <em>existence</em> rather than value.</div>' +
+          '<div class="value-map-entries"></div>' +
+          '<button type="button" class="red-ui-button red-ui-button-small btn-add-vmap" style="margin-top:4px;">+ Add Value</button></div>' +
+        '<div class="collect-flat-section" style="display:none;margin-top:6px;padding:6px;background:#f0f0f0;border-radius:3px;">' +
+          '<label style="font-size:11px;font-weight:bold;color:#666;">Fields to Collect</label>' +
+          '<div style="font-size:11px;color:#888;margin-bottom:4px;">Flat payload fields to gather into a single nested object. Incoming Field is optional.</div>' +
+          '<div class="collect-field-entries"></div>' +
+          '<button type="button" class="red-ui-button red-ui-button-small btn-add-collect" style="margin-top:4px;">+ Add Field</button></div>' +
+        '<div class="dynamic-sift-section" style="display:none;margin-top:6px;padding:6px;background:#f0f0f0;border-radius:3px;">' +
+          '<label style="font-size:11px;font-weight:bold;color:#666;">Exclude Fields</label>' +
+          '<div class="exclude-field-entries"></div>' +
+          '<button type="button" class="red-ui-button red-ui-button-small btn-add-exclude" style="margin-top:4px;">+ Add Exclude Field</button></div>' +
+      '</div>');
+
+    if (isStatic) row.find(".incoming-field-col").css("opacity", "0.4");
+
+    row.find(".mapping-transform").on("change", function () {
+      var val = $(this).val(); var s = (val === "staticValue");
+      row.find(".value-map-section").toggle(val === "valueMap");
+      row.find(".value-map-help-text").toggle(val === "valueMap");
+      row.find(".collect-flat-section").toggle(val === "collectFlat");
+      row.find(".dynamic-sift-section").toggle(val === "dynamicSift");
+      row.find(".static-value-hint").toggle(s);
+      row.find(".incoming-field-col").css("opacity", s ? "0.4" : "1");
+      row.find(".default-value-label").text(s ? "Value" : "Default Value");
+    });
+
+    if (tt === "valueMap" && mapping.valueMap) {
+      row.find(".value-map-section").show(); row.find(".value-map-help-text").show();
+      Object.keys(mapping.valueMap).forEach(function (k) { addValueMapEntry(row.find(".value-map-entries"), k, mapping.valueMap[k]); });
+    }
+    row.find(".btn-add-vmap").on("click", function () { addValueMapEntry(row.find(".value-map-entries"), "", ""); });
+
+    if (tt === "dynamicSift" && mapping.excludeFields) {
+      row.find(".dynamic-sift-section").show();
+      mapping.excludeFields.forEach(function (f) { addExcludeFieldEntry(row.find(".exclude-field-entries"), f); });
+    }
+    row.find(".btn-add-exclude").on("click", function () { addExcludeFieldEntry(row.find(".exclude-field-entries"), ""); });
+
+    if (tt === "collectFlat" && mapping.collectFields) {
+      row.find(".collect-flat-section").show();
+      mapping.collectFields.forEach(function (f) { addExcludeFieldEntry(row.find(".collect-field-entries"), f); });
+    }
+    row.find(".btn-add-collect").on("click", function () { addExcludeFieldEntry(row.find(".collect-field-entries"), ""); });
+
+    $("#field-mappings-container").append(row);
+  }
+
+  function addValueMapEntry(container, key, value) {
+    container.append($('<div class="value-map-entry" style="display:flex;align-items:center;gap:6px;margin-top:4px;">' +
+      '<input type="text" class="vmap-key" value="' + escapeHtml(key) + '" style="flex:1;" /><span style="color:#999;">→</span>' +
+      '<input type="text" class="vmap-value" value="' + escapeHtml(value) + '" style="flex:1;" />' +
+      '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).parent().remove();">✕</button></div>'));
+  }
+  function addExcludeFieldEntry(container, value) {
+    container.append($('<div class="exclude-field-entry" style="display:flex;align-items:center;gap:6px;margin-top:4px;">' +
+      '<input type="text" value="' + escapeHtml(value) + '" style="flex:1;" />' +
+      '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).parent().remove();">✕</button></div>'));
+  }
+  function renderRequiredFields(fields) { $("#required-fields-container").empty(); fields.forEach(function (f) { addRequiredFieldRow(f); }); }
+  function addRequiredFieldRow(value) {
+    $("#required-fields-container").append($('<div class="required-field-row" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+      '<input type="text" value="' + escapeHtml(value) + '" style="flex:1;" />' +
+      '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).parent().remove();">✕</button></div>'));
+  }
+  function renderSplitFields(fields) { $("#split-fields-container").empty(); fields.forEach(function (f) { addSplitFieldRow(f); }); }
+  function addSplitFieldRow(sf) {
+    var row = $('<div class="split-field-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
+      '<div style="display:flex;gap:8px;"><div style="flex:2;"><label style="font-size:11px;color:#666;">Incoming Field</label>' +
+        '<input type="text" class="split-incoming" value="' + escapeHtml(sf.incomingField || "") + '" style="width:100%;" /></div>' +
+      '<div style="flex:1;"><label style="font-size:11px;color:#666;">Delimiter</label>' +
+        '<input type="text" class="split-delimiter" value="' + escapeHtml(sf.delimiter || "-") + '" style="width:100%;" /></div></div>' +
+      '<div style="display:flex;gap:8px;margin-top:4px;"><div style="flex:1;"><label style="font-size:11px;color:#666;">Output Field 1 (before delimiter)</label>' +
+        '<input type="text" class="split-output1" value="' + escapeHtml(sf.outputField1 || "") + '" style="width:100%;" /></div>' +
+      '<div style="flex:1;"><label style="font-size:11px;color:#666;">Output Field 2 (after delimiter)</label>' +
+        '<input type="text" class="split-output2" value="' + escapeHtml(sf.outputField2 || "") + '" style="width:100%;" /></div>' +
+      '<div style="padding-top:14px;"><button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.split-field-row\').remove();">✕</button></div></div></div>');
+    $("#split-fields-container").append(row);
+  }
+  function escapeHtml(str) { return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+</script>
+
+<style>
+  .mapping-sortable-placeholder { border:2px dashed #d4a843; border-radius:4px; background:#fef9ee; height:60px; margin-bottom:8px; }
+  .mapping-drag-handle:hover { color:#555 !important; }
+</style>
+
+<script type="text/html" data-template-name="smo-transformer">
+  <input type="hidden" id="node-input-eventTypeCode" />
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" />
+  </div>
+  <hr />
+  <div class="form-row">
+    <label for="node-input-selectedPreset"><i class="fa fa-bolt"></i> Event Type</label>
+    <select id="node-input-selectedPreset" style="width:70%;"></select>
+  </div>
+  <div class="form-row" id="custom-event-type-row" style="display:none;">
+    <label>&nbsp;</label>
+    <div style="display:inline-flex;gap:8px;width:70%;">
+      <input type="text" id="node-input-customEventType" style="flex:1;" />
+      <button type="button" class="red-ui-button" id="btn-add-custom-event">Add</button>
+    </div>
+  </div>
+  <hr />
+  <div class="form-row">
+    <label><i class="fa fa-id-card"></i> Entity Code Fields</label>
+    <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">Fields to check (in order) for the entity identifier. First match wins.</div>
+  </div>
+  <div class="form-row">
+    <div id="entity-code-fields-container" style="margin-left:105px;"></div>
+    <div style="margin-left:105px;margin-top:4px;">
+      <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-entity-field">+ Add Field</button>
+    </div>
+  </div>
+  <hr />
+  <div class="form-row">
+    <label><i class="fa fa-exchange"></i> Field Mappings</label>
+    <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">Map incoming fields to outgoing data fields. Drag ☰ to reorder. First match wins when multiple incoming fields map to the same outgoing field.</div>
+  </div>
+  <div class="form-row">
+    <div id="field-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
+    <div style="margin-left:20px;margin-top:4px;">
+      <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-mapping">+ Add Mapping</button>
+    </div>
+  </div>
+  <hr />
+  <div class="form-row">
+    <label for="node-input-enableNesting"><i class="fa fa-indent"></i> Nesting</label>
+    <input type="checkbox" id="node-input-enableNesting" style="width:auto;vertical-align:middle;" />
+    <span style="font-size:12px;color:#666;"> Wrap mapped fields in a nested object</span>
+  </div>
+  <div class="form-row" id="nesting-key-row" style="display:none;">
+    <label>&nbsp;</label>
+    <input type="text" id="node-input-nestingKey" style="width:70%;" />
+  </div>
+  <hr />
+  <div class="form-row">
+    <label for="node-input-enableComposite"><i class="fa fa-link"></i> Composite</label>
+    <input type="checkbox" id="node-input-enableComposite" style="width:auto;vertical-align:middle;" />
+    <span style="font-size:12px;color:#666;"> Enable composite message joining</span>
+  </div>
+  <div class="composite-config" style="display:none;">
+    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+      <label style="font-size:12px;font-weight:bold;color:#555;">Required Fields (all must be present for a complete message)</label>
+      <div id="required-fields-container" style="margin-top:4px;"></div>
+      <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-required-field" style="margin-top:4px;">+ Add Required Field</button>
+    </div></div>
+    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+      <label style="font-size:12px;font-weight:bold;color:#555;">Split Field Parsing (optional)</label>
+      <div id="split-fields-container" style="margin-top:4px;"></div>
+      <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-split-field" style="margin-top:4px;">+ Add Split Field</button>
+    </div></div>
+    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+      <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = disabled)</label>
+      <input type="number" id="node-input-staleTimeout" value="0" min="0" style="width:80px;" />
+    </div></div>
+  </div>
+  <hr />
+  <div class="form-row">
+    <button type="button" class="red-ui-button red-ui-button-small" id="btn-toggle-advanced">▶ Advanced</button>
+  </div>
+  <div id="advanced-section" style="display:none;">
+    <div class="form-row">
+      <label for="node-input-customJsonata"><i class="fa fa-code"></i> JSONata Override</label>
+      <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">If provided, this JSONata expression replaces all field mapping configuration above. The full <code>msg</code> object is available.</div>
+    </div>
+    <div class="form-row">
+      <textarea id="node-input-customJsonata" rows="8" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+    </div>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="smo-transformer">
+  <p>Transforms incoming telemetry or message data into structured event payloads.</p>
+  <h3>Quick Start</h3>
+  <p>Select an event type from the dropdown to auto-populate field mappings, transforms, and composite settings. Drag ☰ handles to reorder mappings.</p>
+  <h3>Key Behaviors</h3>
+  <ul>
+    <li><b>First match wins:</b> When multiple incoming fields map to the same outgoing field, the first one found in the payload is used.</li>
+    <li><b>Default values:</b> If an incoming field is missing from the payload, the default value is used instead.</li>
+    <li><b>Static Value:</b> Writes a constant value to the outgoing field with no incoming field required.</li>
+    <li><b>Presence-based value maps:</b> Use <code>__present__</code> in a value map to map based on field existence.</li>
+  </ul>
+</script>

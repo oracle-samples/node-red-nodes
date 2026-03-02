@@ -24,6 +24,8 @@
       "dequeue": "db-nodes/nodes/dequeue.js",
       "enqueue": "db-nodes/nodes/enqueue.js",
       "sql": "db-nodes/nodes/sql.js",
+      "begin-transaction": "db-nodes/nodes/begin-transaction.js",
+      "end-transaction": "db-nodes/nodes/end-transaction.js",
 
       "scm-server": "fusion-scm-nodes/nodes/scm-server.js",
       "create-meter-reading": "fusion-scm-nodes/nodes/create-meter-reading.js",
@@ -32,7 +34,11 @@
       "subinventory-quantity-transfer": "fusion-scm-nodes/nodes/subinventory-quantity-transfer.js",
       "get-meter-reading": "fusion-scm-nodes/nodes/get-meter-reading.js",
       "get-organization-id": "fusion-scm-nodes/nodes/get-organization-id.js",
-      "get-ib-asset": "fusion-scm-nodes/nodes/get-ib-asset.js"
+      "get-ib-asset": "fusion-scm-nodes/nodes/get-ib-asset.js",
+      "delete-transaction": "fusion-scm-nodes/nodes/delete-transaction.js",
+      "fusion-request": "fusion-scm-nodes/nodes/fusion-request.js",
+      "smo-transformer": "fusion-scm-nodes/nodes/smo-transformer.js",
+      "scm-lookup": "fusion-scm-nodes/nodes/scm-lookup.js"
     }
   }
 }

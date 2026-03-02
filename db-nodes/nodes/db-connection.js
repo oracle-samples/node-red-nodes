@@ -37,13 +37,12 @@
 module.exports = function (RED) {
     const oracledb = require("oracledb");
 
-    // Load the extensionOci token plugin from the oracledb package required for OCI token based auth
-    require('oracledb/plugins/token/extensionOci')
-    
+    require('oracledb/plugins/token/extensionOci');
+
     oracledb.events = true;
-    
+
     oracledb.initOracleClient(
-        { libDir: '/usr/lib/oracle/23/client64/lib' }
+        { libDir: process.env.ORACLE_CLIENT_LIB || '/usr/lib/oracle/23/client64/lib' }
     );
 
     function DbConnectionNode(config) {
@@ -53,28 +52,18 @@ module.exports = function (RED) {
         node.usePool = !!config.usePool;
         node.authType = config.authType;
         node.externalAuth = !!config.externalAuth;
-
-        // basic auth (tns string)
         node.tnsString = config.tnsString || "";
         node.scope = config.scope || "";
-
-        // config file auth
         node.configFileLocation = config.configFileLocation || "";
         node.profile = config.profile || "";
-
-        // credentials
         node.username = (this.credentials && this.credentials.username) || null;
         node.password = (this.credentials && this.credentials.password) || null;
         node.passphrase = (this.credentials && this.credentials.passphrase) || null;
-
-        // simple auth
         node.fingerprint = config.fingerprint || "";
         node.privateKeyLocation = config.privateKeyLocation || "";
         node.regionId = config.regionId || "";
         node.tenancyOCID = config.tenancyOCID || "";
         node.userOCID = config.userOCID || "";
-
-        // pool options
         node.poolMin = Number(config.poolMin);
         node.poolMax = Number(config.poolMax);
         node.poolIncrement = Number(config.poolIncrement);
@@ -89,20 +78,15 @@ module.exports = function (RED) {
             return node.tnsString.trim();
         }
 
-
         function buildAuthTypes() {
             const connectString = getConnectString();
-
-            const options = {
-                connectString,
-            };
+            const options = { connectString };
 
             switch (node.authType) {
                 case "basic":
                     options.user = node.username;
                     options.password = node.password;
                     break;
-
                 case "config":
                     options.tokenAuthConfigOci = {
                         authType: "configFileBasedAuthentication",
@@ -112,7 +96,6 @@ module.exports = function (RED) {
                     };
                     options.externalAuth = node.externalAuth;
                     break;
-
                 case "instancePrincipal":
                     options.tokenAuthConfigOci = {
                         authType: "instancePrincipal",
@@ -120,7 +103,6 @@ module.exports = function (RED) {
                     };
                     options.externalAuth = node.externalAuth;
                     break;
-
                 case "simple":
                     options.tokenAuthConfigOci = {
                         authType: "simpleAuthentication",
@@ -133,11 +115,9 @@ module.exports = function (RED) {
                     };
                     options.externalAuth = node.externalAuth;
                     break;
-
                 default:
                     throw new Error(`Unsupported auth type: ${node.authType}`);
             }
-
             return options;
         }
 
@@ -154,40 +134,32 @@ module.exports = function (RED) {
         async function initPool() {
             if (!node.usePool) return;
             if (pool) return pool;
-
             const options = buildAuthTypes();
-
             Object.assign(options, {
                 poolMin: node.poolMin,
                 poolMax: node.poolMax,
                 poolIncrement: node.poolIncrement,
                 queueTimeout: node.queueTimeout,
             });
-
             pool = await oracledb.createPool(options);
             return pool;
         }
 
         node.getPoolConnection = async function () {
             const p = await initPool();
-            if (!p) {
-                throw new Error("Pool is not enabled or failed");
-            }
+            if (!p) throw new Error("Pool is not enabled or failed");
             return await p.getConnection();
         };
 
         node.getConnection = async function () {
-            if (!node.usePool) {
-                return node.getStandaloneConnection();
-            }
+            if (!node.usePool) return node.getStandaloneConnection();
             return await node.getPoolConnection();
         };
 
         node.on("close", async (done) => {
             if (!pool) return done();
-
             try {
-                await pool.close(10); // 10 second drain timeout 
+                await pool.close(10);
                 node.debug("Connection pool closed");
             } catch (err) {
                 node.warn(`Error closing pool: ${err.message}`);
@@ -203,5 +175,24 @@ module.exports = function (RED) {
             passphrase: { type: "password" }
         }
     });
-};
 
+    // Test Connection HTTP endpoint
+    RED.httpAdmin.post("/db-connection/:id/test", RED.auth.needsPermission("db-connection.write"), async function (req, res) {
+        const node = RED.nodes.getNode(req.params.id);
+        if (!node) {
+            return res.status(404).json({ success: false, message: "Node not found. Deploy the flow first, then test." });
+        }
+        let connection;
+        try {
+            connection = await node.getConnection();
+            const result = await connection.execute("SELECT 1 FROM DUAL");
+            res.json({ success: true, message: "Connection successful" });
+        } catch (err) {
+            res.json({ success: false, message: err.message });
+        } finally {
+            if (connection) {
+                try { await connection.close(); } catch (e) { /* ignore */ }
+            }
+        }
+    });
+};

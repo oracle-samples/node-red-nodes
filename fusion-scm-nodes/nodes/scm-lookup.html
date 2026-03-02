@@ -1,0 +1,136 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("scm-lookup", {
+    category: "oracle fusion scm",
+    paletteLabel: "scm lookup",
+    defaults: {
+        name: { value: "" },
+        server: { type: "scm-server", required: true },
+        lookupType: { value: "installedBaseAsset" },
+        queryValue: { value: "" },
+        customUrl: { value: "" },
+        customQueryParam: { value: "" }
+    },
+    inputs: 1, outputs: 1,
+    color: "#4F7D7B",
+    icon: "font-awesome/fa-search",
+    label: function () {
+        if (this.name) return this.name;
+        var labels = { installedBaseAsset:"lookup asset", meterReading:"lookup meter", organizationId:"lookup org id", custom:"scm lookup" };
+        return labels[this.lookupType] || "scm lookup";
+    },
+    oneditprepare: function () {
+        function updateSections() {
+            var type = $("#node-input-lookupType").val();
+            var isCustom = (type === "custom");
+            $(".custom-section").toggle(isCustom);
+            var labelMap = { installedBaseAsset:"Serial Number", meterReading:"Asset Number", organizationId:"Organization Name", custom:"Query Value" };
+            $("#query-value-label").text(labelMap[type] || "Query Value");
+        }
+        updateSections();
+        $("#node-input-lookupType").on("change", updateSections);
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="scm-lookup">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-lookupType"><i class="fa fa-list"></i> Lookup Type</label>
+        <select id="node-input-lookupType" style="width:200px;">
+            <option value="installedBaseAsset">Installed Base Asset</option>
+            <option value="meterReading">Meter Reading</option>
+            <option value="organizationId">Organization ID</option>
+            <option value="custom">Custom</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-queryValue"><i class="fa fa-hashtag"></i> <span id="query-value-label">Serial Number</span></label>
+        <input type="text" id="node-input-queryValue">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.queryValue</code>.</div>
+    </div>
+    <div class="custom-section" style="display:none;">
+        <div class="form-row">
+            <label for="node-input-customUrl"><i class="fa fa-link"></i> Custom URL</label>
+            <input type="text" id="node-input-customUrl" style="width:100%;">
+        </div>
+        <div class="form-row">
+            <label for="node-input-customQueryParam"><i class="fa fa-filter"></i> Query Param</label>
+            <input type="text" id="node-input-customQueryParam" style="width:200px;">
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">The query parameter name (e.g. <code>ItemNumber</code>).</div>
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="scm-lookup">
+<p>Performs a GET lookup against Oracle Fusion SCM REST endpoints. Supports common lookups (assets, meters, organizations) and custom endpoints.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
+    <dt>Lookup Type</dt><dd>Selects the REST endpoint and query parameter:
+        <ul>
+            <li><b>Installed Base Asset</b> — queries by SerialNumber</li>
+            <li><b>Meter Reading</b> — queries by AssetNumber</li>
+            <li><b>Organization ID</b> — queries by OrganizationName</li>
+            <li><b>Custom</b> — provide your own URL and query parameter</li>
+        </ul>
+    </dd>
+    <dt>Query Value</dt><dd>The value to search for. If left blank, reads from <code>msg.queryValue</code>.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>API response body containing matching records.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
+    <dt>error <span class="property-type">string</span></dt><dd>Error message (only present on failure).</dd>
+</dl>
+
+<h3>Details</h3>
+<p>A unified lookup node that replaces the need for separate get-ib-asset, get-meter-reading,
+and get-organization-id nodes. Select a lookup type to auto-configure the endpoint, or use
+Custom mode to query any SCM REST endpoint with your own URL and parameter.</p>
+</script>

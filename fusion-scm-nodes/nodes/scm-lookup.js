@@ -39,7 +39,14 @@ module.exports = function(RED) {
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
 
-    function CreateAsset(config) {
+    const LOOKUP_TYPES = {
+        installedBaseAsset: { endpoint: "installedBaseAssets", queryParam: "SerialNumber", configField: "queryValue" },
+        meterReading:       { endpoint: "meterReadings",       queryParam: "AssetNumber",   configField: "queryValue" },
+        organizationId:     { endpoint: "inventoryOrganizations", queryParam: "OrganizationName", configField: "queryValue" },
+        custom:             { endpoint: "",                    queryParam: "",              configField: "queryValue" }
+    };
+
+    function ScmLookupNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
@@ -50,77 +57,64 @@ module.exports = function(RED) {
             return;
         }
 
-        // Parse structured mappings (JSON array from editor)
-        const mappings = parseMappings(config.mappings);    
-        const proxyAgent = buildProxyAgent(node.server);
+        const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
+            ? new HttpsProxyAgent(node.server.proxyUrl) : null;
 
         node.on("input", async (msg, send, done) => {
             try {
+                const lookupType = config.lookupType || "installedBaseAsset";
+                const lookup = LOOKUP_TYPES[lookupType] || LOOKUP_TYPES.custom;
+
+                const queryValue = config.queryValue || msg.queryValue;
+                if (!queryValue && lookupType !== "custom") {
+                    node.status({ fill: "red", shape: "ring", text: "No query value" });
+                    const err = new Error("No query value provided");
+                    node.error(err.message, msg);
+                    return done(err);
+                }
+
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                const url = config.urlOverride || node.server.buildUrl("installedBaseAssets");
-                ensureHttps(url);
+                let finalUrl;
+                if (lookupType === "custom") {
+                    finalUrl = config.customUrl || "";
+                    if (queryValue && config.customQueryParam) {
+                        finalUrl += `?q=${config.customQueryParam}=${queryValue}`;
+                    }
+                } else {
+                    const baseUrl = node.server.buildUrl(lookup.endpoint);
+                    finalUrl = `${baseUrl}?q=${lookup.queryParam}=${queryValue}`;
+                }
 
-                const payload = resolvePayload(mappings, msg, RED);
+                ensureHttps(finalUrl);
 
-                node.status({ fill: "yellow", shape: "dot", text: "creating..." });
-                const response = await axios.post(url, payload, {
+                node.status({ fill: "yellow", shape: "dot", text: "reading..." });
+                const response = await axios.get(finalUrl, {
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
                         "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/vnd.oracle.adf.resourceitem+json"
+                        "Content-Type": "application/json"
                     }
                 });
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "created" });
+                node.status({ fill: "green", shape: "dot", text: "found" });
                 send(msg);
                 done();
             } catch (err) {
-                handleError(node, msg, err, send, done);
+                node.status({ fill: "red", shape: "dot", text: "lookup failed" });
+                msg.error = err.message || err.toString();
+                msg.statusCode = err.response?.status || 0;
+                msg.payload = err.response?.data || msg.error;
+                node.error(msg.error, msg);
+                send(msg);
+                done(err);
             }
         });
     }
 
-    function parseMappings(raw) {
-        if (Array.isArray(raw)) return raw;
-        try { return JSON.parse(raw); } catch(e) { return []; }
-    }
-
-    function resolvePayload(mappings, msg, RED) {
-        const payload = {};
-        for (const m of mappings) {
-            if (!m.scmField) continue;
-            if (m.sourceType === "dequeued") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, "dequeued." + (m.value || ""));
-            } else if (m.sourceType === "msg") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, m.value || "");
-            } else {
-                payload[m.scmField] = m.value || "";
-            }
-        }
-        return payload;
-    }
-
-    function buildProxyAgent(server) {
-        if (server.proxyUrl && server.useProxy) {
-            return new HttpsProxyAgent(server.proxyUrl);
-        }
-        return null;
-    }
-
-    function handleError(node, msg, err, send, done) {
-        node.status({ fill: "red", shape: "dot", text: "failed" });
-        msg.error = err.message || err.toString();
-        msg.statusCode = err.response?.status || 0;
-        msg.payload = err.response?.data || msg.error;
-        node.error(msg.error, msg);
-        send(msg);
-        done(err);
-    }
-
-    RED.nodes.registerType("create-asset", CreateAsset);
+    RED.nodes.registerType("scm-lookup", ScmLookupNode);
 };

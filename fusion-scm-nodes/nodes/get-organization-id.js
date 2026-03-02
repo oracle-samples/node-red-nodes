@@ -37,54 +37,42 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps } = require("../lib/url.js")
-    
+    const { ensureHttps } = require("../lib/url.js");
+
     function GetOrganizationId(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
         node.server = RED.nodes.getNode(config.server);
-        node.organizationName = config.organizationName;
-        node.url = config.url;
-
         if (!node.server) {
             node.status({ fill: "red", shape: "ring", text: "No SCM server" });
             node.error("No SCM Server configured");
             return;
         }
 
-        // retrieve proxy settings from SCM server config node
-        const proxyUrl = node.server.proxyUrl;
-        const useProxy = node.server.useProxy;
-
-        let proxyAgent = null;
-        if (proxyUrl && useProxy) {
-            proxyAgent = new HttpsProxyAgent(proxyUrl);
-        } 
+        const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
+            ? new HttpsProxyAgent(node.server.proxyUrl) : null;
 
         node.on("input", async (msg, send, done) => {
             try {
-                node.status({ fill: "yellow", shape: "dot", text: "retrieving token…" });
-                // get token from server config
-                const token = await node.server.getToken();
-                const organizationName = node.organizationName;
-
-                const finalUrl = `${node.url}?q=OrganizationName=${organizationName}`;
-                
-                // ensure https urls only
-                try {
-                    ensureHttps(finalUrl);
-                } catch (err) {
-                    node.status({ fill: "red", shape: "ring", text: err.message });
-                    node.error(err.message)
+                const paramValue = config.organizationName || msg.organizationName;
+                if (!paramValue) {
+                    node.status({ fill: "red", shape: "ring", text: "No Organization Name" });
+                    const err = new Error("No Organization Name provided");
+                    node.error(err.message, msg);
                     return done(err);
                 }
 
-                node.status({ fill: "yellow", shape: "dot", text: "reading…" });
-                
-                // GET with axios
+                node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
+                const token = await node.server.getToken();
+
+                const baseUrl = config.urlOverride || node.server.buildUrl("inventoryOrganizations");
+                const finalUrl = `${baseUrl}?q=OrganizationName=${paramValue}`;
+                ensureHttps(finalUrl);
+
+                node.status({ fill: "yellow", shape: "dot", text: "reading..." });
                 const response = await axios.get(finalUrl, {
-                    httpAgent: proxyAgent || undefined,
+                    httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -94,18 +82,14 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-
                 node.status({ fill: "green", shape: "dot", text: "found" });
                 send(msg);
                 done();
-
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "read failed" });
-
                 msg.error = err.message || err.toString();
                 msg.statusCode = err.response?.status || 0;
                 msg.payload = err.response?.data || msg.error;
-
                 node.error(msg.error, msg);
                 send(msg);
                 done(err);

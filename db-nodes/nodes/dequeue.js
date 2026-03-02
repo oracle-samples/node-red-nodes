@@ -40,7 +40,7 @@ module.exports = function(RED) {
     function DbDequeueNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        
+
         node.queueName = config.queueName;
         node.subscriber = config.subscriber || null;
         node.wait = Number(config.wait) || 0;
@@ -53,19 +53,21 @@ module.exports = function(RED) {
             return;
         }
 
-        node.on("input", async(msg, send, done) => {
+        node.on("input", async (msg, send, done) => {
             let connection;
-            
-            try {
-                node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
+            let owned = false;
 
-                // Get DB connection from config node
-                try {
+            try {
+                // Use transaction connection if available (from begin-transaction)
+                if (msg.transaction && msg.transaction.connection) {
+                    connection = msg.transaction.connection;
+                    owned = false;
+                } else {
+                    // Standalone mode — create own connection (no rollback protection)
+                    node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
+                    node.warn("Dequeue running without transaction — messages will be auto-committed and cannot be rolled back on downstream failure.");
                     connection = await node.connection.getConnection();
-                } catch (err) {
-                    node.status({ fill: "red", shape: "ring", text: "DB connect failed" });
-                    node.error(err, msg);
-                    done(err);
+                    owned = true;
                 }
 
                 const queue = await connection.getQueue(node.queueName, {
@@ -82,48 +84,49 @@ module.exports = function(RED) {
                     queue.deqOptions.wait = Number(node.wait);
                 }
 
-                const messages = await queue.deqMany(node.batchSize); 
-                await connection.commit();
+                queue.deqOptions.mode = oracledb.AQ_DEQ_MODE_LOCKED;
+                queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
 
+                const messages = await queue.deqMany(node.batchSize);
+
+                // Commit only if connection is owned by this node (standalone mode)
+                if (owned) {
+                    await connection.commit();
+                }
 
                 if (!messages || messages.length === 0) {
                     node.status({ fill: "yellow", shape: "ring", text: "no messages" });
-                    done();
-                    return;
+                    send(msg);
+                    return done();
                 }
 
                 node.status({ fill: "green", shape: "dot", text: `dequeued ${messages.length}` });
 
                 for (const m of messages) {
-                    send({ 
-                        ...msg, 
+                    send({
+                        ...msg,
                         dequeued: m.payload,
                         payload: m.payload
                     });
                 }
-                
                 done();
-
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "error" });
                 msg.error = {
                     message: err.message,
                     code: err.errorNum || null
                 };
-
                 node.error(err, msg);
                 done(err);
             } finally {
-                if (connection) {
-                    try {
-                        await connection.close();
-                    } catch (err) {
-                        node.warn(`Failed to close connection: ${err.message}`);
+                if (owned && connection) {
+                    try { await connection.close(); } catch (e) {
+                        node.warn(`Failed to close connection: ${e.message}`);
                     }
                 }
             }
         });
     }
 
-    RED.nodes.registerType("dequeue", DbDequeueNode)
+    RED.nodes.registerType("dequeue", DbDequeueNode);
 };

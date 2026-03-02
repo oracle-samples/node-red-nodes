@@ -35,43 +35,61 @@
 -->
 
 <script type="text/javascript">
-RED.nodes.registerType("get-meter-reading", {
+RED.nodes.registerType("delete-transaction", {
     category: "oracle fusion scm",
-    paletteLabel: "get meter reading",
+    paletteLabel: "delete transaction",
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
         urlOverride: { value: "" },
         overrideUrl: { value: false },
-        assetNumber: { value: "" }
+        transactionInterfaceId: { value: "" },
+        mode: { value: "misc" }
     },
-    inputs: 1, outputs: 1,
+    inputs: 1,
+    outputs: 1,
     color: "#4F7D7B",
-    icon: "font-awesome/fa-search",
-    label: function () { return this.name || "get meter reading"; },
+    icon: "font-awesome/fa-trash",
+    label: function () {
+        if (this.name) return this.name;
+        var labels = { asset:"delete asset", meter:"delete meter reading", misc:"delete misc. transaction", subinventory:"delete subinventory transfer" };
+        return labels[this.mode] || "delete transaction";
+    },
     oneditprepare: function () {
-        var cb = $("#node-input-overrideUrl");
-        var row = $("#url-override-row");
-        function toggle() { row.toggle(cb.is(":checked")); }
-        toggle(); cb.on("change", toggle);
+        var $cb = $("#node-input-overrideUrl");
+        var $urlRow = $("#url-override-row");
+        function toggleUrl() { $urlRow.toggle($cb.is(":checked")); }
+        toggleUrl();
+        $cb.on("change", toggleUrl);
     }
 });
 </script>
 
-<script type="text/x-red" data-template-name="get-meter-reading">
+<script type="text/x-red" data-template-name="delete-transaction">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
     <div class="form-row">
         <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server">
+        <input type="text" id="node-input-server" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-assetNumber" style="width:140px;"><i class="fa fa-hashtag"></i> Asset Number</label>
-        <input type="text" id="node-input-assetNumber">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.assetNumber</code>.</div>
+        <label for="node-input-mode"><i class="fa fa-list"></i> Delete Mode</label>
+        <select id="node-input-mode" style="width:200px;">
+            <option value="asset">Installed Base Asset</option>
+            <option value="meter">Meter Reading</option>
+            <option value="misc">Misc. Transaction</option>
+            <option value="subinventory">Subinventory Transfer</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-transactionInterfaceId"><i class="fa fa-hashtag"></i> Transaction ID</label>
+        <input type="text" id="node-input-transactionInterfaceId" style="width:70%;">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Leave empty to read from <code>msg.transactionInterfaceId</code> at runtime.
+        </div>
     </div>
     <hr/>
     <div class="form-row">
@@ -86,19 +104,25 @@ RED.nodes.registerType("get-meter-reading", {
     </div>
 </script>
 
-<script type="text/x-red" data-help-name="get-meter-reading">
-<p>Retrieves meter readings for an asset from Oracle Fusion SCM.</p>
+<script type="text/x-red" data-help-name="delete-transaction">
+<p>Deletes a transaction record from Oracle Fusion SCM by its TransactionInterfaceId.</p>
+
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Asset Number</dt><dd>The value to query by. If left blank, reads from <code>msg.assetNumber</code> at runtime.</dd>
+    <dt>Delete Mode</dt><dd>Selects the correct REST endpoint for the resource type being deleted.</dd>
+    <dt>Transaction ID</dt><dd>The <code>TransactionInterfaceId</code> to delete. If left blank, reads from <code>msg.transactionInterfaceId</code>.</dd>
 </dl>
+
 <h3>Outputs</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object</span></dt><dd>API response body containing the matching records.</dd>
-    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
+    <dt>payload <span class="property-type">object</span></dt><dd>API response on success, error details on failure.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code (e.g. 204 on success).</dd>
     <dt>error <span class="property-type">string</span></dt><dd>Error message (only present on failure).</dd>
 </dl>
+
 <h3>Details</h3>
-<p>Sends a <code>GET</code> request to the Meter Readings endpoint, filtering by <code>AssetNumber</code>. Returns the matching reading(s) in <code>msg.payload</code>.</p>
+<p>Sends a <code>DELETE</code> request to the appropriate SCM REST endpoint based on the selected mode.
+The Transaction ID can be hardcoded in the config or passed dynamically via <code>msg.transactionInterfaceId</code>
+(e.g. from a previous create node's response).</p>
 </script>
