@@ -100,7 +100,7 @@ module.exports = function(RED) {
 
                 // ensure https urls only
                 try {
-                    ensureHttps(url);
+                    ensureHttps(finalUrl);
                 } catch (err) {
                     node.status({ fill: "red", shape: "ring", text: err.message });
                     node.error(err.message)

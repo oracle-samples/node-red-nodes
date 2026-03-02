@@ -2,6 +2,8 @@
 
 This page summarizes each node, its purpose, configuration parameters, and usage.
 
+---
+
 ## Database Nodes
 
 | Node | Description | Parameters |
@@ -10,6 +12,8 @@ This page summarizes each node, its purpose, configuration parameters, and usage
 | **Dequeue** | This node dequeues messages from an Oracle AQ queue. It retrieves JSON payloads and passes them downstream in `msg.payload` and `msg.dequeued`. | • **Name** – Rename the node (optional)  <br>• **DB Connection** – References DB Connection config node (required)  <br>• **Queue Name** – Name of the AQ queue to dequeue from (required)  <br>• **Subscriber** – Consumer/subscriber name for multi-consumer queues (optional)  <br>• **Block Indefinitely** – Waits forever for messages if checked (optional)  <br>• **Blocking Time (seconds)** – Time to wait if not blocking indefinitely (optional)  <br>• **Batch Size** – Number of messages retrieved per dequeue (default = 1) |
 | **Enqueue** | This node enqueues JSON messages into an Oracle AQ queue. Messages come from a JSON array passed in the User Payload field. | • **Name** – Rename the node (optional)  <br>• **DB Connection** – References DB Connection config node (required)  <br>• **Queue Name** – Name of the AQ queue to enqueue (required)  <br>• **Recipients** – AQ recipients list for multi-consumer queues (optional)  <br>• **User Payload** – JSON array of messages to enqueue (required) |
 | **SQL** | This node executes SQL statements on the Oracle Database. It returns result rows as `msg.payload`. | • **Name** – Rename the node (optional)  <br>• **DB Connection** – References DB Connection config node (required)  <br>• **SQL** – SQL command to execute (required)  <br>• **Max Rows** – Maximum number of rows returned (optional, capped at 1000)  <br>• **Binds (JSON)** – JSON array of bind variables (optional) |
+
+---
 
 ## SCM Nodes
 
@@ -23,6 +27,8 @@ This page summarizes each node, its purpose, configuration parameters, and usage
 | **Get Installed Base Asset** | This node retrieves an Installed Base Asset from SCM using a Serial Number. | • **Name** – Rename the node (optional)  <br>• **SCM Server** – References SCM Server config node (required)  <br>• **URL** – REST endpoint for installedBaseAssets (required)  <br>• **SerialNumber** – Serial Number to query (required) |
 | **Miscellaneous Transaction** | Creates a Miscellaneous Inventory Transaction in SCM. Supports both receipts (+) and issues (-). | • **Name** – Rename the node (optional)  <br>• **SCM Server** – References SCM Server config node (required)  <br>• **URL** – REST endpoint for inventoryStagedTransactions (required)  <br>• **Organization ID/Name** – Inventory organization where the transaction is made (required)  <br>• **Item Number** – Item Number for the transaction (required)  <br>• **Transaction Quantity** – Positive quantity for receipt, negative quantity for issue (required)  <br>• **Transaction Unit Of Measure** – Unit of measure for the transaction (required)  <br>• **Subinventory Code** – Target subinventory for the transaction (required)  <br>• **Transaction Type** – Select either a Miscellaneous Receipt (+) or Miscellaneous Issue (-) (required)  <br>• **Source Code** – Source Code for the transaction (required)  <br>• **Use Current Cost Flag** – Determines whether the current cost flag is used when processing the transfer (required) |
 | **Subinventory Quantity Transfer** | Creates a Subinventory Transfer in SCM. Moves inventory quantity from one subinventory to another within an organization. | • **Name** – Rename the node (optional)  <br>• **SCM Server** – References SCM Server config node (required)  <br>• **URL** – REST endpoint for meterReadings (required)  <br>• **Payload Mappings** – Attributes in `key: value` format (required) |
+
+---
 
 ## Reminder
 
