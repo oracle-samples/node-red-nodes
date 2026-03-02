@@ -147,7 +147,7 @@ Unified SCM lookup node. Supports multiple query types.
 
 ### smo-transformer
 
-Transforms incoming telemetry or message data into structured SMO (Smart Manufacturing Object) event payloads for Oracle Fusion Cloud. Supports preset event types with auto-populated field mappings, custom event types, value transforms, composite message joining, and JSONata overrides.
+Transforms incoming telemetry or message data into structured SMO event payloads for Oracle Fusion Cloud. Supports preset event types with auto-populated field mappings, custom event types, value transforms, composite message joining, and JSONata overrides.
 
 > **Important:** The smo-transformer processes one message at a time. If the upstream node produces an array of messages (e.g. from a dequeue with batch size > 1), you must place a **split** node before the smo-transformer configured with a fixed length of **1**. Without the split node, the transformer receives the entire array as a single payload and will not process individual messages correctly.
 
