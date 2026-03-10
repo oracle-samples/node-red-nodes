@@ -2,17 +2,27 @@
 
 This guide covers best practices for securely executing operations with these custom Node-RED nodes.
 
+---
+
 ## Transactional Dequeue Processing
 
-For reliable message processing where failed operations return messages to the queue, use the begin/end transaction pattern:
+For reliable message processing where failed operations return messages to the queue, use the begin/end transaction pattern with dedicated commit and rollback paths:
 
-`begin transaction` → `dequeue` → *(processing nodes)* → `end transaction`
+```
+begin transaction → dequeue → (processing) → end transaction (commit)
+                                    ↓ (error)
+                              catch → end transaction (rollback)
+```
 
-Messages stay locked on the queue until end-transaction commits. If the flow fails at any point, the connection closes without commit and messages roll back to the queue automatically.
+Messages stay locked on the queue until end-transaction commits. If the flow fails, the catch node routes to a rollback end-transaction and messages return to the queue automatically.
 
 **Connection timeout:** Set a timeout on begin-transaction (e.g. 300 seconds) to auto-rollback stalled flows and prevent connection leaks.
 
 **Standalone mode:** Dequeue can run without transaction nodes for simple use cases, but messages are auto-committed on dequeue and cannot be rolled back on downstream failure.
+
+**Dequeue mode:** Use Remove (default) for normal message consumption. Use Browse for monitoring queue contents without consuming. Use Locked only when you need to inspect before deciding to remove.
+
+---
 
 ## Safe SQL Execution (SQL Node)
 
@@ -25,6 +35,8 @@ Messages stay locked on the queue until end-transaction commits. If the flow fai
 
 **Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message at runtime. Validate the source of `msg.sql` to avoid executing untrusted SQL.
 
+---
+
 ## SCM Payload Mappings
 
 All SCM transaction nodes use structured mapping rows with three source types:
@@ -35,16 +47,27 @@ All SCM transaction nodes use structured mapping rows with three source types:
 | **msg property** | `msg.<value>` | `payload.someField` |
 | **static value** | Literal string | `100100100` |
 
-**Tips:**
-- For the common dequeue → SCM flow, use **dequeued data** and just type the field name (e.g. `AssetNumber`)
-- Use **msg property** when data comes from a source other than dequeue (HTTP input, function node, etc.)
-- For constant values shared across all messages, use **static value**
-- Rows can be reordered by dragging — put the most important fields at the top for readability
-- Remove unused default rows to keep the mapping clean
+---
 
-## URL Override
+## OCI IoT Platform
 
-All SCM nodes auto-compute the endpoint URL from the scm-server hostname and version. If you need to target a different endpoint (e.g. a sandbox environment or custom REST resource), check the **Override URL** checkbox and provide the full URL.
+**Authentication:** The IoT device nodes (iot-config, iot-telemetry, iot-command) use MQTT device credentials — username/password or certificates. The cloud-side nodes (iot-send-command) use OCI user credentials via oci-config. These are separate auth contexts.
+
+**Persistent sessions:** The iot-config node connects with `clean: false`. This ensures the IoT Platform retains messages while the device is briefly offline. Do not override this setting.
+
+**Auto-acknowledge:** The iot-command node sends acks by default. Disable auto-ack only when you need to send a custom response after processing the command (use `msg.sendResponse()` in a function node).
+
+**Client ID uniqueness:** Only one MQTT connection per Client ID is allowed. If you use both iot-config and built-in MQTT nodes with the same Client ID, they will disconnect each other. Use different Client IDs or use one or the other.
+
+---
+
+## OCI Notifications
+
+**Topic OCID vs dynamic routing:** Hardcode the Topic OCID in the editor for fixed alerting targets. Leave it empty and set `msg.topicOcid` for dynamic routing (e.g. different severity levels to different topics).
+
+**Confirm subscriptions:** Email subscriptions require clicking a confirmation link before they receive messages. Test with a simple inject → notification flow to verify delivery.
+
+---
 
 ## Connection Pool Recommendations
 

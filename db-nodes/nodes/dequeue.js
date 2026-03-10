@@ -37,6 +37,13 @@
 module.exports = function(RED) {
     const oracledb = require("oracledb");
 
+    // Map config values to oracledb constants
+    const DEQ_MODES = {
+        "remove":  oracledb.AQ_DEQ_MODE_REMOVE,
+        "browse":  oracledb.AQ_DEQ_MODE_BROWSE,
+        "locked":  oracledb.AQ_DEQ_MODE_LOCKED
+    };
+
     function DbDequeueNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -46,6 +53,7 @@ module.exports = function(RED) {
         node.wait = Number(config.wait) || 0;
         node.waitForever = !!config.waitForever;
         node.batchSize = Number(config.batchSize) || 1;
+        node.deqMode = config.deqMode || "remove";
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
@@ -84,7 +92,8 @@ module.exports = function(RED) {
                     queue.deqOptions.wait = Number(node.wait);
                 }
 
-                queue.deqOptions.mode = oracledb.AQ_DEQ_MODE_LOCKED;
+                // Set dequeue mode from config
+                queue.deqOptions.mode = DEQ_MODES[node.deqMode] || oracledb.AQ_DEQ_MODE_REMOVE;
                 queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
 
                 const messages = await queue.deqMany(node.batchSize);

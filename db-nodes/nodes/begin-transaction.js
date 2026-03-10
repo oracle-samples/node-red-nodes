@@ -34,12 +34,6 @@
  SOFTWARE.
  */
 
-/*
- Copyright (c) 2025 Oracle and/or its affiliates.
- Licensed under the Universal Permissive License (UPL), Version 1.0.
- See LICENSE.txt or https://opensource.org/licenses/UPL
- */
-
 module.exports = function(RED) {
     function BeginTransactionNode(config) {
         RED.nodes.createNode(this, config);

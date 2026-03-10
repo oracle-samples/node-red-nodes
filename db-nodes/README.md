@@ -2,8 +2,6 @@
 
 This project provides a set of custom Node-RED nodes that integrate the Oracle Database and Advanced Queues (AQ) with the OCI IoT Platform service. The nodes enable database operations such as executing SQL statements, enqueuing messages, dequeuing messages, and transactional processing using Node-RED flows.
 
----
-
 ## Nodes
 
 | Node | Description |
@@ -14,8 +12,6 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 | **dequeue** | Retrieves messages from Oracle AQ. Supports transactional and standalone modes. |
 | **enqueue** | Publishes messages to Oracle AQ. Supports static payload or `msg.payload`. |
 | **sql** | Executes SQL statements. Supports Editor or `msg.sql` as source. |
-
----
 
 ## Installation
 
@@ -57,13 +53,9 @@ npm install oracledb
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
 
----
-
 ## Documentation
 
 You can find the online documentation for the Oracle Internet of Things Platform at [docs.cloud.oracle.com](https://docs.oracle.com/en-us/iaas/Content/internet-of-things).
-
----
 
 ## Examples
 
@@ -76,25 +68,17 @@ Example Node-RED flows are provided in the documentation showcasing different us
 Examples can be imported directly into the Node-RED editor.
 See [Import Examples Guide](../docs/import-examples.md).
 
----
-
 ## Contributing
 
 This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](../CONTRIBUTING.md).
-
----
 
 ## Security
 
 Please consult the [security guide](../SECURITY.md) for our responsible security vulnerability disclosure process.
 
----
-
 ## License
 
 See [LICENSE](../LICENSE.txt).
-
----
 
 ## Disclaimer
 

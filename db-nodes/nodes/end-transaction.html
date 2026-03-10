@@ -34,18 +34,37 @@
  SOFTWARE.
 -->
 
+<!--
+ Copyright (c) 2025, 2026 Oracle and/or its affiliates.
+ Licensed under the Universal Permissive License (UPL), Version 1.0.
+-->
+
 <script type="text/javascript">
 RED.nodes.registerType("end-transaction", {
-    category: "oracledb",
-    paletteLabel: "end transaction",
+    category: "oracle db",
+    color: "#4C825C",
     defaults: {
-        name: { value: "" }
+        name: { value: "" },
+        action: { value: "commit" }
     },
     inputs: 1, outputs: 1,
-    color: "#4C825C",
-    icon: "font-awesome/fa-sign-out",
-    align: "right",
-    label: function () { return this.name || "end transaction"; }
+    icon: "font-awesome/fa-stop-circle",
+    label: function () {
+        if (this.name) return this.name;
+        return this.action === "rollback" ? "rollback" : "end transaction";
+    },
+    paletteLabel: "end transaction",
+    oneditprepare: function () {
+        // Update label hint when action changes
+        $("#node-input-action").on("change", function () {
+            var action = $(this).val();
+            if (action === "rollback") {
+                $("#action-hint").text("Rolls back all changes and returns dequeued messages to the queue.");
+            } else {
+                $("#action-hint").text("Commits all changes and permanently removes dequeued messages from the queue.");
+            }
+        }).trigger("change");
+    }
 });
 </script>
 
@@ -54,53 +73,34 @@ RED.nodes.registerType("end-transaction", {
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
-    <hr/>
-    <div style="padding:10px;background:#f7f7f7;border:1px solid #ddd;border-radius:4px;margin-bottom:12px;">
-        <p style="margin:0 0 8px 0;font-weight:bold;color:#555;"><i class="fa fa-info-circle"></i> What this node does</p>
-        <p style="margin:0 0 6px 0;font-size:12px;color:#666;">
-            <b>On success:</b> Commits the transaction, closes the database connection, and removes
-            <code>msg.transaction</code> from the message. Dequeued messages are permanently removed from the queue.
-        </p>
-        <p style="margin:0 0 6px 0;font-size:12px;color:#666;">
-            <b>On failure:</b> Rolls back the transaction, closes the connection, and raises an error.
-            Dequeued messages are returned to the queue for re-processing.
-        </p>
-        <p style="margin:0;font-size:12px;color:#666;">
-            <b>No transaction:</b> If no <code>msg.transaction.connection</code> is present,
-            the message passes through unchanged.
-        </p>
-    </div>
-    <div style="font-size:11px;color:#888;">
-        <i class="fa fa-lightbulb-o"></i> Pair with <b>begin transaction</b> for reliable dequeue flows:
-        <code style="font-size:11px;">begin transaction &rarr; dequeue &rarr; processing &rarr; end transaction</code>
+    <div class="form-row">
+        <label for="node-input-action"><i class="fa fa-check-circle"></i> Action</label>
+        <select id="node-input-action" style="width:200px;">
+            <option value="commit">Commit</option>
+            <option value="rollback">Rollback</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:4px;" id="action-hint"></div>
     </div>
 </script>
 
 <script type="text/x-red" data-help-name="end-transaction">
-<p>Commits and closes the database connection stored in <code>msg.transaction.connection</code>.</p>
+<p>Commits or rolls back the database transaction and closes the connection.</p>
 
-<h3>Inputs</h3>
+<h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>msg.transaction.connection <span class="property-type">object</span></dt>
-    <dd>A live Oracle DB connection created by the <b>begin transaction</b> node.</dd>
+    <dt>Action</dt>
+    <dd><b>Commit</b> (default): Commits all changes made during the transaction. Dequeued messages
+    are permanently removed from the queue. SCM API calls and SQL DML are finalized.<br/>
+    <b>Rollback</b>: Rolls back all changes. Dequeued messages return to the queue as if they
+    were never consumed. Use this on error paths to retry failed messages.</dd>
 </dl>
 
-<h3>Outputs</h3>
-<dl class="message-properties">
-    <dt>msg <span class="property-type">object</span></dt>
-    <dd>The original message with <code>msg.transaction</code> removed after commit.</dd>
-</dl>
-
-<h3>Details</h3>
-<p><b>On success:</b> commits the transaction, closes the connection, and removes
-<code>msg.transaction</code> from the message. The status shows elapsed time since
-the transaction was opened (e.g. "committed (2.3s)").</p>
-<p><b>On error:</b> rolls back the transaction, closes the connection, removes
-<code>msg.transaction</code>, and raises an error. The dequeued message is returned
-to the queue and will be available for re-processing.</p>
-<p>If no <code>msg.transaction.connection</code> is present, the node passes the message
-through unchanged with a warning status.</p>
-
-<h3>Typical Flow</h3>
-<p><code>begin transaction</code> &rarr; <code>dequeue</code> &rarr; <i>(processing nodes)</i> &rarr; <code>end transaction</code></p>
+<h3>Typical Flows</h3>
+<p><b>Success path commits, error path rolls back:</b></p>
+<pre>begin transaction → dequeue → fusion-request → end transaction (commit)
+                                     ↓ (error)
+                               catch → end transaction (rollback)</pre>
+<p>If fusion-request succeeds, the message is committed and removed. If it fails, the
+catch node routes to a rollback end-transaction, and the message returns to the queue
+for retry.</p>
 </script>

@@ -1,0 +1,142 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("iot-command", {
+    category: "oci",
+    paletteLabel: "command",
+    defaults: {
+        name: { value: "" },
+        iotDevice: { type: "iot-config", required: true },
+        autoAck: { value: true },
+        commandFilter: { value: "" }
+    },
+    inputs: 0, outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-terminal",
+    label: function () { return this.name || "command"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="iot-command">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-iotDevice"><i class="fa fa-microchip"></i> IoT Device</label>
+        <input type="text" id="node-input-iotDevice" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-autoAck"><i class="fa fa-check-circle"></i> Auto Acknowledge</label>
+        <input type="checkbox" id="node-input-autoAck" style="width:auto;vertical-align:middle;">
+        <span style="font-size:12px;color:#666;"> Automatically send an acknowledgment when a command is received</span>
+    </div>
+    <div class="form-row">
+        <label for="node-input-commandFilter"><i class="fa fa-filter"></i> Command Key</label>
+        <input type="text" id="node-input-commandFilter" placeholder="(optional) e.g. shutdown">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Only receive commands matching this key. Leave empty to receive all commands.
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="iot-command">
+<p>Receives commands from the OCI IoT Platform and optionally sends automatic acknowledgments.</p>
+
+<h3>Important: This Node Has No Input</h3>
+<p>The command node listens for incoming MQTT messages on the command topic
+(<code>&lt;baseEndpoint&gt;/cmd/&lt;key&gt;</code>). It has <b>no input port</b> — commands
+arrive from the IoT Platform, not from other nodes. Wire its output to your
+command handling logic.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>IoT Device</dt>
+    <dd>References an IoT Device config node for the MQTT connection.</dd>
+    <dt>Auto Acknowledge</dt>
+    <dd>When enabled, immediately sends <code>{"status":"acknowledged","time":&lt;epoch_us&gt;}</code>
+    back to the IoT Platform on the response topic. Disable this if you want to send a
+    custom response after processing the command.</dd>
+    <dt>Command Key</dt>
+    <dd>Optional filter. If set, only commands matching this exact key are passed through.
+    For example, setting this to <code>shutdown</code> only receives commands sent to
+    <code>&lt;base&gt;/cmd/shutdown</code>. Leave empty to receive all commands.</dd>
+</dl>
+
+<h3>Output</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object | string</span></dt>
+    <dd>The command payload sent by the caller.</dd>
+    <dt>commandKey <span class="property-type">string</span></dt>
+    <dd>The command key extracted from the topic (e.g. <code>"shutdown"</code>
+    from <code>iot/v1/cmd/shutdown</code>).</dd>
+    <dt>topic <span class="property-type">string</span></dt>
+    <dd>The full MQTT topic the command arrived on.</dd>
+    <dt>sendResponse <span class="property-type">function</span></dt>
+    <dd>A helper function to send a custom response. Call
+    <code>msg.sendResponse({"status":"done","result":42})</code> to publish a response
+    to <code>&lt;base&gt;/rsp/&lt;commandKey&gt;</code>. Only needed when Auto Acknowledge
+    is disabled.</dd>
+</dl>
+
+<h3>Sending Commands</h3>
+<p>Commands are sent to the device through the OCI CLI or REST API, not through Node-RED:</p>
+<pre>oci iot digital-twin-instance invoke-raw-json-command \
+  --digital-twin-instance-id &lt;OCID&gt; \
+  --request-endpoint "&lt;base&gt;/cmd/&lt;key&gt;" \
+  --request-duration "PT10M" \
+  --response-endpoint "&lt;base&gt;/rsp/&lt;key&gt;" \
+  --response-duration "PT10M" \
+  --request-data '{"hello":"world"}'</pre>
+
+<h3>Manual Response (Auto Acknowledge disabled)</h3>
+<p>When Auto Acknowledge is off, use a function node to send a custom response:</p>
+<pre>msg.sendResponse({
+    status: "completed",
+    result: msg.payload.someValue
+});
+return msg;</pre>
+
+<h3>Typical Flows</h3>
+<p><b>Log all commands:</b><br/>
+<code>iot command</code> → <code>debug</code></p>
+<p><b>Handle specific command:</b><br/>
+<code>iot command</code> (filter: "shutdown") → <code>function</code> (cleanup logic) → <code>debug</code></p>
+<p><b>Command with custom response:</b><br/>
+<code>iot command</code> (auto-ack off) → <code>function</code> (process + call msg.sendResponse) → <code>debug</code></p>
+</script>
