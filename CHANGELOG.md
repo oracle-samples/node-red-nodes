@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.3.0] - 2025-XX-XX
+## [0.3.0] - 2026-03-10
 
 ### Added
 - `oci-config` shared authentication node for OCI services (Config File, Instance Principal, Resource Principal, API Key)
@@ -29,7 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.2.0] - 2025-03-02
+## [0.2.0] - 2026-03-02
 
 ### Added
 - `fusion-request`, `scm-lookup`, `begin-transaction`, `end-transaction`, `smo-transformer`, and `delete-transaction` nodes
@@ -44,7 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.1.0] - 2025-02-27
+## [0.1.0] - 2026-02-27
 
 Initial release. Previously untagged code now retroactively tagged as baseline.
 
