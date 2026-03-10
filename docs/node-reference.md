@@ -2,8 +2,6 @@
 
 This page documents each node, its configuration fields, outputs, and usage.
 
----
-
 ## Database Nodes
 
 ### db-connection (Config Node)
@@ -119,8 +117,6 @@ Executes SQL statements against the Oracle Database.
 **Outputs:** `msg.payload` (array of row objects), `msg.result` (same, for backward compatibility)
 
 > **Important:** This node uses `autoCommit: false`. DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. Use a PL/SQL block with explicit `COMMIT` for DML, or use begin/end transaction nodes.
-
----
 
 ## SCM Nodes
 
@@ -318,8 +314,6 @@ Sends commands to devices via the OCI REST API.
 
 **Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.commandKey`, `msg.requestEndpoint`, `msg.responseEndpoint`
 
----
-
 ## SCM Payload Mappings
 
 All SCM transaction nodes use structured mapping rows:
@@ -329,8 +323,6 @@ All SCM transaction nodes use structured mapping rows:
 | **dequeued data** | `msg.dequeued.<value>` | Field name (e.g. `AssetNumber`) |
 | **msg property** | `msg.<value>` | Full property path (e.g. `payload.someField`) |
 | **static value** | Literal string | Constant value (e.g. `100100100`) |
-
----
 
 ## Typical Flows
 

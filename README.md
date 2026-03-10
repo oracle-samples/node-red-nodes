@@ -2,8 +2,6 @@
 
 This project provides a set of custom Node-RED nodes that integrate the Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, OCI services, and the OCI IoT Platform.
 
----
-
 ## What's Included
 
 - **db-nodes**
@@ -31,8 +29,6 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 
 > Detailed node-level documentation is available in [Node Reference](./docs/node-reference.md).
 
----
-
 ## Quick Start
 
 | Description | Resource |
@@ -42,8 +38,6 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 | Import examples into Node-RED | [Guide](./docs/import-examples.md) |
 | Best practices | [Guide](./docs/best-practice.md) |
 | Node reference | [Guide](./docs/node-reference.md) |
-
----
 
 ## Installation
 
@@ -98,13 +92,9 @@ sudo dnf install oracle-instantclient-sqlplus
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
 
----
-
 ## Documentation
 
 You can find the online documentation for the Oracle Internet of Things Platform at [docs.cloud.oracle.com](https://docs.oracle.com/en-us/iaas/Content/internet-of-things).
-
----
 
 ## Examples
 
@@ -118,8 +108,6 @@ Example Node-RED flows are provided in the documentation showcasing different us
 
 Examples can be imported directly into the Node-RED editor.
 See [Import Examples Guide](./docs/import-examples.md).
-
----
 
 ## Contributing
 

@@ -2,16 +2,12 @@
 
 This guide includes all installation steps and verification steps.
 
----
-
 ## Prerequisites
 
 - Node-RED (v3.0+)
 - Node.js (v18+)
 - npm (comes with Node.js)
 - Oracle Instant Client 23c (for DB nodes)
-
----
 
 ## 1.1 Clone the Repository
 
@@ -31,8 +27,6 @@ git clone git@github.com:oracle-samples/node-red-nodes.git
 ```bash
 gh repo clone oracle-samples/node-red-nodes
 ```
-
----
 
 ## 1.2 Install Dependencies
 
@@ -69,8 +63,6 @@ sudo dnf install oracle-instantclient-sqlplus
 > export ORACLE_CLIENT_LIB=/path/to/your/instantclient
 > ```
 
----
-
 ## 1.3 Private Subnet Installation (Proxy + Registry Setup)
 
 When running Node-RED on a private subnet not accessible to the internet, the npm proxy and registry must be configured to access external packages.
@@ -94,8 +86,6 @@ npm config set proxy http://user-proxy-host:port
 npm config set https-proxy http://user-proxy-host:port
 ```
 
----
-
 ## 1.4 Verify Installation
 
 1. Restart Node-RED:
@@ -108,8 +98,6 @@ sudo systemctl restart node-red
 
 3. Import an example JSON flow and deploy it:
    - See [Import Examples Guide](./import-examples.md)
-
----
 
 ## 1.5 Which Dependencies Are Needed?
 
