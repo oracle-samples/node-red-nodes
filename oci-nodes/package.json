@@ -1,0 +1,26 @@
+{
+  "name": "oci-nodes",
+  "version": "0.3.0",
+  "description": "Oracle Cloud Infrastructure (OCI) nodes for Node-RED",
+  "keywords": [
+    "node-red",
+    "oracle",
+    "oci",
+    "cloud",
+    "notification"
+  ],
+  "license": "UPL-1.0",
+  "dependencies": {
+    "oci-sdk": "^2.80.0"
+  },
+  "node-red": {
+    "nodes": {
+      "oci-config": "nodes/oci-config.js",
+      "oci-notification": "nodes/oci-notification.js",
+      "iot-send-command": "nodes/iot-send-command.js",
+      "iot-config": "nodes/iot-config.js",
+      "iot-command": "nodes/iot-command.js",
+      "iot-telemetry": "nodes/iot-telemetry.js"
+    }
+  }
+}

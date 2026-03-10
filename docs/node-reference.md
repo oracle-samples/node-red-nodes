@@ -2,6 +2,8 @@
 
 This page documents each node, its configuration fields, outputs, and usage.
 
+---
+
 ## Database Nodes
 
 ### db-connection (Config Node)
@@ -45,13 +47,23 @@ If `msg.transaction.connection` already exists, the existing connection is reuse
 
 ### end-transaction
 
-Commits and closes the transaction connection. Shows elapsed time in status (e.g. "committed (2.3s)").
+Commits or rolls back the transaction connection and closes it. Shows elapsed time in status.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| *(none)* | — | Reads `msg.transaction` from upstream |
+| Action | Yes | **Commit** (default): commits all changes, dequeued messages are permanently removed. **Rollback**: rolls back all changes, dequeued messages return to the queue. |
 
-On failure: rolls back, closes connection, and reports the error.
+**Commit** shows status "committed (2.3s)". **Rollback** shows status "rolled back (2.3s)".
+
+On failure: always rolls back, closes connection, and reports the error regardless of the selected action.
+
+**Error handling pattern:** Wire the success path to a commit end-transaction and the error path (via a catch node) to a rollback end-transaction:
+
+```
+begin transaction → dequeue → fusion-request → end transaction (commit)
+                                     ↓ (error)
+                               catch → end transaction (rollback)
+```
 
 ### dequeue
 
@@ -62,13 +74,22 @@ Dequeues messages from an Oracle AQ queue.
 | DB Connection | Yes | References a db-connection config node |
 | Queue Name | Yes | AQ queue name (e.g. `SCHEMA.JSON_QUEUE`) |
 | Subscriber | No | Consumer name for multi-consumer queues |
+| Dequeue Mode | No | **Remove** (default): message is permanently removed on commit. **Browse**: message is read but stays in the queue. **Locked**: message is locked but stays in the queue on commit. |
 | Block Indefinitely | No | Waits forever for messages if checked |
 | Blocking Time (seconds) | No | Wait time if not blocking indefinitely |
 | Batch Size | No | Messages per dequeue (default: 1) |
 
-**Outputs:** `msg.payload` (array of messages), `msg.dequeued` (first message for single-message flows)
+**Dequeue modes:**
 
-**Transactional mode:** When wired after begin-transaction, uses `msg.transaction.connection`. Messages stay locked on the queue until end-transaction commits. If the flow fails, messages roll back automatically.
+| Mode | On dequeue | On commit | Use case |
+|------|-----------|-----------|----------|
+| **Remove** | Reads and marks for removal | Message permanently deleted | Normal message consumption |
+| **Browse** | Reads without locking | Message stays, anyone can read it again | Monitoring or inspecting queue contents |
+| **Locked** | Reads and locks | Lock released, message stays | Inspect before deciding to remove |
+
+**Outputs:** `msg.payload` (message payload), `msg.dequeued` (same, for SCM payload mapping compatibility)
+
+**Transactional mode:** When wired after begin-transaction, uses `msg.transaction.connection`. Messages stay locked on the queue until end-transaction commits or rolls back.
 
 **Standalone mode:** When used without transaction nodes, creates its own connection with auto-commit. A warning is logged: "Dequeue running without transaction."
 
@@ -99,6 +120,8 @@ Executes SQL statements against the Oracle Database.
 
 > **Important:** This node uses `autoCommit: false`. DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. Use a PL/SQL block with explicit `COMMIT` for DML, or use begin/end transaction nodes.
 
+---
+
 ## SCM Nodes
 
 ### scm-server (Config Node)
@@ -128,8 +151,6 @@ Unified SCM transaction node. Supports multiple transaction types in a single in
 | Override URL | No | Check to provide a custom endpoint URL |
 | Payload Mappings | Yes | Structured rows mapping SCM fields to values (see Payload Mappings below) |
 
-Selecting a transaction type auto-populates the endpoint URL and default field mappings. Choose "Custom" to target any Fusion SCM REST endpoint.
-
 **Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.error` (on failure)
 
 ### scm-lookup
@@ -147,60 +168,18 @@ Unified SCM lookup node. Supports multiple query types.
 
 ### smo-transformer
 
-Transforms incoming telemetry or message data into structured SMO event payloads for Oracle Fusion Cloud. Supports preset event types with auto-populated field mappings, custom event types, value transforms, composite message joining, and JSONata overrides.
+Transforms incoming telemetry or message data into structured SMO event payloads for Oracle Fusion Cloud.
 
-> **Important:** The smo-transformer processes one message at a time. If the upstream node produces an array of messages (e.g. from a dequeue with batch size > 1), you must place a **split** node before the smo-transformer configured with a fixed length of **1**. Without the split node, the transformer receives the entire array as a single payload and will not process individual messages correctly.
+> **Important:** The smo-transformer processes one message at a time. Place a **split** node (fixed length: 1) before it when processing batches.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| Event Type | Yes | Preset event type or custom. Presets auto-populate field mappings and settings. |
-| Entity Code Fields | Yes | Ordered list of payload fields to check for the entity identifier (first match wins). Default: `deviceId`, `machineId`. |
-| Field Mappings | Yes | Maps incoming payload fields to outgoing SMO data fields (see Field Mappings below). |
-| Nesting | No | Wraps all mapped fields inside a nested object with the specified key. |
-| Composite | No | Enables composite message joining — holds partial messages until all required fields are present. |
-| Required Fields | Composite only | All listed fields must be present before a composite message is considered complete and sent. |
-| Split Fields | Composite only | Splits a single incoming field by a delimiter into two output fields (e.g. `operationNumber` → `WORK_ORDER_NUMBER` + `OPERATION_SEQUENCE`). |
-| Stale Timeout | Composite only | Seconds to wait before flushing an incomplete composite message. Set to `0` to disable. |
-| JSONata Override | No | Advanced. If provided, replaces all field mapping configuration. The full `msg` object is available. |
-
-**Preset event types:**
-
-| Preset | Description |
-|--------|-------------|
-| CA_FAULT | Machine fault codes |
-| CA_STATUS | Machine status (maps numeric states to DOWN/IN_USE/IDLE) |
-| CA_OPERATION_EXECUTION_START | Work order operation start (composite) |
-| CA_OPERATION_EXECUTION_STOP | Work order operation stop |
-| CA_QUANTITY_REPORT (Complete \| Reject) | Production quantity reporting — complete or reject |
-| CA_QUANTITY_REPORT (Inspect) | Inspection quantity reporting with inspection characteristics (composite) |
-| CA_OPERATIONAL_PARAMETERS | Operational parameter readings (temperature, pressure, etc.) |
-| CA_METERS | Meter readings (odometer, fuel level, operating hours) with nesting |
-
-**Field mapping transform types:**
-
-| Transform | Description |
-|-----------|-------------|
-| None | Pass through as-is |
-| String | Convert to string |
-| Number | Convert to number |
-| Static Value | Write a constant value (no incoming field needed) |
-| Value Map | Lookup table. Use the key `__present__` to map based on field existence rather than value. |
-| Nested Object | Pass through an entire object |
-| Collect Flat Fields | Gather named flat fields into a single nested object |
-| Dynamic Sift | Copy all payload fields except those in an exclude list |
-
-**First match wins:** When multiple incoming fields map to the same outgoing field, the first match found in the payload is used. This allows fallback patterns (e.g. check `FAULT_CODE` first, then `faultCode`).
-
-**Output structure:**
-
-```json
-{
-  "entityCode": "",
-  "eventTypeCode": "",
-  "eventTime": "",
-  "data": { ... mapped fields ... }
-}
-```
+| Event Type | Yes | Preset event type or custom |
+| Entity Code Fields | Yes | Ordered list of payload fields for entity identifier (first match wins) |
+| Field Mappings | Yes | Maps incoming fields to outgoing SMO data fields |
+| Nesting | No | Wraps mapped fields in a nested object |
+| Composite | No | Holds partial messages until all required fields are present |
+| JSONata Override | No | Replaces all field mapping configuration |
 
 **Outputs:** `msg.payload` (structured SMO event object)
 
@@ -237,44 +216,137 @@ Individual SCM lookup nodes. Each queries a specific REST endpoint.
 
 **Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.error` (on failure)
 
+---
+
+## OCI Nodes
+
+### oci-config (Config Node)
+
+Shared authentication for all OCI REST API nodes. Uses the OCI SDK for TypeScript and JavaScript.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Auth Type | Yes | Config File, Instance Principal, Resource Principal, or API Key |
+| Config File Path | Config File only | Path to OCI config file (default: `~/.oci/config`) |
+| Profile | Config File only | Profile name (default: `DEFAULT`) |
+| Tenancy OCID | API Key only | `ocid1.tenancy.oc1...` |
+| User OCID | API Key only | `ocid1.user.oc1...` |
+| Fingerprint | API Key only | API key fingerprint |
+| Private Key Path | API Key only | Path to PEM private key file |
+| Passphrase | API Key only | Private key passphrase (optional) |
+| Region | Yes | OCI region (e.g. `us-ashburn-1`) |
+| Compartment OCID | No | Default compartment for child nodes |
+| Test Connection | — | Calls `listRegions()` to verify credentials |
+
+> **Note:** Instance Principal and Resource Principal only work inside OCI. Config File and API Key work from any machine.
+
+### oci-notification
+
+Publishes messages to an OCI Notifications topic.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| OCI Config | Yes | References an oci-config node |
+| Topic OCID | No* | Notification topic OCID. *Required either here or in `msg.topicOcid` |
+| Title | No | Message title (email subject). Falls back to `msg.title` |
+| Body | No | Message body. Falls back to `msg.payload` (objects are JSON-stringified) |
+
+**Outputs:** `msg.payload` (publish result with `messageId`), `msg.statusCode`, `msg.error` (on failure)
+
+### iot-config (Config Node)
+
+MQTT connection to the OCI IoT Platform. Manages persistent sessions, command subscriptions, and auto-reconnect.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Device Host | Yes | MQTT broker hostname from your IoT Domain |
+| Base Endpoint | Yes | Topic prefix (default: `iot/v1`). Derives telemetry, command, and response topics. |
+| Client ID | Yes | MQTT client ID (typically the device/digital twin name) |
+| QoS | No | Quality of Service: 0, 1 (default), or 2 |
+| Auth Type | Yes | Basic (username/password) or Certificate (mTLS) |
+| Username | Basic only | Digital twin `external-key` |
+| Password | Basic only | Vault secret content |
+| CA Cert | Cert only | Path to CA certificate (usually not needed) |
+| Client Cert | Cert only | Path to client certificate PEM |
+| Client Key | Cert only | Path to client private key PEM |
+| Test Connection | — | Creates a temporary MQTT connection to verify credentials |
+
+Connects with `clean: false` (persistent session) so the IoT Platform retains messages during brief disconnections. Auto-reconnects every 5 seconds.
+
+### iot-telemetry
+
+Publishes telemetry data to the IoT Platform via MQTT.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| IoT Config | Yes | References an iot-config node |
+| Auto Timestamp | No | Adds `time` field (epoch microseconds) if not present. Default: enabled. |
+
+**Input:** `msg.payload` (telemetry data object)
+
+**Outputs:** `msg.payload` (passed through), `msg.topic` (MQTT topic published to)
+
+### iot-command
+
+Receives commands from the IoT Platform and optionally sends automatic acknowledgments.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| IoT Config | Yes | References an iot-config node |
+| Auto Acknowledge | No | Sends an ack to `rsp/<key>` when a command is received. Default: enabled. |
+| Command Key | No | Filter to only receive commands matching this key. Leave empty for all commands. |
+
+**Outputs:** `msg.payload` (command data), `msg.commandKey` (extracted from topic), `msg.topic`, `msg.sendResponse` (function for manual ack)
+
+This node has **no input** — commands arrive from the IoT Platform over MQTT.
+
+### iot-send-command
+
+Sends commands to devices via the OCI REST API.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| OCI Config | Yes | References an oci-config node (not iot-config — this uses the REST API) |
+| Digital Twin OCID | No* | Device to send the command to. *Required either here or in `msg.digitalTwinOcid` |
+| Base Endpoint | Yes | Topic prefix (default: `iot/v1`) |
+| Command Key | No | Command identifier. Falls back to `msg.commandKey` (default: `"default"`) |
+| Wait for Response | No | Includes response endpoint so the platform waits for device ack. Default: enabled. |
+| Request Duration | No | ISO 8601 delivery timeout (default: `PT10M` = 10 minutes) |
+| Response Duration | No | ISO 8601 ack timeout (default: `PT10M`) |
+
+**Input:** `msg.payload` (command data to send to device)
+
+**Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.commandKey`, `msg.requestEndpoint`, `msg.responseEndpoint`
+
+---
 
 ## SCM Payload Mappings
 
-All SCM transaction nodes (fusion-request, create-asset, create-meter-reading, misc-transaction, subinventory-quantity-transfer) use structured mapping rows:
-
-| Column | Description |
-|--------|-------------|
-| **SCM Field** | The API field name (e.g. `AssetNumber`, `ItemNumber`) |
-| **Source** | How the value is resolved (see below) |
-| **Value** | The field name, property path, or literal value depending on source |
-
-**Source types:**
+All SCM transaction nodes use structured mapping rows:
 
 | Source | Reads from | Value field contains |
 |--------|-----------|---------------------|
-| **dequeued data** | `msg.dequeued.<value>` | Just the field name (e.g. `AssetNumber`) — the `msg.dequeued.` prefix is added automatically |
-| **msg property** | `msg.<value>` | Full property path (e.g. `payload.someField`, `custom.data.id`) |
-| **static value** | Literal string | The constant value (e.g. `100100100`) |
+| **dequeued data** | `msg.dequeued.<value>` | Field name (e.g. `AssetNumber`) |
+| **msg property** | `msg.<value>` | Full property path (e.g. `payload.someField`) |
+| **static value** | Literal string | Constant value (e.g. `100100100`) |
 
-Rows can be reordered by dragging the ☰ handle. Add or remove rows with the + Add Mapping / ✕ buttons. New rows default to "dequeued data" source.
-
+---
 
 ## Typical Flows
 
-**Transactional dequeue → SCM create:**
-`begin transaction` → `dequeue` → `fusion-request` → `end transaction`
+**Transactional dequeue → SCM create (with error handling):**
+`begin transaction` → `dequeue` → `fusion-request` → `end transaction (commit)`
+On error: `catch` → `end transaction (rollback)`
 
-**Standalone dequeue → SCM create:**
-`dequeue` → `create-asset`
+**IoT telemetry publishing:**
+`inject` (repeat 10s) → `function` (build sensor payload) → `iot telemetry`
 
-**Dequeue → SMO transform (batch):**
-`dequeue` (batch size > 1) → `split` (fixed length: 1) → `smo-transformer`
+**IoT command round-trip:**
+`inject` (command payload) → `iot send command` → `debug` (sent)
+`iot command` → `debug` (received on device)
 
-**Dequeue → SMO transform (single):**
-`dequeue` (batch size: 1) → `smo-transformer`
+**Threshold monitoring with notification:**
+`dequeue` → `switch` (temperature < 20?) → `iot send command` (shutdown) → `oci notification` (alert)
 
 **SQL query:**
 `inject` → `sql` → `debug`
-
-**Dynamic SQL:**
-`function` (sets msg.sql) → `sql` → `debug`

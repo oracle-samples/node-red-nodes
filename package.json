@@ -1,6 +1,6 @@
 {
   "name": "node-red-nodes",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "description": "Node-RED nodes for Oracle Database and Oracle Fusion SCM Functionality",
   "license": "UPL-1.0",
   "engines": {
@@ -38,7 +38,14 @@
       "delete-transaction": "fusion-scm-nodes/nodes/delete-transaction.js",
       "fusion-request": "fusion-scm-nodes/nodes/fusion-request.js",
       "smo-transformer": "fusion-scm-nodes/nodes/smo-transformer.js",
-      "scm-lookup": "fusion-scm-nodes/nodes/scm-lookup.js"
+      "scm-lookup": "fusion-scm-nodes/nodes/scm-lookup.js",
+
+      "oci-config": "oci-nodes/nodes/oci-config.js",
+      "oci-notification": "oci-nodes/nodes/oci-notification.js",
+      "iot-config": "oci-nodes/nodes/iot-config.js",
+      "iot-send-command": "oci-nodes/nodes/iot-send-command.js",
+      "iot-command": "oci-nodes/nodes/iot-command.js",
+      "iot-telemetry": "oci-nodes/nodes/iot-telemetry.js"
     }
   }
 }

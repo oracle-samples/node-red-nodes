@@ -39,6 +39,9 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
+        // "commit" (default) or "rollback"
+        node.action = config.action || "commit";
+
         node.on("input", async (msg, send, done) => {
             if (!msg.transaction || !msg.transaction.connection) {
                 node.status({ fill: "red", shape: "ring", text: "no transaction" });
@@ -57,17 +60,26 @@ module.exports = function(RED) {
                 : "?";
 
             try {
-                await msg.transaction.connection.commit();
-                await msg.transaction.connection.close();
-                delete msg.transaction;
+                if (node.action === "rollback") {
+                    await msg.transaction.connection.rollback();
+                    await msg.transaction.connection.close();
+                    delete msg.transaction;
 
-                node.status({ fill: "green", shape: "dot", text: `committed (${elapsed}s)` });
+                    node.status({ fill: "yellow", shape: "dot", text: `rolled back (${elapsed}s)` });
+                } else {
+                    await msg.transaction.connection.commit();
+                    await msg.transaction.connection.close();
+                    delete msg.transaction;
+
+                    node.status({ fill: "green", shape: "dot", text: `committed (${elapsed}s)` });
+                }
+
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: `commit failed (${elapsed}s)` });
+                node.status({ fill: "red", shape: "ring", text: `${node.action} failed (${elapsed}s)` });
 
-                // Attempt rollback and cleanup
+                // Attempt cleanup
                 try { await msg.transaction.connection.rollback(); } catch (e) { /* ignore */ }
                 try { await msg.transaction.connection.close(); } catch (e) { /* ignore */ }
                 delete msg.transaction;

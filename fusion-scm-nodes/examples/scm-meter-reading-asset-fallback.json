@@ -230,8 +230,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-scm-nodes": "0.2.0",
-            "node-red-db-nodes": "0.2.0"
+            "node-red-nodes": "0.3.0"
         }
     }
 ]

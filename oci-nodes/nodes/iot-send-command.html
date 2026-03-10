@@ -1,0 +1,185 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("iot-send-command", {
+    category: "oci",
+    paletteLabel: "send command",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        digitalTwinOcid: { value: "" },
+        baseEndpoint: { value: "iot/v1" },
+        commandKey: { value: "" },
+        requestDuration: { value: "PT10M" },
+        responseDuration: { value: "PT10M" },
+        waitForResponse: { value: true }
+    },
+    inputs: 1, outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-paper-plane",
+    label: function () { return this.name || "send command"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="iot-send-command">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-digitalTwinOcid"><i class="fa fa-microchip"></i> Digital Twin OCID</label>
+        <input type="text" id="node-input-digitalTwinOcid" placeholder="ocid1.iotdigitaltwininstance.oc1...">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            The OCID of the digital twin instance to send the command to.
+            If empty, reads from <code>msg.digitalTwinOcid</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-baseEndpoint"><i class="fa fa-road"></i> Base Endpoint</label>
+        <input type="text" id="node-input-baseEndpoint" placeholder="iot/v1">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            MQTT topic prefix. Command sent to <code>&lt;base&gt;/cmd/&lt;key&gt;</code>, response expected on <code>&lt;base&gt;/rsp/&lt;key&gt;</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-commandKey"><i class="fa fa-key"></i> Command Key</label>
+        <input type="text" id="node-input-commandKey" placeholder="e.g. shutdown, test-01, blink">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Identifies the command. If empty, reads from <code>msg.commandKey</code> (defaults to "default").
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-waitForResponse"><i class="fa fa-reply"></i> Wait for Response</label>
+        <input type="checkbox" id="node-input-waitForResponse" style="width:auto;vertical-align:middle;">
+        <span style="font-size:12px;color:#666;"> Include response endpoint so the platform waits for a device acknowledgment</span>
+    </div>
+    <div class="form-row">
+        <label for="node-input-requestDuration"><i class="fa fa-clock-o"></i> Request Duration</label>
+        <input type="text" id="node-input-requestDuration" placeholder="PT10M" style="width:120px;">
+        <span style="font-size:12px;color:#666;margin-left:8px;">ISO 8601 duration (e.g. PT10M = 10 minutes, PT1H = 1 hour)</span>
+    </div>
+    <div class="form-row">
+        <label for="node-input-responseDuration"><i class="fa fa-clock-o"></i> Response Duration</label>
+        <input type="text" id="node-input-responseDuration" placeholder="PT10M" style="width:120px;">
+        <span style="font-size:12px;color:#666;margin-left:8px;">How long the platform waits for the device to respond</span>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="iot-send-command">
+<p>Sends a raw command to an OCI IoT Digital Twin instance via the OCI REST API.</p>
+
+<h3>How It Works</h3>
+<p>This node calls the OCI IoT Platform's <code>invokeRawCommand</code> API to send a command
+to a digital twin instance. The platform delivers the command to the device over MQTT
+on the topic <code>&lt;baseEndpoint&gt;/cmd/&lt;commandKey&gt;</code>. If the device is connected
+and listening (e.g. via the <b>iot command</b> node), it receives the command and can
+send an acknowledgment back.</p>
+
+<p><b>Important:</b> This node uses the OCI REST API (via the <b>oci-config</b> node),
+not the MQTT connection. It sends commands <em>to</em> the device through the IoT Platform,
+which is the cloud-to-device direction. This is the equivalent of running
+<code>oci iot digital-twin-instance invoke-raw-json-command</code> from the CLI.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt>
+    <dd>References an OCI Config node for authentication (Config File, Instance Principal, or API Key).</dd>
+    <dt>Digital Twin OCID</dt>
+    <dd>The OCID of the digital twin instance to send the command to.
+    If empty, reads from <code>msg.digitalTwinOcid</code>.</dd>
+    <dt>Base Endpoint</dt>
+    <dd>MQTT topic prefix (default: <code>iot/v1</code>). The command is sent to
+    <code>&lt;base&gt;/cmd/&lt;key&gt;</code>.</dd>
+    <dt>Command Key</dt>
+    <dd>Identifies the command (e.g. <code>shutdown</code>, <code>blink</code>, <code>test-01</code>).
+    If empty, reads from <code>msg.commandKey</code>. Defaults to <code>"default"</code> if neither is set.</dd>
+    <dt>Wait for Response</dt>
+    <dd>When enabled, includes a response endpoint so the platform waits for the device
+    to send an acknowledgment. When disabled, the command is fire-and-forget.</dd>
+    <dt>Request Duration</dt>
+    <dd>How long the platform tries to deliver the command (ISO 8601 duration).
+    Default: <code>PT10M</code> (10 minutes).</dd>
+    <dt>Response Duration</dt>
+    <dd>How long the platform waits for the device to respond (ISO 8601 duration).
+    Default: <code>PT10M</code> (10 minutes). Only used when Wait for Response is enabled.</dd>
+</dl>
+
+<h3>Input</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>The command data to send to the device. This is the JSON payload the device
+    receives (e.g. <code>{"action": "blink", "duration": 5}</code> or <code>{"shutdown": true}</code>).</dd>
+    <dt>commandKey <span class="property-type">string</span></dt>
+    <dd>Optional. The command key if not set in the editor.</dd>
+    <dt>digitalTwinOcid <span class="property-type">string</span></dt>
+    <dd>Optional. The digital twin OCID if not set in the editor.</dd>
+</dl>
+
+<h3>Output</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>The OCI API response containing command delivery details.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code (200 on success).</dd>
+    <dt>commandKey <span class="property-type">string</span></dt>
+    <dd>The command key that was used.</dd>
+    <dt>requestEndpoint <span class="property-type">string</span></dt>
+    <dd>The full command topic (e.g. <code>iot/v1/cmd/shutdown</code>).</dd>
+    <dt>responseEndpoint <span class="property-type">string</span></dt>
+    <dd>The full response topic (e.g. <code>iot/v1/rsp/shutdown</code>).</dd>
+</dl>
+
+<h3>Prerequisites</h3>
+<p>Install the OCI SDK in your Node-RED directory:</p>
+<pre>cd ~/.node-red
+npm install oci-sdk</pre>
+
+<h3>Typical Flows</h3>
+<p><b>Send a command from an inject node:</b><br/>
+<code>inject</code> (JSON payload) → <code>iot send command</code> → <code>debug</code></p>
+<p><b>Dynamic command routing:</b><br/>
+<code>function</code> (sets msg.commandKey and msg.payload) → <code>iot send command</code> → <code>debug</code></p>
+<p><b>Full round-trip test:</b><br/>
+<code>inject</code> → <code>iot send command</code> → <code>debug</code> (command sent)<br/>
+<code>iot command</code> → <code>debug</code> (command received on device side)</p>
+</script>

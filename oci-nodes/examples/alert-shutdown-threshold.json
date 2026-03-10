@@ -1,0 +1,227 @@
+[
+    {
+        "id": "5b7105f00c7c8bff",
+        "type": "tab",
+        "label": "Alert and Shutdown on Threshold",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "e406a6d8a8e61748",
+        "type": "iot-telemetry",
+        "z": "5b7105f00c7c8bff",
+        "name": "",
+        "iotDevice": "a1fbb2cfb60372b7",
+        "addTimestamp": true,
+        "x": 360,
+        "y": 220,
+        "wires": [
+            [
+                "820fee6a4923ee06"
+            ]
+        ]
+    },
+    {
+        "id": "e32c941932fdf824",
+        "type": "inject",
+        "z": "5b7105f00c7c8bff",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"sht_temperature\":24.3,\"qmp_temperature\":25.1,\"humidity\":58.7,\"pressure\":1013.4,\"count\":1}",
+        "payloadType": "json",
+        "x": 190,
+        "y": 220,
+        "wires": [
+            [
+                "e406a6d8a8e61748"
+            ]
+        ]
+    },
+    {
+        "id": "820fee6a4923ee06",
+        "type": "switch",
+        "z": "5b7105f00c7c8bff",
+        "name": "",
+        "property": "payload.sht_temperature",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "lt",
+                "v": "30",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 530,
+        "y": 220,
+        "wires": [
+            [
+                "c669a64b7bb10333"
+            ],
+            [
+                "c69e16d009792cf9"
+            ]
+        ]
+    },
+    {
+        "id": "c69e16d009792cf9",
+        "type": "debug",
+        "z": "5b7105f00c7c8bff",
+        "name": "debug 78",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 700,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "d2bfbbb82d54a920",
+        "type": "iot-send-command",
+        "z": "5b7105f00c7c8bff",
+        "name": "",
+        "ociConfig": "",
+        "digitalTwinOcid": "",
+        "baseEndpoint": "iot/v1",
+        "commandKey": "shutdown",
+        "requestDuration": "PT10M",
+        "responseDuration": "PT10M",
+        "waitForResponse": true,
+        "x": 920,
+        "y": 180,
+        "wires": [
+            [
+                "f8b942a8efdd5d9a"
+            ]
+        ]
+    },
+    {
+        "id": "c669a64b7bb10333",
+        "type": "oci-notification",
+        "z": "5b7105f00c7c8bff",
+        "name": "",
+        "ociConfig": "8d8f1b07836c5568",
+        "topicOcid": "",
+        "msgTitle": "sht_temperature under threshold",
+        "msgBody": "sending shutdown command",
+        "x": 710,
+        "y": 180,
+        "wires": [
+            [
+                "d2bfbbb82d54a920"
+            ]
+        ]
+    },
+    {
+        "id": "f8b942a8efdd5d9a",
+        "type": "debug",
+        "z": "5b7105f00c7c8bff",
+        "name": "debug 79",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1120,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "d80a31dec71f8077",
+        "type": "comment",
+        "z": "5b7105f00c7c8bff",
+        "name": "command node listens for the shutdown command",
+        "info": "",
+        "x": 310,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "41ddba2826b91017",
+        "type": "iot-command",
+        "z": "5b7105f00c7c8bff",
+        "name": "",
+        "iotDevice": "a1fbb2cfb60372b7",
+        "autoAck": true,
+        "commandFilter": "",
+        "x": 180,
+        "y": 480,
+        "wires": [
+            [
+                "779ed5b02484b64d"
+            ]
+        ]
+    },
+    {
+        "id": "779ed5b02484b64d",
+        "type": "debug",
+        "z": "5b7105f00c7c8bff",
+        "name": "debug 80",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 360,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "a1fbb2cfb60372b7",
+        "type": "iot-config",
+        "deviceHost": "",
+        "baseEndpoint": "iot/v1",
+        "clientId": "",
+        "qos": "1",
+        "authType": "basic",
+        "caCertPath": "",
+        "clientCertPath": "",
+        "clientKeyPath": "",
+        "useProxy": false,
+        "proxyUrl": ""
+    },
+    {
+        "id": "8d8f1b07836c5568",
+        "type": "oci-config",
+        "authType": "config",
+        "region": "",
+        "compartmentOcid": "",
+        "configFilePath": "~/.oci/config",
+        "profile": "DEFAULT",
+        "tenancyOcid": "",
+        "userOcid": "",
+        "fingerprint": "",
+        "privateKeyPath": ""
+    },
+    {
+        "id": "807ec9789c1d89f4",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-nodes": "0.3.0"
+        }
+    }
+]

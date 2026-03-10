@@ -1,26 +1,37 @@
-# Node-RED SCM & DB Nodes
+# Node-RED Oracle Cloud Nodes
 
-This project provides a set of custom Node-RED nodes that integrate the Oracle Database, Advanced Queues (AQ), and Oracle Fusion Cloud SCM with the OCI IoT Platform service.
+This project provides a set of custom Node-RED nodes that integrate the Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, OCI services, and the OCI IoT Platform.
+
+---
 
 ## What's Included
 
 - **db-nodes**
   - Database connection (with Test Connection)
   - SQL execution (Editor or msg.sql)
-  - AQ enqueue / dequeue
-  - Transactional processing (begin / end transaction)
+  - AQ enqueue / dequeue (configurable dequeue mode)
+  - Transactional processing (begin / end transaction with commit or rollback)
 
 - **fusion-scm-nodes**
   - General transaction node (fusion-request)
   - General lookup node (scm-lookup)
   - SMO Transformer
-  - Create Asset
-  - Create Meter Reading
+  - Create Asset, Create Meter Reading
   - Inventory transactions (misc, subinventory transfer)
   - Delete transaction
   - Lookup nodes (asset, meter reading, organization)
 
+- **oci-nodes**
+  - OCI authentication config (Config File, Instance Principal, Resource Principal, API Key)
+  - OCI Notifications (email, Slack, PagerDuty, webhook, SMS, OCI Functions)
+  - IoT Device config (MQTT connection to OCI IoT Platform)
+  - IoT Telemetry (publish device telemetry)
+  - IoT Command (receive commands from IoT Platform)
+  - IoT Send Command (send commands to devices via OCI REST API)
+
 > Detailed node-level documentation is available in [Node Reference](./docs/node-reference.md).
+
+---
 
 ## Quick Start
 
@@ -31,6 +42,8 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 | Import examples into Node-RED | [Guide](./docs/import-examples.md) |
 | Best practices | [Guide](./docs/best-practice.md) |
 | Node reference | [Guide](./docs/node-reference.md) |
+
+---
 
 ## Installation
 
@@ -60,7 +73,7 @@ gh repo clone oracle-samples/node-red-nodes
 - Node-RED v3.0+
 - Node.js v18+
 - npm
-- Oracle Instant Client 23c
+- Oracle Instant Client 23c (for DB nodes)
 
 #### Required Node-RED Dependencies
 
@@ -68,9 +81,11 @@ These libraries must be installed inside your Node-RED user directory (`~/.node-
 
 ```bash
 cd ~/.node-red
-npm install oracledb
-npm install axios
-npm install https-proxy-agent
+npm install oracledb          # DB nodes
+npm install axios             # SCM nodes
+npm install https-proxy-agent # SCM nodes (proxy support)
+npm install oci-sdk           # OCI nodes (Notifications, IoT Send Command)
+npm install mqtt              # IoT nodes (Telemetry, Command)
 ```
 
 #### Install Oracle Instant Client (23c)
@@ -83,9 +98,13 @@ sudo dnf install oracle-instantclient-sqlplus
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
 
+---
+
 ## Documentation
 
 You can find the online documentation for the Oracle Internet of Things Platform at [docs.cloud.oracle.com](https://docs.oracle.com/en-us/iaas/Content/internet-of-things).
+
+---
 
 ## Examples
 
@@ -94,9 +113,13 @@ Example Node-RED flows are provided in the documentation showcasing different us
 - Subscriber exists? → If Not, Create New Subscriber → If It Exists, Enqueue → Dequeue Example
 - Enqueue → Dequeue → Create Meter Reading → If Not Found, Create Asset
 - Transactional dequeue with rollback protection
+- IoT telemetry publishing and command-response
+- Threshold monitoring with OCI Notifications
 
 Examples can be imported directly into the Node-RED editor.
 See [Import Examples Guide](./docs/import-examples.md).
+
+---
 
 ## Contributing
 
@@ -112,12 +135,4 @@ See [LICENSE](./LICENSE.txt).
 
 ## Disclaimer
 
-Oracle and its affiliates do not provide any warranty whatsoever, express or implied, for
-any software, material or content of any kind contained or produced within this
-repository, and in particular specifically disclaim any and all implied warranties of
-title, non-infringement, merchantability, and fitness for a particular purpose.
-Furthermore, Oracle and its affiliates do not represent that any customary security
-review has been performed with respect to any software, material or content contained or
-produced within this repository. In addition, and without limiting the foregoing,
-third parties may have posted software, material or content to this repository
-without any review. Use at your own risk.
+Oracle and its affiliates do not provide any warranty whatsoever, express or implied, for any software, material or content of any kind contained or produced within this repository, and in particular specifically disclaim any and all implied warranties of title, non-infringement, merchantability, and fitness for a particular purpose. Furthermore, Oracle and its affiliates do not represent that any customary security review has been performed with respect to any software, material or content contained or produced within this repository. In addition, and without limiting the foregoing, third parties may have posted software, material or content to this repository without any review. Use at your own risk.

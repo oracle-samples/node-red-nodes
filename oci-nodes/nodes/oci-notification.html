@@ -1,0 +1,135 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-notification", {
+    category: "oci",
+    paletteLabel: "notification",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        topicOcid: { value: "" },
+        msgTitle: { value: "" },
+        msgBody: { value: "" }
+    },
+    inputs: 1, outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-bell",
+    label: function () { return this.name || "notification"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-notification">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-topicOcid"><i class="fa fa-bullhorn"></i> Topic OCID</label>
+        <input type="text" id="node-input-topicOcid">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            If empty, reads from <code>msg.topicOcid</code> at runtime.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-msgTitle"><i class="fa fa-heading"></i> Title</label>
+        <input type="text" id="node-input-msgTitle" placeholder="Notification title (optional)">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            If empty, reads from <code>msg.title</code> at runtime.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-msgBody"><i class="fa fa-align-left"></i> Body</label>
+        <textarea id="node-input-msgBody" rows="4" style="width:100%;" placeholder="Notification body (optional)"></textarea>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            If empty, uses <code>msg.payload</code> at runtime. Objects are JSON-stringified.
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-notification">
+<p>Publishes a message to an Oracle Cloud Infrastructure (OCI) Notifications topic.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt><dd>References an OCI Config node for authentication and region.</dd>
+    <dt>Topic OCID</dt>
+    <dd>The OCID of the OCI Notifications topic to publish to.
+    If empty, reads from <code>msg.topicOcid</code> at runtime.</dd>
+    <dt>Title</dt>
+    <dd>Optional message title. If empty, reads from <code>msg.title</code>.
+    The title appears as the subject line for email subscriptions.</dd>
+    <dt>Body</dt>
+    <dd>The message body. If empty, uses <code>msg.payload</code> (objects are JSON-stringified).
+    This is the content delivered to all topic subscriptions.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>The OCI publish result containing the <code>messageId</code> and <code>timeStamp</code>.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code (200 on success).</dd>
+    <dt>error <span class="property-type">string</span></dt>
+    <dd>Error message (only on failure).</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Uses the OCI SDK <code>NotificationDataPlaneClient</code> to publish messages.
+Authentication is handled by the selected OCI Config node. The SDK client is
+created once and reused across invocations.</p>
+
+<p>OCI Notifications delivers messages to all active subscriptions on the topic,
+which can include email, HTTPS webhooks, PagerDuty, Slack, SMS, and OCI Functions.</p>
+
+<h3>Prerequisites</h3>
+<p>Install the OCI SDK in your Node-RED directory:</p>
+<pre>npm install oci-sdk</pre>
+<p>Create a Notification Topic in the OCI Console and note its OCID. Add subscriptions
+to the topic to receive messages.</p>
+
+<h3>Typical Flows</h3>
+<p><b>Alert on dequeue failure:</b><br/>
+<code>begin transaction</code> → <code>dequeue</code> → <code>catch</code> → <code>oci notification</code></p>
+<p><b>Dynamic topic routing:</b><br/>
+<code>function</code> (sets msg.topicOcid) → <code>oci notification</code></p>
+</script>

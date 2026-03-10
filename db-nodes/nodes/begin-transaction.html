@@ -36,7 +36,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("begin-transaction", {
-    category: "oracledb",
+    category: "oracle db",
     paletteLabel: "begin transaction",
     defaults: {
         name: { value: "" },
@@ -45,7 +45,7 @@ RED.nodes.registerType("begin-transaction", {
     },
     inputs: 1, outputs: 1,
     color: "#4C825C",
-    icon: "font-awesome/fa-sign-in",
+    icon: "font-awesome/fa-play-circle",
     align: "right",
     label: function () { return this.name || "begin transaction"; }
 });
