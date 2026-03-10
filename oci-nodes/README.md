@@ -2,8 +2,6 @@
 
 Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration and the OCI IoT Platform. These nodes enable OCI Notifications, IoT device telemetry, and command-response workflows.
 
----
-
 ## Nodes
 
 ### Configuration
@@ -32,8 +30,6 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 |------|----------|-------------|
 | **iot-send-command** | oci | Sends commands to devices via the OCI REST API. |
 
----
-
 ## Installation
 
 ### Prerequisites
@@ -50,8 +46,6 @@ Inside your Node-RED user directory (`~/.node-red`):
 npm install oci-sdk    # OCI Notifications, IoT Send Command
 npm install mqtt       # IoT Telemetry, IoT Command
 ```
-
----
 
 ## Authentication
 
@@ -77,8 +71,6 @@ Used by: `iot-telemetry`, `iot-command`
 | **Basic** | Most common for testing and development | Username (external-key), Password (Vault secret) |
 | **Certificate (mTLS)** | Production devices with X.509 certificates | Client cert path, Client key path |
 
----
-
 ## IoT Platform Setup
 
 Before using IoT nodes, set up the following in OCI:
@@ -88,8 +80,6 @@ Before using IoT nodes, set up the following in OCI:
 3. **Digital Twin Instance** — registers the device identity
 
 See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-of-things) for step-by-step instructions.
-
----
 
 ## Typical Flows
 
@@ -108,8 +98,6 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 **Full command round-trip:**
 `inject` → `iot send command` → `debug` (command sent)
 `iot command` → `debug` (command received on device)
-
----
 
 ## Contributing
 

@@ -2,8 +2,6 @@
 
 This guide covers best practices for securely executing operations with these custom Node-RED nodes.
 
----
-
 ## Transactional Dequeue Processing
 
 For reliable message processing where failed operations return messages to the queue, use the begin/end transaction pattern with dedicated commit and rollback paths:
@@ -22,8 +20,6 @@ Messages stay locked on the queue until end-transaction commits. If the flow fai
 
 **Dequeue mode:** Use Remove (default) for normal message consumption. Use Browse for monitoring queue contents without consuming. Use Locked only when you need to inspect before deciding to remove.
 
----
-
 ## Safe SQL Execution (SQL Node)
 
 1. Always use bind variables instead of string concatenation to prevent SQL injection
@@ -35,8 +31,6 @@ Messages stay locked on the queue until end-transaction commits. If the flow fai
 
 **Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message at runtime. Validate the source of `msg.sql` to avoid executing untrusted SQL.
 
----
-
 ## SCM Payload Mappings
 
 All SCM transaction nodes use structured mapping rows with three source types:
@@ -46,8 +40,6 @@ All SCM transaction nodes use structured mapping rows with three source types:
 | **dequeued data** | `msg.dequeued.<value>` | `AssetNumber` (prefix added automatically) |
 | **msg property** | `msg.<value>` | `payload.someField` |
 | **static value** | Literal string | `100100100` |
-
----
 
 ## OCI IoT Platform
 
@@ -59,15 +51,11 @@ All SCM transaction nodes use structured mapping rows with three source types:
 
 **Client ID uniqueness:** Only one MQTT connection per Client ID is allowed. If you use both iot-config and built-in MQTT nodes with the same Client ID, they will disconnect each other. Use different Client IDs or use one or the other.
 
----
-
 ## OCI Notifications
 
 **Topic OCID vs dynamic routing:** Hardcode the Topic OCID in the editor for fixed alerting targets. Leave it empty and set `msg.topicOcid` for dynamic routing (e.g. different severity levels to different topics).
 
 **Confirm subscriptions:** Email subscriptions require clicking a confirmation link before they receive messages. Test with a simple inject → notification flow to verify delivery.
-
----
 
 ## Connection Pool Recommendations
 
