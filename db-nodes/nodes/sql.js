@@ -112,7 +112,6 @@ module.exports = function (RED) {
                 node.status({ fill: "red", shape: "dot", text: "error" });
                 msg.error = { message: err.message, code: err.errorNum || null };
                 node.error(err, msg);
-                send(msg);
                 done(err);
             } finally {
                 if (connection) {

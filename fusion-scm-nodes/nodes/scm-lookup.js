@@ -110,7 +110,6 @@ module.exports = function(RED) {
                 msg.statusCode = err.response?.status || 0;
                 msg.payload = err.response?.data || msg.error;
                 node.error(msg.error, msg);
-                send(msg);
                 done(err);
             }
         });
