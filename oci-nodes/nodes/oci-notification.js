@@ -102,7 +102,6 @@ module.exports = function (RED) {
                 msg.statusCode = err.statusCode || 0;
                 msg.payload = err.message;
                 node.error(msg.error, msg);
-                send(msg);
                 done(err);
             }
         });

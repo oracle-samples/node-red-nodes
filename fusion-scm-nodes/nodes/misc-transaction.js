@@ -111,13 +111,12 @@ module.exports = function(RED) {
         return null;
     }
 
-    function handleError(node, msg, err, send, done) {
+    function handleError(node, msg, err, done) {
         node.status({ fill: "red", shape: "dot", text: "failed" });
         msg.error = err.message || err.toString();
         msg.statusCode = err.response?.status || 0;
         msg.payload = err.response?.data || msg.error;
         node.error(msg.error, msg);
-        send(msg);
         done(err);
     }
 
