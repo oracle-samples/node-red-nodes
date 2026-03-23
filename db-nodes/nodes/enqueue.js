@@ -92,7 +92,14 @@ module.exports = function(RED) {
                 await connection.commit();
 
                 node.status({ fill: "green", shape: "dot", text: `enqueued ${messages.length}` });
-                send({ ...msg, payload: `Successfully enqueued ${messages.length} messages` });
+                // Build a clean output message — only serializable properties
+                var outMsg = {
+                    _msgid: msg._msgid,
+                    payload: `Successfully enqueued ${messages.length} messages`,
+                    enqueued: arr,
+                    count: messages.length
+                };
+                send(outMsg);
                 done();
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "error" });

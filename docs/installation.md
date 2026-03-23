@@ -42,7 +42,7 @@ npm install oracledb
 npm install axios
 npm install https-proxy-agent
 
-# OCI nodes (Notifications, IoT Send Command)
+# OCI nodes (Notifications, Logging, Log Analytics, Object Storage, IoT Send Command)
 npm install oci-sdk
 
 # IoT nodes (Telemetry, Command)
@@ -107,6 +107,6 @@ Not all dependencies are required. Install only what you need:
 |--------------------|---------|
 | DB nodes only | `oracledb` + Oracle Instant Client |
 | SCM nodes only | `axios`, `https-proxy-agent` |
-| OCI Notifications or IoT Send Command | `oci-sdk` |
+| OCI Notifications, Logging, Log Analytics, Object Storage, or IoT Send Command | `oci-sdk` |
 | IoT Telemetry or IoT Command | `mqtt` |
 | Everything | All of the above |

@@ -106,7 +106,17 @@ module.exports = function (RED) {
                 const rows = res.rows || [];
 
                 node.status({ fill: "green", shape: "dot", text: `rows: ${rows.length}` });
-                send({ ...msg, payload: rows, result: rows });
+                // Build a clean output message — only serializable properties
+                var outMsg = {
+                    _msgid: msg._msgid,
+                    payload: rows,
+                    result: rows
+                };
+                // Preserve sql property if it was set (for msg.sql source mode)
+                if (msg.sql) {
+                    outMsg.sql = msg.sql;
+                }
+                send(outMsg);
                 done();
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "error" });

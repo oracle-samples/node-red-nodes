@@ -230,7 +230,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.3.0"
+            "node-red-nodes": "0.3.1"
         }
     }
 ]

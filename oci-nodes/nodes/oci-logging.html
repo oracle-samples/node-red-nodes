@@ -1,0 +1,347 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+// =====================================================================
+// OCI Logging Mapping Editor
+// =====================================================================
+if (!window.ociLoggingMappingEditor) {
+window.ociLoggingMappingEditor = (function () {
+    function _escapeHtml(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    var _valueLabelMap = {
+        dequeued: "Field Name",
+        msg: "Property Path",
+        static: "Value"
+    };
+
+    var _valuePlaceholderMap = {
+        dequeued: "e.g. sht_temperature",
+        msg: "e.g. payload.deviceId",
+        static: "e.g. THRESHOLD_BREACH"
+    };
+
+    function _addRow(m) {
+        var srcType = m.sourceType || "dequeued";
+        var row = $(
+            '<div class="ocilogging-mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<div class="ocilogging-drag-handle" style="cursor:grab;padding:4px 2px;color:#999;font-size:16px;" title="Drag to reorder">&#9776;</div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;">Log Field</label>' +
+                  '<input type="text" class="ocilogging-field" value="' + _escapeHtml(m.logField || "") + '" style="width:100%;" /></div>' +
+                '<div style="width:140px;"><label style="font-size:11px;color:#666;">Source</label>' +
+                  '<select class="ocilogging-source-type" style="width:100%;">' +
+                    '<option value="dequeued"' + (srcType === "dequeued" ? ' selected' : '') + '>dequeued data</option>' +
+                    '<option value="msg"' + (srcType === "msg" ? ' selected' : '') + '>msg property</option>' +
+                    '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static value</option>' +
+                  '</select></div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="ocilogging-value-label">' + (_valueLabelMap[srcType] || "Value") + '</label>' +
+                  '<input type="text" class="ocilogging-value" value="' + _escapeHtml(m.value || "") + '" placeholder="' + (_valuePlaceholderMap[srcType] || "") + '" style="width:100%;" /></div>' +
+                '<div style="padding-top:14px;">' +
+                  '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.ocilogging-mapping-row\').remove();">&times;</button></div>' +
+              '</div>' +
+            '</div>'
+        );
+        row.find(".ocilogging-source-type").on("change", function () {
+            var type = $(this).val();
+            row.find(".ocilogging-value-label").text(_valueLabelMap[type] || "Value");
+            row.find(".ocilogging-value").attr("placeholder", _valuePlaceholderMap[type] || "");
+        });
+        $("#ocilogging-mappings-container").append(row);
+    }
+
+    function init(node) {
+        var mappings = [];
+        try { mappings = JSON.parse(node.mappings); } catch(e) { mappings = []; }
+        if (!Array.isArray(mappings)) mappings = [];
+
+        $("#ocilogging-mappings-container").empty();
+        mappings.forEach(function (m) { _addRow(m); });
+
+        $("#btn-add-ocilogging-mapping").off("click").on("click", function () {
+            _addRow({ logField: "", sourceType: "dequeued", value: "" });
+        });
+
+        $("#ocilogging-mappings-container").sortable({
+            handle: ".ocilogging-drag-handle", axis: "y", cursor: "grabbing",
+            opacity: 0.7, placeholder: "ocilogging-sortable-placeholder", tolerance: "pointer"
+        });
+    }
+
+    function save() {
+        var mappings = [];
+        $("#ocilogging-mappings-container .ocilogging-mapping-row").each(function () {
+            var row = $(this);
+            var m = {
+                logField: row.find(".ocilogging-field").val().trim(),
+                sourceType: row.find(".ocilogging-source-type").val(),
+                value: row.find(".ocilogging-value").val().trim()
+            };
+            if (m.logField) mappings.push(m);
+        });
+        return JSON.stringify(mappings);
+    }
+
+    return { init: init, save: save };
+})();
+var ociLoggingMappingEditor = window.ociLoggingMappingEditor;
+}
+
+RED.nodes.registerType("oci-logging", {
+    category: "oci",
+    paletteLabel: "logging",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        logId: { value: "" },
+        logSource: { value: "" },
+        logType: { value: "" },
+        severity: { value: "" },
+        payloadSource: { value: "mappings" },
+        mappings: { value: '[{"logField":"event","sourceType":"static","value":"APP_EVENT"},{"logField":"device","sourceType":"dequeued","value":"deviceId"},{"logField":"location","sourceType":"dequeued","value":"location"},{"logField":"value","sourceType":"dequeued","value":"sht_temperature"}]' }
+    },
+    inputs: 1, outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-cloud-upload",
+    label: function () { return this.name || "logging"; },
+    oneditprepare: function () {
+        var node = this;
+
+        function updatePayloadSource() {
+            var source = $("#node-input-payloadSource").val();
+            if (source === "payload") {
+                $("#ocilogging-mappings-section").hide();
+                $("#ocilogging-payload-hint").show();
+            } else {
+                $("#ocilogging-mappings-section").show();
+                $("#ocilogging-payload-hint").hide();
+            }
+        }
+        $("#node-input-payloadSource").on("change", updatePayloadSource);
+
+        ociLoggingMappingEditor.init(node);
+        updatePayloadSource();
+    },
+    oneditsave: function () {
+        this.mappings = ociLoggingMappingEditor.save();
+    }
+});
+</script>
+
+<style>
+    .ocilogging-sortable-placeholder { border:2px dashed #C74634; border-radius:4px; background:#fff8f7; height:50px; margin-bottom:6px; }
+    .ocilogging-drag-handle:hover { color:#555 !important; }
+</style>
+
+<script type="text/x-red" data-template-name="oci-logging">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-logId"><i class="fa fa-file-text-o"></i> Log OCID</label>
+        <input type="text" id="node-input-logId" placeholder="ocid1.log.oc1...">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            OCID of the Custom Log created in OCI Console → Logging. If empty, provide <code>msg.logId</code>.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-logSource"><i class="fa fa-desktop"></i> Log Source</label>
+        <input type="text" id="node-input-logSource" placeholder="source-system">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Identifies the producer (e.g. <code>source-system</code>, <code>host-a</code>). Overridden by <code>msg.logSource</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-logType"><i class="fa fa-tag"></i> Log Type</label>
+        <input type="text" id="node-input-logType" placeholder="app.event-type">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Category/type label for the log records. Overridden by <code>msg.logType</code>.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-severity"><i class="fa fa-exclamation-triangle"></i> Default Severity</label>
+        <select id="node-input-severity" style="width:200px;">
+            <option value="INFO">INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR</option>
+            <option value="CRITICAL">CRITICAL</option>
+            <option value="DEBUG">DEBUG</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Used as the <code>level</code> field if not already in payload. Overridden by <code>msg.severity</code>.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-payloadSource"><i class="fa fa-exchange"></i> Payload Source</label>
+        <select id="node-input-payloadSource" style="width:200px;">
+            <option value="mappings">Payload Mappings</option>
+            <option value="payload">msg.payload</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            <b>Payload Mappings</b>: build the log entry using the mapping rows below.<br/>
+            <b>msg.payload</b>: send <code>msg.payload</code> directly (use a function node upstream to build the payload).
+        </div>
+    </div>
+
+    <div id="ocilogging-payload-hint" style="display:none;margin-left:105px;margin-bottom:12px;padding:8px;background:#f0f7ff;border:1px solid #cce0ff;border-radius:4px;font-size:12px;">
+        <i class="fa fa-info-circle"></i> The node will send <code>msg.payload</code> as-is as the log entry data.
+        Use a <b>function</b> node before this node to build the payload from <code>msg.dequeued</code> or other sources.
+    </div>
+
+    <div id="ocilogging-mappings-section">
+        <div class="form-row">
+            <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+                Map log fields to dequeued data, message properties, or static values. Drag &#9776; to reorder.
+            </div>
+        </div>
+        <div class="form-row">
+            <div id="ocilogging-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
+            <div style="margin-left:20px;margin-top:4px;">
+                <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-ocilogging-mapping">+ Add Mapping</button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-logging">
+<p>Pushes log records to an OCI Custom Log using the Logging Ingestion API (<code>oci-loggingingestion</code>).</p>
+<p>This node targets the <b>OCI Logging</b> service — not Log Analytics. Use this to write application events
+to a log that can feed OCI Service Connectors, alarms, or the Logging Explorer.</p>
+
+<h3>Prerequisites</h3>
+<ol>
+    <li>In OCI Console &rarr; <b>Logging</b>, create a <b>Log Group</b> and then a <b>Custom Log</b> inside it.</li>
+    <li>Copy the Custom Log's <b>OCID</b> and paste it into the <b>Log OCID</b> field.</li>
+    <li>Ensure the OCI principal has the IAM policy:<br/>
+        <code>Allow dynamic-group &lt;dg&gt; to use log-content in compartment &lt;c&gt;</code>
+    </li>
+</ol>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt>
+    <dd>References an OCI Config node for authentication and region.</dd>
+    <dt>Log OCID</dt>
+    <dd>OCID of the Custom Log. Format: <code>ocid1.log.oc1.&lt;region&gt;.&lt;...&gt;</code>. If this field is blank, the node uses <code>msg.logId</code>.</dd>
+    <dt>Log Source</dt>
+    <dd>Producer identifier stored in each log batch (e.g. <code>node-red</code>, <code>iot-gateway</code>). Overridden by <code>msg.logSource</code>.</dd>
+    <dt>Log Type</dt>
+    <dd>Category string stored in each log batch (e.g. <code>application.events</code>, <code>iot.telemetry</code>). Overridden by <code>msg.logType</code>.</dd>
+    <dt>Default Severity</dt>
+    <dd>Written as <code>level</code> in the log entry if the payload does not already contain it. Overridden by <code>msg.severity</code>.</dd>
+    <dt>Payload Source</dt>
+    <dd>
+        <b>Payload Mappings</b> &mdash; build the log entry using the mapping rows. Each row specifies:
+        <ul>
+            <li><b>Log Field</b> &mdash; the field name in the serialized log record</li>
+            <li><b>Source</b> &mdash; <code>dequeued data</code> reads from <code>msg.dequeued</code>,
+                <code>msg property</code> reads from any <code>msg</code> path,
+                <code>static value</code> uses a constant</li>
+            <li><b>Value</b> &mdash; field name, property path, or literal value</li>
+        </ul>
+        <b>msg.payload</b> &mdash; sends <code>msg.payload</code> directly as the log entry content.
+    </dd>
+</dl>
+
+<h3>Runtime Inputs</h3>
+<dl class="message-properties">
+    <dt>logId <span class="property-type">string</span></dt>
+    <dd>Used only when the node's <b>Log OCID</b> field is empty.</dd>
+    <dt>logSource <span class="property-type">string</span></dt>
+    <dd>Override the log source label.</dd>
+    <dt>logType <span class="property-type">string</span></dt>
+    <dd>Override the log type label.</dd>
+    <dt>logSubject <span class="property-type">string</span></dt>
+    <dd>Optional sub-resource path (e.g. <code>/flows/threshold-monitor</code>).</dd>
+    <dt>severity <span class="property-type">string</span></dt>
+    <dd>Override the severity/level field injected into the log entry.</dd>
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>Used as the log entry data when Payload Source is <code>msg.payload</code>.</dd>
+</dl>
+
+<h3>Output</h3>
+<dl class="message-properties">
+    <dt>payload.opcRequestId <span class="property-type">string</span></dt>
+    <dd>OCI request trace ID. Provide this when contacting Oracle Support.</dd>
+    <dt>payload.statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code returned by OCI (typically <code>200</code> on success).</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code (200 on success).</dd>
+    <dt>error <span class="property-type">string</span></dt>
+    <dd>Error message (only on failure).</dd>
+</dl>
+
+<h3>How It Works (SDK internals)</h3>
+<p>Each invocation calls <code>LoggingClient.putLogs()</code> from <code>oci-loggingingestion</code>.
+The request body structure is:</p>
+<pre>
+PutLogsDetails
+  specversion: "1.0"
+  logEntryBatches: [
+    LogEntryBatch
+      source, type, subject?, defaultlogentrytime
+      entries: [
+        LogEntry
+          id: &lt;uuid&gt;    ← generated per invocation
+          data: "&lt;json string&gt;"
+          time: &lt;Date&gt;
+      ]
+  ]
+</pre>
+<p>A UUID is generated for each <code>LogEntry.id</code> using <code>crypto.randomUUID()</code>.
+The <code>timestamp</code> and <code>level</code> fields are injected automatically unless already present
+in the payload.</p>
+
+<h3>Typical Flows</h3>
+<p><b>Log threshold breaches:</b><br/>
+<code>dequeue</code> &rarr; <code>switch</code> (threshold) &rarr; <code>oci logging</code></p>
+<p><b>Log all errors:</b><br/>
+<code>catch</code> (all) &rarr; <code>function</code> (build payload) &rarr; <code>oci logging</code> (msg.payload mode)</p>
+<p><b>Log command acknowledgments:</b><br/>
+<code>sql</code> &rarr; <code>switch</code> &rarr; <code>oci logging</code> (with mappings)</p>
+</script>

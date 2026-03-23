@@ -59,24 +59,35 @@ module.exports = function(RED) {
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
                 const connection = await node.connection.getConnection();
 
-                msg.transaction = {
+                // Attach transaction as non-enumerable so:
+                // - Downstream nodes can still access msg.transaction.connection
+                // - JSON.stringify and Socket.IO skip it
+                // - Dashboard nodes can serialize msg without errors
+                // - Debug nodes show a cleaner output
+                var txn = {
                     connection: connection,
                     startedAt: Date.now(),
                     msgId: msg._msgid
                 };
-
+ 
+                Object.defineProperty(msg, 'transaction', {
+                    value: txn,
+                    enumerable: false,
+                    writable: true,
+                    configurable: true
+                });
+ 
                 // Set up connection timeout if configured
                 if (node.timeoutSecs > 0) {
-                    msg.transaction._timeout = setTimeout(async () => {
+                    txn._timeout = setTimeout(async () => {
                         node.warn(`Transaction timed out after ${node.timeoutSecs}s — rolling back and closing connection`);
                         node.status({ fill: "red", shape: "ring", text: `timed out (${node.timeoutSecs}s)` });
                         try { await connection.rollback(); } catch (e) { /* ignore */ }
                         try { await connection.close(); } catch (e) { /* ignore */ }
-                        // Mark connection as closed so end-transaction doesn't double-close
                         if (msg.transaction) msg.transaction.connection = null;
                     }, node.timeoutSecs * 1000);
                 }
-
+ 
                 node.status({ fill: "green", shape: "dot", text: "transaction started" });
                 send(msg);
                 done();

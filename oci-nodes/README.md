@@ -1,6 +1,6 @@
 # Node-RED OCI Nodes
 
-Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration and the OCI IoT Platform. These nodes enable OCI Notifications, IoT device telemetry, and command-response workflows.
+Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration and the OCI IoT Platform. These nodes enable OCI Notifications, OCI Logging, OCI Log Analytics, Object Storage file transfer, IoT device telemetry, and command-response workflows.
 
 ## Nodes
 
@@ -16,6 +16,9 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | Node | Category | Description |
 |------|----------|-------------|
 | **oci-notification** | oci | Publishes messages to OCI Notifications topics (email, Slack, PagerDuty, webhook, SMS, OCI Functions). |
+| **oci-logging** | oci | Pushes log entries to OCI Logging (Custom Logs) using the Logging Ingestion API (`putLogs`). |
+| **oci-log-analytics** | oci | Uploads log events to OCI Log Analytics for search, parsing, and analytics workflows. |
+| **oci-object-storage** | oci | Uploads and downloads objects to/from OCI Object Storage using payloads or local file paths. |
 
 ### IoT — Device Side (MQTT via iot-config)
 
@@ -43,7 +46,7 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 Inside your Node-RED user directory (`~/.node-red`):
 
 ```bash
-npm install oci-sdk    # OCI Notifications, IoT Send Command
+npm install oci-sdk    # OCI Notifications, Logging, Log Analytics, Object Storage, IoT Send Command
 npm install mqtt       # IoT Telemetry, IoT Command
 ```
 
@@ -51,7 +54,7 @@ npm install mqtt       # IoT Telemetry, IoT Command
 
 ### oci-config (OCI REST API Authentication)
 
-Used by: `oci-notification`, `iot-send-command`
+Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
@@ -94,6 +97,18 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 
 **Alert on threshold breach:**
 `dequeue` → `switch` (condition) → `oci notification`
+
+**Write custom application events to OCI Logging:**
+`function` (build payload) → `oci logging` → `debug`
+
+**Upload events to OCI Log Analytics:**
+`dequeue` / `function` → `oci log analytics` → `debug`
+
+**Upload a file/object to Object Storage:**
+`inject` (payload or file path) → `oci object storage` (upload) → `debug`
+
+**Download an object from Object Storage:**
+`inject` → `oci object storage` (download) → `debug` / `file`
 
 **Full command round-trip:**
 `inject` → `iot send command` → `debug` (command sent)
