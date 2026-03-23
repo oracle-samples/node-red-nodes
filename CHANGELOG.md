@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.3.1] - 2026-03-23
+
+### Added
+- `oci-logging` node for OCI Logging Ingestion (`putLogs`) to write events to OCI Custom Logs
+- `oci-log-analytics` node files (`oci-nodes/nodes/oci-log-analytics.html`, `oci-nodes/nodes/oci-log-analytics.js`)
+- `oci-logging` node files (`oci-nodes/nodes/oci-logging.html`, `oci-nodes/nodes/oci-logging.js`)
+- `oci-object-storage` node files (`oci-nodes/nodes/oci-object-storage.html`, `oci-nodes/nodes/oci-object-storage.js`)
+
+### Changed
+- Updated OCI node documentation (installation guide, README, and node reference) to include `oci-object-storage`, `oci-logging` and `oci-log-analytics`
+
+### Fixed
+- `oci-logging` now reports response status code from SDK response instead of hardcoded `200`
+- Added payload-size guard rails in `oci-logging` and `oci-log-analytics` to reject oversized log records before API submission
+- Message-passing consistency updates in `db-nodes/nodes/sql.js`, `db-nodes/nodes/enqueue.js`, `db-nodes/nodes/dequeue.js`, `db-nodes/nodes/begin-transaction.js`, and `oci-nodes/nodes/iot-telemetry.js` to preserve upstream `msg` properties and `msg.transaction` context where required
+
+---
+
 ## [0.3.0] - 2026-03-10
 
 ### Added

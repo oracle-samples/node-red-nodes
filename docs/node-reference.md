@@ -249,6 +249,65 @@ Publishes messages to an OCI Notifications topic.
 
 **Outputs:** `msg.payload` (publish result with `messageId`), `msg.statusCode`, `msg.error` (on failure)
 
+### oci-object-storage
+
+Uploads and downloads objects in OCI Object Storage.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| OCI Config | Yes | References an oci-config node |
+| Operation | Yes | `upload` or `download` |
+| Namespace | No* | Object Storage namespace. *Required either here or in `msg.namespace` |
+| Bucket Name | No* | Bucket name. *Required either here or in `msg.bucketName` |
+| Object Name | No* | Object name. *Required either here or in `msg.objectName` |
+| File Path | No | Upload source path when `msg.payload` is empty, or download destination path |
+| Content Type | No | Upload content type (for example `application/json`) |
+| Download Output | No | `buffer` (default) or `text` |
+| Encoding | No | Text encoding used when Download Output is `text` (default: `utf8`) |
+
+**Runtime overrides:** `msg.operation`, `msg.namespace`, `msg.bucketName`, `msg.objectName`, `msg.filePath`, `msg.contentType`, `msg.downloadOutput`, `msg.encoding`
+
+**Upload input:** `msg.payload` (Buffer, string, stream, Uint8Array, or object)
+
+**Outputs:** `msg.payload`, `msg.statusCode`, plus object metadata (`msg.eTag`, `msg.contentType`, `msg.contentLength`, `msg.versionId`, `msg.opcRequestId`) on download
+
+### oci-logging
+
+Pushes log records to OCI Logging Custom Logs using the Logging Ingestion API (`putLogs`).
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| OCI Config | Yes | References an oci-config node |
+| Log OCID | No* | Custom Log OCID. *Required either here or in `msg.logId` |
+| Log Source | No | Producer/source label (default: `node-red`). Overridden by `msg.logSource` |
+| Log Type | No | Type/category label (default: `application.events`). Overridden by `msg.logType` |
+| Default Severity | No | Injected as `level` when payload object has no `level` field. Overridden by `msg.severity` |
+| Payload Source | No | `Payload Mappings` (default) or `msg.payload` |
+| Payload Mappings | No | Mapping rows from dequeued data, msg property, or static value |
+
+**Runtime inputs:** `msg.logId` (used when node Log OCID is blank), `msg.logSource`, `msg.logType`, `msg.logSubject`, `msg.severity`
+
+**Outputs:** `msg.payload.opcRequestId`, `msg.payload.statusCode`, `msg.statusCode`, `msg.error` (on failure)
+
+### oci-log-analytics
+
+Uploads log events to OCI Log Analytics using `uploadLogEventsFile`.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| OCI Config | Yes | References an oci-config node |
+| Namespace | No* | Tenancy namespace. *Required either here or in `msg.namespace` |
+| Log Group OCID | No* | Log Analytics log group OCID. *Required either here or in `msg.logGroupOcid` |
+| Log Source Name | No* | Log source name configured in Log Analytics. *Required either here or in `msg.logSourceName` |
+| Entity OCID | No | Optional Log Analytics entity. Can be overridden by `msg.entityOcid` |
+| Default Severity | No | Injected as `level` when payload object has no `level` field. Overridden by `msg.severity` |
+| Payload Source | No | `Payload Mappings` (default) or `msg.payload` |
+| Payload Mappings | No | Mapping rows from dequeued data, msg property, or static value |
+
+**Runtime overrides:** `msg.namespace`, `msg.logGroupOcid`, `msg.logSourceName`, `msg.entityOcid`, `msg.severity`
+
+**Outputs:** `msg.payload.statusCode`, `msg.payload.requestId`, `msg.statusCode`, `msg.error` (on failure)
+
 ### iot-config (Config Node)
 
 MQTT connection to the OCI IoT Platform. Manages persistent sessions, command subscriptions, and auto-reconnect.

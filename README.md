@@ -22,6 +22,9 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 - **oci-nodes**
   - OCI authentication config (Config File, Instance Principal, Resource Principal, API Key)
   - OCI Notifications (email, Slack, PagerDuty, webhook, SMS, OCI Functions)
+  - OCI Object Storage (upload and download objects)
+  - OCI Logging (putLogs to OCI Custom Logs)
+  - OCI Log Analytics (upload log events to Log Analytics)
   - IoT Device config (MQTT connection to OCI IoT Platform)
   - IoT Telemetry (publish device telemetry)
   - IoT Command (receive commands from IoT Platform)
@@ -78,7 +81,7 @@ cd ~/.node-red
 npm install oracledb          # DB nodes
 npm install axios             # SCM nodes
 npm install https-proxy-agent # SCM nodes (proxy support)
-npm install oci-sdk           # OCI nodes (Notifications, IoT Send Command)
+npm install oci-sdk           # OCI nodes (Notifications, Logging, Log Analytics, IoT Send Command)
 npm install mqtt              # IoT nodes (Telemetry, Command)
 ```
 

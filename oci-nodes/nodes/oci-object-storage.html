@@ -1,0 +1,252 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-object-storage", {
+    category: "oci",
+    paletteLabel: "object storage",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        operation: { value: "upload" },
+        namespace: { value: "" },
+        bucketName: { value: "" },
+        objectName: { value: "" },
+        filePath: { value: "" },
+        contentType: { value: "" },
+        downloadOutput: { value: "buffer" },
+        encoding: { value: "utf8" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-archive",
+    label: function () {
+        return this.name || "object storage";
+    },
+    oneditprepare: function () {
+        function updateOperationFields() {
+            var operation = $("#node-input-operation").val();
+            if (operation === "download") {
+                $("#row-content-type").hide();
+                $("#row-download-output").show();
+                $("#file-path-hint").html("For <b>download</b>, if file path is set, the object is written to that exact absolute path and also returned in <code>msg.payload</code>.");
+            } else {
+                $("#row-content-type").show();
+                $("#row-download-output").hide();
+                $("#row-encoding").hide();
+                $("#file-path-hint").html("For <b>upload</b>, file path is used only when <code>msg.payload</code> is empty. Use the exact absolute path to the source file.");
+            }
+        }
+
+        function updateDownloadOutputFields() {
+            var operation = $("#node-input-operation").val();
+            var outputMode = $("#node-input-downloadOutput").val();
+            if (operation === "download" && outputMode === "text") {
+                $("#row-encoding").show();
+            } else {
+                $("#row-encoding").hide();
+            }
+        }
+
+        $("#node-input-operation").on("change", updateOperationFields);
+        $("#node-input-downloadOutput").on("change", updateDownloadOutputFields);
+        updateOperationFields();
+        updateDownloadOutputFields();
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-object-storage">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-operation"><i class="fa fa-exchange"></i> Operation</label>
+        <select id="node-input-operation" style="width:200px;">
+            <option value="upload">Upload</option>
+            <option value="download">Download</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Can be overridden at runtime with <code>msg.operation</code>.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-namespace"><i class="fa fa-database"></i> Namespace</label>
+        <input type="text" id="node-input-namespace" placeholder="your-tenancy-namespace">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Required at runtime. If empty here, provide <code>msg.namespace</code>. Find with <code>oci os ns get</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-bucketName"><i class="fa fa-folder-o"></i> Bucket</label>
+        <input type="text" id="node-input-bucketName" placeholder="my-bucket">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            If empty, reads from <code>msg.bucketName</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-objectName"><i class="fa fa-file-o"></i> Object Name</label>
+        <input type="text" id="node-input-objectName" placeholder="path/to/file.txt">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            If empty, reads from <code>msg.objectName</code>.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-filePath"><i class="fa fa-hdd-o"></i> File Path</label>
+        <input type="text" id="node-input-filePath" placeholder="/tmp/example.bin">
+        <div id="file-path-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;"></div>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Use a full absolute path (for example <code>/home/opc/tmp/example.bin</code>). Do not use shorthand or relative paths.
+        </div>
+    </div>
+    <div class="form-row" id="row-content-type">
+        <label for="node-input-contentType"><i class="fa fa-file-code-o"></i> Content Type</label>
+        <input type="text" id="node-input-contentType" placeholder="application/octet-stream">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Upload only. If empty, can be provided via <code>msg.contentType</code>.
+        </div>
+    </div>
+    <div class="form-row" id="row-download-output">
+        <label for="node-input-downloadOutput"><i class="fa fa-list"></i> Download Output</label>
+        <select id="node-input-downloadOutput" style="width:200px;">
+            <option value="buffer">Buffer</option>
+            <option value="text">Text</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Download only. <b>Buffer</b> keeps binary-safe output. <b>Text</b> converts bytes to a string.
+        </div>
+    </div>
+    <div class="form-row" id="row-encoding">
+        <label for="node-input-encoding"><i class="fa fa-font"></i> Text Encoding</label>
+        <input type="text" id="node-input-encoding" placeholder="utf8">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Used only when Download Output is <b>Text</b>. Can be overridden by <code>msg.encoding</code>.
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-object-storage">
+<p>Uploads and downloads files or payloads using OCI Object Storage.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt>
+    <dd>References an OCI Config node for authentication and region.</dd>
+    <dt>Operation</dt>
+    <dd><code>upload</code> or <code>download</code>. Can be overridden with <code>msg.operation</code>.</dd>
+    <dt>Namespace</dt>
+    <dd>Required at runtime. Set in node config or provide <code>msg.namespace</code>.</dd>
+    <dt>Bucket</dt>
+    <dd>Bucket name. If empty, reads from <code>msg.bucketName</code>.</dd>
+    <dt>Object Name</dt>
+    <dd>Object path/name in the bucket. If empty, reads from <code>msg.objectName</code>.</dd>
+    <dt>File Path</dt>
+    <dd>
+        Optional local path.
+        For upload, used only when <code>msg.payload</code> is empty.
+        For download, writes the downloaded object to this path (while still returning it in <code>msg.payload</code>).
+        Provide the full absolute path, for example <code>/home/opc/tmp/nodered-downloaded.txt</code>.
+    </dd>
+    <dt>Content Type</dt>
+    <dd>Upload-only optional MIME type. Can be overridden by <code>msg.contentType</code>.</dd>
+    <dt>Download Output</dt>
+    <dd>
+        Download-only output mode.
+        <code>buffer</code> (default) keeps <code>msg.payload</code> as a Buffer.
+        <code>text</code> converts payload bytes to a string using the selected encoding.
+        Can be overridden by <code>msg.downloadOutput</code>.
+    </dd>
+    <dt>Text Encoding</dt>
+    <dd>Download-only when output is <code>text</code>. Default <code>utf8</code>. Can be overridden by <code>msg.encoding</code>.</dd>
+</dl>
+
+<h3>Input</h3>
+<dl class="message-properties">
+    <dt>operation <span class="property-type">string</span></dt>
+    <dd>Optional runtime override: <code>upload</code> or <code>download</code>.</dd>
+    <dt>namespace <span class="property-type">string</span></dt>
+    <dd>Optional runtime override.</dd>
+    <dt>bucketName <span class="property-type">string</span></dt>
+    <dd>Optional runtime override.</dd>
+    <dt>objectName <span class="property-type">string</span></dt>
+    <dd>Optional runtime override.</dd>
+    <dt>filePath <span class="property-type">string</span></dt>
+    <dd>Optional runtime override.</dd>
+    <dt>contentType <span class="property-type">string</span></dt>
+    <dd>Optional runtime override for uploads.</dd>
+    <dt>downloadOutput <span class="property-type">string</span></dt>
+    <dd>Optional runtime override for downloads: <code>buffer</code> or <code>text</code>.</dd>
+    <dt>encoding <span class="property-type">string</span></dt>
+    <dd>Optional runtime override for text downloads (for example <code>utf8</code>, <code>ascii</code>, <code>latin1</code>).</dd>
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>Upload body source when operation is <code>upload</code>. If missing and <code>filePath</code> is set, the file is uploaded instead.</dd>
+</dl>
+
+<h3>Output</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object | Buffer | string</span></dt>
+    <dd>
+        Upload: summary object containing <code>eTag</code>, <code>versionId</code>, <code>opcRequestId</code>, and <code>statusCode</code>.
+        Download without file path: object bytes as <code>Buffer</code> (default) or converted <code>string</code> when <code>downloadOutput=text</code>.
+        Download with file path: object with <code>content</code>, <code>savedToPath</code>, and <code>outputType</code>.
+    </dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code.</dd>
+    <dt>savedToPath <span class="property-type">string | null</span></dt>
+    <dd>The exact final absolute local path written during download, or <code>null</code> when no file path was provided.</dd>
+    <dt>eTag, contentType, contentLength, versionId, opcRequestId <span class="property-type">varies</span></dt>
+    <dd>Download metadata fields added to <code>msg</code>.</dd>
+    <dt>error <span class="property-type">string</span></dt>
+    <dd>Error message (only on failure).</dd>
+</dl>
+
+<h3>Typical Flows</h3>
+<p><b>Upload JSON payload:</b><br/>
+<code>inject</code> (JSON) &rarr; <code>oci object storage</code> (upload) &rarr; <code>debug</code></p>
+<p><b>Upload from local file:</b><br/>
+<code>inject</code> (empty payload) &rarr; <code>oci object storage</code> (upload + file path) &rarr; <code>debug</code></p>
+<p><b>Download file:</b><br/>
+<code>inject</code> &rarr; <code>oci object storage</code> (download) &rarr; <code>file</code> / <code>debug</code></p>
+</script>

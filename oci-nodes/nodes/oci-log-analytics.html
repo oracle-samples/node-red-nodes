@@ -1,0 +1,320 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+ 
+<script type="text/javascript">
+// =====================================================================
+// Log Analytics Mapping Editor
+// =====================================================================
+if (!window.logMappingEditor) {
+window.logMappingEditor = (function () {
+    function _escapeHtml(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    var _valueLabelMap = {
+        dequeued: "Field Name",
+        msg: "Property Path",
+        static: "Value"
+    };
+
+    var _valuePlaceholderMap = {
+        dequeued: "e.g. sht_temperature",
+        msg: "e.g. payload.deviceId",
+        static: "e.g. THRESHOLD_BREACH"
+    };
+
+    function _addRow(m) {
+        var srcType = m.sourceType || "dequeued";
+        var row = $(
+            '<div class="log-mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<div class="log-drag-handle" style="cursor:grab;padding:4px 2px;color:#999;font-size:16px;" title="Drag to reorder">&#9776;</div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;">Log Field</label>' +
+                  '<input type="text" class="log-field" value="' + _escapeHtml(m.logField || "") + '" style="width:100%;" /></div>' +
+                '<div style="width:140px;"><label style="font-size:11px;color:#666;">Source</label>' +
+                  '<select class="log-source-type" style="width:100%;">' +
+                    '<option value="dequeued"' + (srcType === "dequeued" ? ' selected' : '') + '>dequeued data</option>' +
+                    '<option value="msg"' + (srcType === "msg" ? ' selected' : '') + '>msg property</option>' +
+                    '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static value</option>' +
+                  '</select></div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="log-value-label">' + (_valueLabelMap[srcType] || "Value") + '</label>' +
+                  '<input type="text" class="log-value" value="' + _escapeHtml(m.value || "") + '" placeholder="' + (_valuePlaceholderMap[srcType] || "") + '" style="width:100%;" /></div>' +
+                '<div style="padding-top:14px;">' +
+                  '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.log-mapping-row\').remove();">&times;</button></div>' +
+              '</div>' +
+            '</div>'
+        );
+        row.find(".log-source-type").on("change", function () {
+            var type = $(this).val();
+            row.find(".log-value-label").text(_valueLabelMap[type] || "Value");
+            row.find(".log-value").attr("placeholder", _valuePlaceholderMap[type] || "");
+        });
+        $("#log-mappings-container").append(row);
+    }
+
+    function renderAll(mappings) {
+        $("#log-mappings-container").empty();
+        if (Array.isArray(mappings)) {
+            mappings.forEach(function (m) { _addRow(m); });
+        }
+    }
+
+    function init(node) {
+        var mappings = [];
+        try { mappings = JSON.parse(node.mappings); } catch(e) { mappings = []; }
+        if (!Array.isArray(mappings)) mappings = [];
+        renderAll(mappings);
+
+        $("#btn-add-log-mapping").off("click").on("click", function () {
+            _addRow({ logField: "", sourceType: "dequeued", value: "" });
+        });
+
+        $("#log-mappings-container").sortable({
+            handle: ".log-drag-handle", axis: "y", cursor: "grabbing",
+            opacity: 0.7, placeholder: "log-sortable-placeholder", tolerance: "pointer"
+        });
+    }
+
+    function save() {
+        var mappings = [];
+        $("#log-mappings-container .log-mapping-row").each(function () {
+            var row = $(this);
+            var m = {
+                logField: row.find(".log-field").val().trim(),
+                sourceType: row.find(".log-source-type").val(),
+                value: row.find(".log-value").val().trim()
+            };
+            if (m.logField) mappings.push(m);
+        });
+        return JSON.stringify(mappings);
+    }
+
+    return { init: init, save: save, renderAll: renderAll };
+})();
+var logMappingEditor = window.logMappingEditor;
+}
+
+RED.nodes.registerType("oci-log-analytics", {
+    category: "oci",
+    paletteLabel: "log analytics",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        namespace: { value: "" },
+        logGroupOcid: { value: "" },
+        logSourceName: { value: "" },
+        entityOcid: { value: "" },
+        severity: { value: "INFO" },
+        payloadSource: { value: "mappings" },
+        mappings: { value: '[{"logField":"event","sourceType":"static","value":"THRESHOLD_BREACH"},{"logField":"device","sourceType":"dequeued","value":"deviceId"},{"logField":"location","sourceType":"dequeued","value":"location"},{"logField":"sht_temperature","sourceType":"dequeued","value":"sht_temperature"},{"logField":"threshold","sourceType":"dequeued","value":"threshold"},{"logField":"action","sourceType":"static","value":"shutdown_sent"}]' }
+    },
+    inputs: 1, outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-file-text-o",
+    label: function () { return this.name || "log analytics"; },
+    oneditprepare: function () {
+        var node = this;
+
+        // Toggle mappings vs payload sections
+        function updatePayloadSource() {
+            var source = $("#node-input-payloadSource").val();
+            if (source === "payload") {
+                $("#log-mappings-section").hide();
+                $("#log-payload-hint").show();
+            } else {
+                $("#log-mappings-section").show();
+                $("#log-payload-hint").hide();
+            }
+        }
+        $("#node-input-payloadSource").on("change", updatePayloadSource);
+
+        // Init mappings editor
+        logMappingEditor.init(node);
+        updatePayloadSource();
+    },
+    oneditsave: function () {
+        this.mappings = logMappingEditor.save();
+    }
+});
+</script>
+
+<style>
+    .log-sortable-placeholder { border:2px dashed #C74634; border-radius:4px; background:#fff8f7; height:50px; margin-bottom:6px; }
+    .log-drag-handle:hover { color:#555 !important; }
+</style>
+
+<script type="text/x-red" data-template-name="oci-log-analytics">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-namespace"><i class="fa fa-database"></i> Namespace</label>
+        <input type="text" id="node-input-namespace" placeholder="your-tenancy-name">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Tenancy namespace. Find with: <code>oci os ns get</code>
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-logGroupOcid"><i class="fa fa-folder-o"></i> Log Group OCID</label>
+        <input type="text" id="node-input-logGroupOcid" placeholder="ocid1.loganalyticsloggroup.oc1...">
+    </div>
+    <div class="form-row">
+        <label for="node-input-logSourceName"><i class="fa fa-file-code-o"></i> Log Source Name</label>
+        <input type="text" id="node-input-logSourceName" placeholder="e.g. Node-RED IoT Events">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Must match the source name created in Logging Analytics Administration.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-entityOcid"><i class="fa fa-microchip"></i> Entity OCID</label>
+        <input type="text" id="node-input-entityOcid" placeholder="(optional) ocid1.loganalyticsentity.oc1...">
+    </div>
+    <div class="form-row">
+        <label for="node-input-severity"><i class="fa fa-exclamation-triangle"></i> Default Severity</label>
+        <select id="node-input-severity" style="width:200px;">
+            <option value="INFO">INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR</option>
+            <option value="CRITICAL">CRITICAL</option>
+            <option value="DEBUG">DEBUG</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Used as the <code>level</code> field if not already in payload. Overridden by <code>msg.severity</code> if set.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-payloadSource"><i class="fa fa-exchange"></i> Payload Source</label>
+        <select id="node-input-payloadSource" style="width:200px;">
+            <option value="mappings">Payload Mappings</option>
+            <option value="payload">msg.payload</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            <b>Payload Mappings</b>: build the log entry using the mapping rows below.<br/>
+            <b>msg.payload</b>: send <code>msg.payload</code> directly (use a function node upstream to build the payload).
+        </div>
+    </div>
+
+    <div id="log-payload-hint" style="display:none;margin-left:105px;margin-bottom:12px;padding:8px;background:#f0f7ff;border:1px solid #cce0ff;border-radius:4px;font-size:12px;">
+        <i class="fa fa-info-circle"></i> The node will send <code>msg.payload</code> as-is.
+        Use a <b>function</b> node before this node to build the payload from <code>msg.dequeued</code> or other sources.
+    </div>
+
+    <div id="log-mappings-section">
+        <div class="form-row">
+            <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+                Map log fields to dequeued data, message properties, or static values. Drag &#9776; to reorder.
+            </div>
+        </div>
+        <div class="form-row">
+            <div id="log-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
+            <div style="margin-left:20px;margin-top:4px;">
+                <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-log-mapping">+ Add Mapping</button>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-log-analytics">
+<p>Pushes log entries to OCI Logging Analytics for search, visualization, and alerting.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt>
+    <dd>References an OCI Config node for authentication.</dd>
+    <dt>Namespace</dt>
+    <dd>Your tenancy namespace. Find with <code>oci os ns get</code>.</dd>
+    <dt>Log Group OCID</dt>
+    <dd>The Logging Analytics log group to store logs in.</dd>
+    <dt>Log Source Name</dt>
+    <dd>Must match the source created in Logging Analytics Administration.</dd>
+    <dt>Entity OCID</dt>
+    <dd>Optional. Associates logs with a Logging Analytics entity.</dd>
+    <dt>Default Severity</dt>
+    <dd>Used as the <code>level</code> field if not already set. Overridden by <code>msg.severity</code>.</dd>
+    <dt>Payload Source</dt>
+    <dd>
+        <b>Payload Mappings</b> &mdash; build the log entry using the mapping rows. Each row specifies:
+        <ul>
+            <li><b>Log Field</b> &mdash; the field name in the log entry (e.g. <code>device</code>, <code>event</code>)</li>
+            <li><b>Source</b> &mdash; <code>dequeued data</code> reads from <code>msg.dequeued</code>,
+                <code>msg property</code> reads from any <code>msg</code> path,
+                <code>static value</code> uses a constant</li>
+            <li><b>Value</b> &mdash; field name, property path, or literal value</li>
+        </ul>
+        <b>msg.payload</b> &mdash; sends <code>msg.payload</code> directly. Use a function node upstream.
+    </dd>
+</dl>
+
+<h3>Default Mappings (Threshold Breach Example)</h3>
+<p>The node ships with example mappings for a typical IoT threshold breach scenario:</p>
+<pre>
+Log Field         Source           Value
+─────────         ──────           ─────
+event             static value     THRESHOLD_BREACH
+device            dequeued data    deviceId
+location          dequeued data    location
+sht_temperature   dequeued data    sht_temperature
+threshold         dequeued data    threshold
+action            static value     shutdown_sent
+</pre>
+<p>These assume an upstream <b>dequeue</b> node provides <code>msg.dequeued</code> with device telemetry.
+Modify or replace these mappings to match your payload structure.</p>
+
+<h3>Output</h3>
+<dl class="message-properties">
+    <dt>payload.statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code (200 on success).</dd>
+    <dt>payload.requestId <span class="property-type">string</span></dt>
+    <dd>OCI request ID for troubleshooting.</dd>
+</dl>
+
+<h3>Typical Flows</h3>
+<p><b>Flow 1 &mdash; Log threshold breaches:</b><br/>
+<code>dequeue</code> &rarr; <code>switch</code> (threshold) &rarr; <code>oci log analytics</code> (with mappings)</p>
+<p><b>Flow 2 &mdash; Log command acknowledgments:</b><br/>
+<code>sql</code> (query RAW_COMMAND_DATA) &rarr; <code>switch</code> (DELIVERY_STATUS) &rarr; <code>function</code> &rarr; <code>oci log analytics</code> (msg.payload mode)</p>
+<p><b>Flow 3 &mdash; Log all errors:</b><br/>
+<code>catch</code> (all) &rarr; <code>function</code> &rarr; <code>oci log analytics</code> (msg.payload mode)</p>
+</script>

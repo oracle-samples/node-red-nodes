@@ -108,8 +108,12 @@ module.exports = function (RED) {
                 }
 
                 node.status({ fill: "green", shape: "dot", text: "published" });
-                msg.topic = topic;
-                send(msg);
+
+                var outMsg = Object.assign({}, msg, {
+                    payload: payload,
+                    topic: topic
+                });
+                send(outMsg);
                 done();
             });
         });

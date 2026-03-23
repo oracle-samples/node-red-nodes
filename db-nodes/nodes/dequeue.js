@@ -112,11 +112,19 @@ module.exports = function(RED) {
                 node.status({ fill: "green", shape: "dot", text: `dequeued ${messages.length}` });
 
                 for (const m of messages) {
-                    send({
-                        ...msg,
+                    var outMsg = {
+                        _msgid: msg._msgid,
                         dequeued: m.payload,
                         payload: m.payload
-                    });
+                    };
+                    if (msg.transaction) {
+                        Object.defineProperty(outMsg, 'transaction', {
+                            value: msg.transaction,
+                            enumerable: false,
+                            writable: true
+                        });
+                    }
+                    send(outMsg);
                 }
                 done();
             } catch (err) {
