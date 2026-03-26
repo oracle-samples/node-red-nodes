@@ -62,7 +62,9 @@ RED.nodes.registerType("db-connection", {
         passphrase: { type: "password" }
     },
     label: function () {
-        return this.tnsString ? this.tnsString.substring(0, 30) : "DB Connection";
+        var labels = { basic: "Basic", config: "Config File", instancePrincipal: "Instance Principal", simple: "API Key" };
+        var authLabel = labels[this.authType] || this.authType;
+        return this.tnsString ? authLabel + " (" + this.tnsString.substring(0, 20) + ")" : "DB Connection";
     },
     oneditprepare: function () {
         var nodeId = this.id;
@@ -81,6 +83,16 @@ RED.nodes.registerType("db-connection", {
         updateAuthFields();
         $("#node-config-input-authType").on("change", updateAuthFields);
         $("#node-config-input-usePool").on("change", updateAuthFields);
+
+        // Warn when fields are changed since last deploy.
+        // Deferred so Node-RED's own field population during init doesn't trigger the warning.
+        setTimeout(function () {
+            $("[id^='node-config-input-']").on("change input", function () {
+                $("#deploy-warning")
+                    .css({ background: "#fff3cd", "border-color": "#ffc107", color: "#856404" })
+                    .html('<i class="fa fa-exclamation-triangle"></i> <strong>Changes detected</strong> — click <strong>Update</strong> then <strong>Deploy</strong> before testing.');
+            });
+        }, 0);
 
         // Test Connection button
         $("#btn-test-connection").on("click", function () {
@@ -193,11 +205,16 @@ RED.nodes.registerType("db-connection", {
             <textarea id="node-config-input-tnsString" rows="5" style="width:100%;" placeholder="(description=(address=(protocol=tcps)...))"></textarea>
         </div>
     </div>
-    <div class="form-row">
-        <button type="button" class="red-ui-button" id="btn-test-connection" style="margin-left:105px;">
+    <div class="form-row" style="text-align:center;">
+        <button type="button" class="red-ui-button" id="btn-test-connection">
             <i class="fa fa-plug"></i> Test Connection
         </button>
         <span id="test-connection-result" style="margin-left:10px;font-size:12px;"></span>
+    </div>
+    <div class="form-row" style="text-align:center;margin-top:2px;">
+        <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+            <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+        </div>
     </div>
     </fieldset>
 
