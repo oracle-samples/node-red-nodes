@@ -69,6 +69,16 @@ RED.nodes.registerType("oci-config", {
         updateAuthFields();
         $("#node-config-input-authType").on("change", updateAuthFields);
 
+        // Warn when fields are changed since last deploy.
+        // Deferred so Node-RED's own field population during init doesn't trigger the warning.
+        setTimeout(function () {
+            $("[id^='node-config-input-']").on("change input", function () {
+                $("#deploy-warning")
+                    .css({ background: "#fff3cd", "border-color": "#ffc107", color: "#856404" })
+                    .html('<i class="fa fa-exclamation-triangle"></i> <strong>Changes detected</strong> — click <strong>Update</strong> then <strong>Deploy</strong> before testing.');
+            });
+        }, 0);
+
         // Test Connection button
         $("#btn-test-oci").on("click", function () {
             var btn = $(this);
@@ -154,11 +164,16 @@ RED.nodes.registerType("oci-config", {
         <input type="text" id="node-config-input-compartmentOcid" placeholder="ocid1.compartment.oc1...">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Default compartment for child nodes (can be overridden per node).</div>
     </div>
-    <div class="form-row">
-        <button type="button" class="red-ui-button" id="btn-test-oci" style="margin-left:105px;">
+    <div class="form-row" style="text-align:center;">
+        <button type="button" class="red-ui-button" id="btn-test-oci">
             <i class="fa fa-plug"></i> Test Connection
         </button>
         <span id="test-oci-result" style="margin-left:10px;font-size:12px;"></span>
+    </div>
+    <div class="form-row" style="text-align:center;margin-top:2px;">
+        <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+            <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+        </div>
     </div>
     </fieldset>
 </script>
