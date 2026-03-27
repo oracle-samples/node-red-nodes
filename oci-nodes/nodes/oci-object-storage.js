@@ -100,9 +100,9 @@ module.exports = function (RED) {
 
         let client = null;
 
-        function getClient() {
+        async function getClient() {
             if (client) return client;
-            const provider = node.ociConfig.getAuthProvider();
+            const provider = await node.ociConfig.getAuthProvider();
             client = new objectstorage.ObjectStorageClient({
                 authenticationDetailsProvider: provider
             });
@@ -149,7 +149,7 @@ module.exports = function (RED) {
                     return done(err);
                 }
 
-                const osClient = getClient();
+                const osClient = await getClient();
 
                 if (operation === "upload") {
                     node.status({ fill: "yellow", shape: "dot", text: "uploading" });

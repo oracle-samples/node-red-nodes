@@ -57,9 +57,9 @@ module.exports = function (RED) {
 
         let client = null;
 
-        function getClient() {
+        async function getClient() {
             if (client) return client;
-            const provider = node.ociConfig.getAuthProvider();
+            const provider = await node.ociConfig.getAuthProvider();
             client = new iot.IotClient({
                 authenticationDetailsProvider: provider
             });
@@ -91,7 +91,7 @@ module.exports = function (RED) {
                     requestData = { value: requestData };
                 }
 
-                const iotClient = getClient();
+                const iotClient = await getClient();
 
                 // Build the invokeRawCommand details with JSON format discriminator
                 var invokeRawCommandDetails = {

@@ -63,9 +63,9 @@ module.exports = function (RED) {
 
         let client = null;
 
-        function getClient() {
+        async function getClient() {
             if (client) return client;
-            const provider = node.ociConfig.getAuthProvider();
+            const provider = await node.ociConfig.getAuthProvider();
             client = new loggingingestion.LoggingClient({
                 authenticationDetailsProvider: provider
             });
@@ -168,7 +168,7 @@ module.exports = function (RED) {
                     logEntryBatches: [logEntryBatch]
                 };
 
-                const logClient = getClient();
+                const logClient = await getClient();
 
                 const response = await logClient.putLogs({
                     logId: logId,
