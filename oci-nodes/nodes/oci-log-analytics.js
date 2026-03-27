@@ -64,9 +64,9 @@ module.exports = function (RED) {
 
         let client = null;
 
-        function getClient() {
+        async function getClient() {
             if (client) return client;
-            const provider = node.ociConfig.getAuthProvider();
+            const provider = await node.ociConfig.getAuthProvider();
             client = new loganalytics.LogAnalyticsClient({
                 authenticationDetailsProvider: provider
             });
@@ -179,7 +179,7 @@ module.exports = function (RED) {
                     uploadBody.metadata = msg.globalMetadata;
                 }
 
-                const laClient = getClient();
+                const laClient = await getClient();
 
                 var bodyString = JSON.stringify(uploadBody);
                 var bodyBuffer = Buffer.from(bodyString, "utf-8");
