@@ -46,18 +46,30 @@ RED.nodes.registerType("dequeue", {
     defaults: {
         name: { value: "" },
         connection: { type: "db-connection", required: true },
+        mode: { value: "transactional" },
+        inputs: { value: 1 },
         queueName: { value: "", required: true },
         subscriber: { value: "" },
         wait: { value: 0 },
         waitForever: { value: false },
         batchSize: { value: 1 },
-        deqMode: { value: "remove" }
+        deqMode: { value: "remove" },
+        payloadType: { value: "json" },
+        adtTypeName: { value: "" }
     },
     inputs: 1, outputs: 1,
     icon: "font-awesome/fa-download",
     label: function () { return this.name || "dequeue"; },
     paletteLabel: "dequeue",
     oneditprepare: function () {
+        function updateMode() {
+            var isContinuous = $("#node-input-mode").val() === "continuous";
+            $("#wait-section").toggle(!isContinuous);
+            $("#continuous-note").toggle(isContinuous);
+        }
+        updateMode();
+        $("#node-input-mode").on("change", updateMode);
+
         // Toggle wait field based on waitForever checkbox
         function updateWait() {
             if ($("#node-input-waitForever").is(":checked")) {
@@ -69,8 +81,14 @@ RED.nodes.registerType("dequeue", {
         updateWait();
         $("#node-input-waitForever").on("change", updateWait);
 
-        // Update mode hint
-        $("#node-input-deqMode").on("change", function () {
+        function updatePayloadType() {
+            $("#dequeue-adt-row").toggle($("#node-input-payloadType").val() === "adt");
+        }
+        $("#node-input-payloadType").on("change", updatePayloadType);
+        updatePayloadType();
+
+        // Update dequeue mode hint
+        $("#node-input-deqMode").on("change", function() {
             var mode = $(this).val();
             var hints = {
                 "remove": "Message is permanently removed from the queue on commit. Use this for normal message consumption.",
@@ -79,6 +97,9 @@ RED.nodes.registerType("dequeue", {
             };
             $("#deq-mode-hint").text(hints[mode] || "");
         }).trigger("change");
+    },
+    oneditsave: function () {
+        this.inputs = ($("#node-input-mode").val() === "continuous") ? 0 : 1;
     }
 });
 </script>
@@ -92,6 +113,16 @@ RED.nodes.registerType("dequeue", {
         <label for="node-input-connection"><i class="fa fa-database"></i> DB Connection</label>
         <input type="text" id="node-input-connection">
     </div>
+    <div class="form-row">
+        <label for="node-input-mode"><i class="fa fa-exchange"></i> Mode</label>
+        <select id="node-input-mode" style="width:200px;">
+            <option value="transactional">Transactional</option>
+            <option value="continuous">Continuous</option>
+        </select>
+    </div>
+    <div id="continuous-note" style="display:none;margin:0 0 8px 105px;font-size:11px;color:#856404;background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:5px 8px;">
+        <i class="fa fa-exclamation-triangle"></i> Continuous mode commits immediately — no rollback protection. Wire into begin/end-transaction is not supported.
+    </div>
     <hr/>
     <div class="form-row">
         <label for="node-input-queueName"><i class="fa fa-inbox"></i> Queue Name</label>
@@ -104,6 +135,19 @@ RED.nodes.registerType("dequeue", {
             Consumer name for multi-consumer queues. Leave empty for single-consumer queues.
         </div>
     </div>
+    <div class="form-row">
+        <label for="node-input-payloadType"><i class="fa fa-file-code-o"></i> Payload Type</label>
+        <select id="node-input-payloadType" style="width:200px;">
+            <option value="json">JSON</option>
+            <option value="raw">RAW</option>
+            <option value="adt">ADT (Object Type)</option>
+        </select>
+    </div>
+    <div id="dequeue-adt-row" class="form-row" style="display:none">
+        <label for="node-input-adtTypeName"><i class="fa fa-cube"></i> Object Type</label>
+        <input type="text" id="node-input-adtTypeName" placeholder="SCHEMA.TYPE_NAME">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
+    </div>
     <hr/>
     <div class="form-row">
         <label for="node-input-deqMode"><i class="fa fa-cog"></i> Dequeue Mode</label>
@@ -114,6 +158,7 @@ RED.nodes.registerType("dequeue", {
         </select>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:4px;" id="deq-mode-hint"></div>
     </div>
+    <div id="wait-section">
     <hr/>
     <div class="form-row">
         <label for="node-input-waitForever"><i class="fa fa-hourglass"></i> Block Indefinitely</label>
@@ -125,6 +170,7 @@ RED.nodes.registerType("dequeue", {
         <input type="number" id="node-input-wait" min="0" value="0" style="width:100px;">
         <span style="font-size:12px;color:#666;margin-left:8px;">0 = return immediately if no messages</span>
     </div>
+    </div>
     <div class="form-row">
         <label for="node-input-batchSize"><i class="fa fa-list-ol"></i> Batch Size</label>
         <input type="number" id="node-input-batchSize" min="1" value="1" style="width:100px;">
@@ -133,6 +179,14 @@ RED.nodes.registerType("dequeue", {
 
 <script type="text/x-red" data-help-name="dequeue">
 <p>Dequeues messages from an Oracle Advanced Queue (AQ).</p>
+
+<h3>Mode</h3>
+<dl class="message-properties">
+    <dt>Transactional (default)</dt>
+    <dd>Triggered by an incoming message. Supports <code>begin-transaction</code> / <code>end-transaction</code> — if <code>msg.transaction</code> is present the dequeue uses the shared connection and does not auto-commit, giving full rollback protection on downstream failure. Without a transaction, creates its own connection and auto-commits. Input port active.</dd>
+    <dt>Continuous</dt>
+    <dd>Starts automatically on deploy and listens continuously using <code>AQ_DEQ_WAIT_FOREVER</code>. On deploy/stop, the node interrupts the blocking dequeue call to shut down promptly. Commits immediately after each batch — no rollback protection. Mirrors the MQTT In pattern for fire-and-forget message consumption. No input port.</dd>
+</dl>
 
 <h3>Dequeue Modes</h3>
 <dl class="message-properties">
@@ -164,11 +218,21 @@ dequeues, auto-commits, and closes. Messages are immediately and permanently con
 its own position in the queue and can have rules that filter which messages it receives.
 Leave empty for single-consumer queues.</p>
 
+<h3>Payload Type</h3>
+<dl class="message-properties">
+    <dt>JSON (default)</dt>
+    <dd><code>msg.payload</code> is a plain JS object. Access fields directly: <code>msg.payload.myField</code>.</dd>
+    <dt>RAW</dt>
+    <dd><code>msg.payload</code> is a <code>Buffer</code>. Convert to string with <code>msg.payload.toString()</code>.</dd>
+    <dt>ADT (Object Type)</dt>
+    <dd><code>msg.payload</code> is a plain JS object with uppercase attribute names matching the Oracle type: <code>msg.payload.ASSET_ID</code>. The Oracle <code>DbObject</code> is automatically converted on dequeue so downstream nodes and the debug panel can read it normally.</dd>
+</dl>
+
 <h3>Output</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object</span></dt>
-    <dd>The dequeued message payload.</dd>
-    <dt>dequeued <span class="property-type">object</span></dt>
+    <dt>payload <span class="property-type">object | Buffer | DbObject</span></dt>
+    <dd>The dequeued message payload. Type depends on Payload Type setting.</dd>
+    <dt>dequeued <span class="property-type">object | Buffer | DbObject</span></dt>
     <dd>Same as payload (for backward compatibility and use with SCM payload mappings).</dd>
 </dl>
 </script>

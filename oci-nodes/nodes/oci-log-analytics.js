@@ -57,7 +57,6 @@ module.exports = function (RED) {
         node.severity = config.severity || "INFO";
         node.payloadSource = config.payloadSource || "mappings";
 
-        // Parse mappings
         var mappings = [];
         try { mappings = JSON.parse(config.mappings || "[]"); } catch (e) { mappings = []; }
         if (!Array.isArray(mappings)) mappings = [];
@@ -126,7 +125,6 @@ module.exports = function (RED) {
                 const entityId = node.entityOcid || msg.entityOcid || "";
                 const severity = msg.severity || node.severity || "INFO";
 
-                // Build the log payload from either mappings or msg.payload
                 var logPayload;
                 if (node.payloadSource === "payload") {
                     logPayload = msg.payload;
@@ -134,7 +132,7 @@ module.exports = function (RED) {
                     logPayload = resolvePayload(mappings, msg);
                 }
 
-                // Ensure it's an object so we can add timestamp/level
+                // Normalize object payloads with timestamp/level.
                 if (typeof logPayload === "object" && logPayload !== null && !Array.isArray(logPayload)) {
                     if (!logPayload.timestamp) {
                         logPayload.timestamp = new Date().toISOString();

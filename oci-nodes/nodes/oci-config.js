@@ -45,11 +45,11 @@ module.exports = function (RED) {
         node.region = config.region || "";
         node.compartmentOcid = config.compartmentOcid || "";
 
-        // Config file auth
+        // Config file auth.
         node.configFilePath = config.configFilePath || "~/.oci/config";
         node.profile = config.profile || "DEFAULT";
 
-        // Simple (API Key) auth — credentials stored securely
+        // Simple (API Key) auth.
         node.tenancyOcid = config.tenancyOcid || "";
         node.userOcid = config.userOcid || "";
         node.fingerprint = config.fingerprint || "";
@@ -120,7 +120,7 @@ module.exports = function (RED) {
         }
     });
 
-    // Test Connection HTTP endpoint
+    // Test Connection HTTP endpoint.
     RED.httpAdmin.post("/oci-config/:id/test", RED.auth.needsPermission("oci-config.write"), async function (req, res) {
         const node = RED.nodes.getNode(req.params.id);
         if (!node) {
@@ -129,7 +129,6 @@ module.exports = function (RED) {
         try {
             const provider = await node.getAuthProvider();
 
-            // Verify the provider can resolve credentials by accessing identity
             const identity = new (require("oci-identity")).IdentityClient({
                 authenticationDetailsProvider: provider
             });
@@ -138,7 +137,6 @@ module.exports = function (RED) {
                 identity.regionId = region;
             }
 
-            // List availability domains as a lightweight test call
             const response = await identity.listRegions({});
             res.json({
                 success: true,

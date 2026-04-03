@@ -44,23 +44,144 @@ RED.nodes.registerType("sql", {
         sqlSource: { value: "editor" },
         sqlcmd: { value: "" },
         maxrows: { value: 1000 },
-        binds: { value: "" }
+        bindsSource: { value: "editor" },
+        binds: { value: "" },
+        bindsMappings: { value: "[]" }
     },
     inputs: 1, outputs: 1,
     color: "#4C825C",
     icon: "font-awesome/fa-database",
     label: function () { return this.name || "sql"; },
     oneditprepare: function () {
-        function toggleSqlSource() {
-            var src = $("#node-input-sqlSource").val();
-            var isEditor = (src === "editor");
-            $("#node-input-sqlcmd").prop("disabled", !isEditor);
-            $("#sql-msg-hint").toggle(!isEditor);
+        function toggleSources() {
+            var sqlSrc = $("#node-input-sqlSource").val();
+            var sqlIsEditor = (sqlSrc === "editor");
+            $("#node-input-sqlcmd").prop("disabled", !sqlIsEditor);
+            $("#sql-msg-hint").toggle(!sqlIsEditor);
+
+            var bindsSrc = $("#node-input-bindsSource").val();
+            var bindsIsEditor = (bindsSrc === "editor");
+            $("#binds-mapping-container-wrapper").toggle(bindsIsEditor);
+            $("#binds-msg-hint").toggle(!bindsIsEditor);
         }
-        toggleSqlSource();
-        $("#node-input-sqlSource").on("change", toggleSqlSource);
+        var mappings = [];
+        try { mappings = JSON.parse(this.bindsMappings || "[]"); } catch (e) { mappings = []; }
+        if (!Array.isArray(mappings)) mappings = [];
+        sqlBindsMappingEditor.init({ bindings: mappings });
+        toggleSources();
+        $("#node-input-sqlSource").on("change", toggleSources);
+        $("#node-input-bindsSource").on("change", toggleSources);
+    },
+    oneditsave: function () {
+        this.bindsMappings = sqlBindsMappingEditor.save();
     }
 });
+
+var sqlBindsMappingEditor = (function () {
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    var sourceLabelMap = {
+        static: "Value",
+        number: "Number",
+        boolean: "Boolean",
+        date: "Date",
+        msg: "Property Path",
+        jsonata: "Expression"
+    };
+
+    var sourcePlaceholderMap = {
+        static: "e.g. OPEN",
+        number: "e.g. 100",
+        boolean: "true or false",
+        date: "SYSDATE or e.g. 2026-04-02T10:30:00Z",
+        msg: "e.g. payload.assetId",
+        jsonata: "e.g. payload.items[0].id"
+    };
+
+    function normalizeRowValue(sourceType, rawValue) {
+        var value = (rawValue === undefined || rawValue === null) ? "" : String(rawValue);
+        if (sourceType === "date" && !value.trim()) {
+            return "SYSDATE";
+        }
+        return value;
+    }
+
+    function addRow(m) {
+        var sourceType = m.sourceType || "static";
+        var initialValue = normalizeRowValue(sourceType, m.value);
+        var row = $(
+            '<div class="binds-mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<div class="binds-drag-handle" style="cursor:grab;padding:4px 2px;color:#999;font-size:16px;" title="Drag to reorder">&#9776;</div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;">Bind Variable</label>' +
+                  '<input type="text" class="bind-name" value="' + escapeHtml(m.bindName || "") + '" placeholder="e.g. id" style="width:100%;" /></div>' +
+                '<div style="width:150px;"><label style="font-size:11px;color:#666;">Source</label>' +
+                  '<select class="bind-source-type" style="width:100%;">' +
+                    '<option value="static"' + (sourceType === "static" ? " selected" : "") + '>static text</option>' +
+                    '<option value="number"' + (sourceType === "number" ? " selected" : "") + '>number</option>' +
+                    '<option value="boolean"' + (sourceType === "boolean" ? " selected" : "") + '>boolean</option>' +
+                    '<option value="date"' + (sourceType === "date" ? " selected" : "") + '>date</option>' +
+                    '<option value="msg"' + (sourceType === "msg" ? " selected" : "") + '>msg property</option>' +
+                    '<option value="jsonata"' + (sourceType === "jsonata" ? " selected" : "") + '>JSONata (J:)</option>' +
+                  '</select></div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="bind-value-label">' + (sourceLabelMap[sourceType] || "Value") + '</label>' +
+                  '<input type="text" class="bind-value" value="' + escapeHtml(initialValue) + '" placeholder="' + (sourcePlaceholderMap[sourceType] || "") + '" style="width:100%;" /></div>' +
+                '<div style="padding-top:14px;"><button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.binds-mapping-row\').remove();">&times;</button></div>' +
+              '</div>' +
+            '</div>'
+        );
+
+        row.find(".bind-source-type").on("change", function () {
+            var type = $(this).val();
+            var valueInput = row.find(".bind-value");
+            row.find(".bind-value-label").text(sourceLabelMap[type] || "Value");
+            valueInput.attr("placeholder", sourcePlaceholderMap[type] || "");
+            if (type === "date" && !String(valueInput.val() || "").trim()) {
+                valueInput.val("SYSDATE");
+            }
+        });
+        $("#binds-mapping-container").append(row);
+    }
+
+    function init(node) {
+        $("#binds-mapping-container").empty();
+        var list = Array.isArray(node.bindings) ? node.bindings : [];
+        list.forEach(function (m) { addRow(m); });
+
+        $("#btn-add-bind-mapping").off("click").on("click", function () {
+            addRow({ bindName: "", sourceType: "static", value: "" });
+        });
+
+        $("#binds-mapping-container").sortable({
+            handle: ".binds-drag-handle", axis: "y", cursor: "grabbing",
+            opacity: 0.7, placeholder: "binds-sortable-placeholder", tolerance: "pointer"
+        });
+    }
+
+    function save() {
+        var mappings = [];
+        $("#binds-mapping-container .binds-mapping-row").each(function () {
+            var row = $(this);
+            var mapping = {
+                bindName: row.find(".bind-name").val().trim(),
+                sourceType: row.find(".bind-source-type").val(),
+                value: row.find(".bind-value").val().trim()
+            };
+            if (mapping.bindName) {
+                mappings.push(mapping);
+            }
+        });
+        return JSON.stringify(mappings);
+    }
+
+    return { init: init, save: save };
+})();
 </script>
 
 <script type="text/x-red" data-template-name="sql">
@@ -88,9 +209,26 @@ RED.nodes.registerType("sql", {
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-binds"><i class="fa fa-list"></i> Binds (JSON)</label>
-        <textarea id="node-input-binds" rows="2" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Optional bind variables as a JSON array or object.</div>
+        <label for="node-input-bindsSource"><i class="fa fa-toggle-on"></i> Binds Source</label>
+        <select id="node-input-bindsSource" style="width:150px;">
+            <option value="editor">Editor</option>
+            <option value="msg">msg.binds</option>
+        </select>
+    </div>
+    <div class="form-row" id="binds-mapping-container-wrapper">
+        <label><i class="fa fa-list"></i> Binds Mapping</label>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+            Define bind variables to static values, numbers, booleans, dates, msg properties, and JSONata expressions. Drag &#9776; to reorder.
+        </div>
+        <div id="binds-mapping-container" style="margin-left:20px;margin-right:20px;"></div>
+        <div style="margin-left:20px;margin-top:4px;">
+            <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-bind-mapping">+ Add Bind</button>
+        </div>
+    </div>
+    <div class="form-row">
+        <div id="binds-msg-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;display:none;">
+            Binds will be read from <code>msg.binds</code> at runtime (JSON array or object).
+        </div>
     </div>
     <div class="form-row">
         <label for="node-input-maxrows"><i class="fa fa-sort-numeric-asc"></i> Max Rows</label>
@@ -109,8 +247,11 @@ RED.nodes.registerType("sql", {
     <code>msg.sql</code> — reads the SQL statement from <code>msg.sql</code> at runtime,
     allowing dynamic queries from upstream nodes.</dd>
     <dt>SQL</dt><dd>The SQL statement (when SQL Source is Editor).</dd>
-    <dt>Binds (JSON)</dt><dd>Optional bind variables as a JSON array (<code>[val1, val2]</code>) or
-    named object (<code>{"id": 123}</code>).</dd>
+    <dt>Binds Source</dt>
+    <dd><code>Editor</code> — uses the Binds Mapping rows below.
+    <code>msg.binds</code> — reads bind values from <code>msg.binds</code> at runtime.</dd>
+    <dt>Binds Mapping</dt><dd>Define named bind variables row-by-row. Each row sets a bind variable name and a source type:
+    static text, number, boolean, date, msg property path, or JSONata expression. Date rows default to <code>SYSDATE</code> (current runtime time) and can be overridden with an explicit datetime string.</dd>
     <dt>Max Rows</dt><dd>Maximum rows returned for SELECT queries (default: 1000, max: 10000).</dd>
 </dl>
 
@@ -118,8 +259,6 @@ RED.nodes.registerType("sql", {
 <dl class="message-properties">
     <dt>payload <span class="property-type">array</span></dt>
     <dd>Array of row objects for SELECT queries.</dd>
-    <dt>result <span class="property-type">array</span></dt>
-    <dd>Same as payload (for backward compatibility).</dd>
     <dt>error <span class="property-type">object</span></dt>
     <dd>Error details on failure (message, code).</dd>
 </dl>

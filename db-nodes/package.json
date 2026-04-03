@@ -1,12 +1,14 @@
 {
   "name": "db-nodes",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Node-RED nodes for Oracle Database Functionality",
   "license": "UPL-1.0",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "oci-common": "^2.126.1",
+    "oci-identitydataplane": "^2.126.1",
     "oracledb": "^6.10.0"
   },
   "keywords": [

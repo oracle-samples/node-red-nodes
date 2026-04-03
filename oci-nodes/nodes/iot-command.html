@@ -41,8 +41,8 @@ RED.nodes.registerType("iot-command", {
     defaults: {
         name: { value: "" },
         iotDevice: { type: "iot-config", required: true },
-        autoAck: { value: true },
-        commandFilter: { value: "" }
+        topic: { value: "", required: true },
+        qos: { value: "1" }
     },
     inputs: 0, outputs: 1,
     color: "#F0CC72",
@@ -60,83 +60,64 @@ RED.nodes.registerType("iot-command", {
         <label for="node-input-iotDevice"><i class="fa fa-microchip"></i> IoT Device</label>
         <input type="text" id="node-input-iotDevice" />
     </div>
-    <hr/>
     <div class="form-row">
-        <label for="node-input-autoAck"><i class="fa fa-check-circle"></i> Auto Acknowledge</label>
-        <input type="checkbox" id="node-input-autoAck" style="width:auto;vertical-align:middle;">
-        <span style="font-size:12px;color:#666;"> Automatically send an acknowledgment when a command is received</span>
+        <label for="node-input-topic"><i class="fa fa-hashtag"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="e.g. iot/v1/cmd/#">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            MQTT subscription topic. Supports <code>#</code> (multi-level) and <code>+</code> (single-level) wildcards.
+        </div>
     </div>
     <div class="form-row">
-        <label for="node-input-commandFilter"><i class="fa fa-filter"></i> Command Key</label>
-        <input type="text" id="node-input-commandFilter" placeholder="(optional) e.g. shutdown">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Only receive commands matching this key. Leave empty to receive all commands.
-        </div>
+        <label for="node-input-qos"><i class="fa fa-signal"></i> QoS</label>
+        <select id="node-input-qos" style="width:auto;">
+            <option value="0">0 – At most once</option>
+            <option value="1">1 – At least once</option>
+            <option value="2">2 – Exactly once</option>
+        </select>
     </div>
 </script>
 
 <script type="text/x-red" data-help-name="iot-command">
-<p>Receives commands from the OCI IoT Platform and optionally sends automatic acknowledgments.</p>
+<p>Subscribes to an MQTT topic and outputs a message whenever a command arrives.</p>
 
 <h3>Important: This Node Has No Input</h3>
-<p>The command node listens for incoming MQTT messages on the command topic
-(<code>&lt;baseEndpoint&gt;/cmd/&lt;key&gt;</code>). It has <b>no input port</b> — commands
-arrive from the IoT Platform, not from other nodes. Wire its output to your
-command handling logic.</p>
+<p>The command node listens for incoming MQTT messages on the configured topic.
+It has <b>no input port</b> — commands arrive from the broker, not from other nodes.
+Wire its output to your command handling logic.</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>IoT Device</dt>
     <dd>References an IoT Device config node for the MQTT connection.</dd>
-    <dt>Auto Acknowledge</dt>
-    <dd>When enabled, immediately sends <code>{"status":"acknowledged","time":&lt;epoch_us&gt;}</code>
-    back to the IoT Platform on the response topic. Disable this if you want to send a
-    custom response after processing the command.</dd>
-    <dt>Command Key</dt>
-    <dd>Optional filter. If set, only commands matching this exact key are passed through.
-    For example, setting this to <code>shutdown</code> only receives commands sent to
-    <code>&lt;base&gt;/cmd/shutdown</code>. Leave empty to receive all commands.</dd>
+    <dt>Topic</dt>
+    <dd>The MQTT topic to subscribe to. Required. Supports <code>#</code> (multi-level wildcard)
+    and <code>+</code> (single-level wildcard). Examples:
+    <ul>
+        <li><code>iot/v1/cmd/#</code> — all commands under that prefix; <code>msg.commandKey</code> is the suffix (e.g. <code>shutdown</code>)</li>
+        <li><code>iot/v1/cmd/reset</code> — fixed topic; only that command is received</li>
+        <li><code>sensors/+/data</code> — any device's data topic</li>
+    </ul></dd>
+    <dt>QoS</dt>
+    <dd>MQTT QoS level for the subscription (0, 1, or 2).</dd>
 </dl>
 
 <h3>Output</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object | string</span></dt>
-    <dd>The command payload sent by the caller.</dd>
+    <dd>The command payload. JSON payloads are parsed automatically; other messages are passed as strings.</dd>
     <dt>commandKey <span class="property-type">string</span></dt>
-    <dd>The command key extracted from the topic (e.g. <code>"shutdown"</code>
-    from <code>iot/v1/cmd/shutdown</code>).</dd>
+    <dd>For wildcard topics ending in <code>/#</code>, this is the portion that matched <code>#</code>
+    (e.g. <code>"shutdown"</code> from <code>iot/v1/cmd/shutdown</code>).
+    For fixed topics, this is the last segment of the received topic.</dd>
     <dt>topic <span class="property-type">string</span></dt>
-    <dd>The full MQTT topic the command arrived on.</dd>
-    <dt>sendResponse <span class="property-type">function</span></dt>
-    <dd>A helper function to send a custom response. Call
-    <code>msg.sendResponse({"status":"done","result":42})</code> to publish a response
-    to <code>&lt;base&gt;/rsp/&lt;commandKey&gt;</code>. Only needed when Auto Acknowledge
-    is disabled.</dd>
+    <dd>The full MQTT topic the message arrived on.</dd>
 </dl>
 
-<h3>Sending Commands</h3>
-<p>Commands are sent to the device through the OCI CLI or REST API, not through Node-RED:</p>
-<pre>oci iot digital-twin-instance invoke-raw-json-command \
-  --digital-twin-instance-id &lt;OCID&gt; \
-  --request-endpoint "&lt;base&gt;/cmd/&lt;key&gt;" \
-  --request-duration "PT10M" \
-  --response-endpoint "&lt;base&gt;/rsp/&lt;key&gt;" \
-  --response-duration "PT10M" \
-  --request-data '{"hello":"world"}'</pre>
-
-<h3>Manual Response (Auto Acknowledge disabled)</h3>
-<p>When Auto Acknowledge is off, use a function node to send a custom response:</p>
-<pre>msg.sendResponse({
-    status: "completed",
-    result: msg.payload.someValue
-});
-return msg;</pre>
-
 <h3>Typical Flows</h3>
-<p><b>Log all commands:</b><br/>
-<code>iot command</code> → <code>debug</code></p>
-<p><b>Handle specific command:</b><br/>
-<code>iot command</code> (filter: "shutdown") → <code>function</code> (cleanup logic) → <code>debug</code></p>
-<p><b>Command with custom response:</b><br/>
-<code>iot command</code> (auto-ack off) → <code>function</code> (process + call msg.sendResponse) → <code>debug</code></p>
+<p><b>Receive all commands:</b><br/>
+<code>iot command</code> (topic: <code>iot/v1/cmd/#</code>) → <code>debug</code></p>
+<p><b>Handle a specific command:</b><br/>
+<code>iot command</code> (topic: <code>iot/v1/cmd/reset</code>) → <code>function</code> (reset logic)</p>
+<p><b>Send a response after processing:</b><br/>
+<code>iot command</code> → <code>function</code> (process) → <code>mqtt out</code> (publish response)</p>
 </script>

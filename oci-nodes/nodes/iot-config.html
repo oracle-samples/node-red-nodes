@@ -40,9 +40,7 @@ RED.nodes.registerType("iot-config", {
     color: "#F0CC72",
     defaults: {
         deviceHost: { value: "", required: true },
-        baseEndpoint: { value: "iot/v1" },
         clientId: { value: "", required: true },
-        qos: { value: "1" },
         authType: { value: "basic" },
         caCertPath: { value: "" },
         clientCertPath: { value: "" },
@@ -118,26 +116,11 @@ RED.nodes.registerType("iot-config", {
         </div>
     </div>
     <div class="form-row">
-        <label for="node-config-input-baseEndpoint"><i class="fa fa-road"></i> Base Endpoint</label>
-        <input type="text" id="node-config-input-baseEndpoint" placeholder="iot/v1">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            MQTT topic prefix. Telemetry: <code>&lt;base&gt;/telemetry</code>, Commands: <code>&lt;base&gt;/cmd/&lt;key&gt;</code>, Responses: <code>&lt;base&gt;/rsp/&lt;key&gt;</code>
-        </div>
-    </div>
-    <div class="form-row">
         <label for="node-config-input-clientId"><i class="fa fa-microchip"></i> Client ID</label>
         <input type="text" id="node-config-input-clientId" placeholder="your_device_name">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
             MQTT client ID. Typically the name of your device or digital twin instance.
         </div>
-    </div>
-    <div class="form-row">
-        <label for="node-config-input-qos"><i class="fa fa-signal"></i> QoS</label>
-        <select id="node-config-input-qos" style="width:100px;">
-            <option value="0">0 — At most once</option>
-            <option value="1">1 — At least once</option>
-            <option value="2">2 — Exactly once</option>
-        </select>
     </div>
     </fieldset>
 

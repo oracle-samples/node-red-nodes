@@ -13,9 +13,11 @@
         "z": "e6f1d4553b898963",
         "name": "",
         "connection": "648c32eae9b1e56e",
+        "sqlSource": "editor",
         "sqlcmd": "SELECT *\nFROM ALL_QUEUE_SUBSCRIBERS\nWHERE QUEUE_NAME = 'JSON_QUEUE'\nAND CONSUMER_NAME = 'MY_DEVICE';",
         "maxrows": 1000,
-        "binds": "",
+        "bindsSource": "editor",
+        "bindsMapping": [],
         "x": 270,
         "y": 100,
         "wires": [
@@ -30,9 +32,11 @@
         "z": "e6f1d4553b898963",
         "name": "create subscriber",
         "connection": "648c32eae9b1e56e",
+        "sqlSource": "editor",
         "sqlcmd": "BEGIN \nDBMS_AQADM.ADD_SUBSCRIBER( queue_name => 'JSON_QUEUE', \nsubscriber => SYS.AQ$_AGENT('MY_DEVICE', NULL, NULL), \nrule => q'[ JSON_VALUE(tab.user_data, '$.endpoint') = 'iot/v1/device/credentials/request/MY-DEVICE' ]' ); \nEND; ",
         "maxrows": 1000,
-        "binds": "",
+        "bindsSource": "editor",
+        "bindsMapping": [],
         "x": 630,
         "y": 60,
         "wires": [
@@ -47,7 +51,12 @@
         "connection": "648c32eae9b1e56e",
         "queueName": "JSON_QUEUE",
         "recipients": "",
+        "deliveryMode": "persistent",
+        "payloadType": "json",
+        "adtTypeName": "",
         "userPayload": "[\n{\n  \"endpoint\": \"iot/v1/device/credentials/request/MY-DEVICE\",\n  \"data\": {\n    \"source\": \"test_data\"}\n}\n]",
+        "enableOutput": true,
+        "outputs": 1,
         "x": 600,
         "y": 140,
         "wires": [
@@ -62,8 +71,12 @@
         "z": "e6f1d4553b898963",
         "name": "",
         "connection": "648c32eae9b1e56e",
+        "mode": "transactional",
         "queueName": "JSON_QUEUE",
         "subscriber": "MY_DEVICE",
+        "payloadType": "json",
+        "adtTypeName": "",
+        "deqMode": "remove",
         "wait": 0,
         "waitForever": false,
         "batchSize": 1,
@@ -149,6 +162,7 @@
         "type": "db-connection",
         "usePool": false,
         "authType": "config",
+        "driverMode": "thick",
         "tnsString": "",
         "externalAuth": true,
         "scope": "",
@@ -168,7 +182,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.3.1"
+            "node-red-nodes": "0.3.2"
         }
     }
 ]

@@ -165,16 +165,13 @@ module.exports = function (RED) {
                             return done(err);
                         }
                         uploadBody = await fs.promises.readFile(filePath);
-                    } else if (Buffer.isBuffer(uploadBody)) {
-                        // Use as-is.
-                    } else if (typeof uploadBody === "string") {
-                        // Use as-is.
-                    } else if (uploadBody instanceof stream.Readable) {
-                        // Use as-is.
-                    } else if (typeof uploadBody.getReader === "function") {
-                        // Web ReadableStream supported by OCI SDK.
-                    } else if (typeof uploadBody.arrayBuffer === "function") {
-                        // Blob-like supported by OCI SDK.
+                    } else if (
+                        Buffer.isBuffer(uploadBody) ||
+                        typeof uploadBody === "string" ||
+                        uploadBody instanceof stream.Readable ||
+                        typeof uploadBody.getReader === "function" ||
+                        typeof uploadBody.arrayBuffer === "function"
+                    ) {
                     } else if (uploadBody instanceof Uint8Array) {
                         uploadBody = Buffer.from(uploadBody);
                     } else {

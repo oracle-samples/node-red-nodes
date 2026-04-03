@@ -144,6 +144,8 @@ which is the cloud-to-device direction. This is the equivalent of running
     Default: <code>PT10M</code> (10 minutes). Only used when Wait for Response is enabled.</dd>
 </dl>
 
+<p>Durations are validated before API submission and must be valid ISO 8601 values (for example <code>PT10M</code>, <code>PT1H</code>, <code>P1D</code>).</p>
+
 <h3>Input</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt>
@@ -168,6 +170,8 @@ which is the cloud-to-device direction. This is the equivalent of running
     <dt>responseEndpoint <span class="property-type">string</span></dt>
     <dd>The full response topic (e.g. <code>iot/v1/rsp/shutdown</code>).</dd>
 </dl>
+
+<p><code>responseEndpoint</code> is included only when <b>Wait for Response</b> is enabled.</p>
 
 <h3>Prerequisites</h3>
 <p>Install the OCI SDK in your Node-RED directory:</p>
