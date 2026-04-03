@@ -10,25 +10,38 @@ Defines how Node-RED connects to the Oracle Database. All other DB nodes referen
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| Auth Type | Yes | Basic, Config File, Instance Principal, or Simple |
-| External Auth | No | Enables external token authentication |
+| Auth Type | Yes | Basic, DB Token — Config File, DB Token — Instance Principal, DB Token — Resource Principal, DB Token — Session Token, or DB Token — API Key |
+| Driver Mode | No | `thick` (default) or `thin`. Thick uses Oracle Client libraries; Thin uses the pure JavaScript driver |
+| External Auth | No | Enables external token authentication (required for all DB Token types) |
 | Username | Basic only | Database username |
 | Password | Basic only | Database password |
 | TNS String | Yes | Connect descriptor or TNS alias |
-| Config File Location | Config File only | Path to OCI config file (default: `/home/opc/.oci/config`) |
-| Profile | Config File only | Profile name in config file (default: `DEFAULT`) |
+| Wallet Path | No | Optional wallet/config directory path. Passed to node-oracledb as `configDir` and `walletLocation` |
+| Config File Location | Config File / Session Token | Path to OCI config file (default: `/home/opc/.oci/config`) |
+| Profile | Config File / Session Token | Profile name in config file (default: `DEFAULT`) |
 | Fingerprint | Simple only | API key fingerprint |
 | Private Key Location | Simple only | Path to private key file |
 | Passphrase | Simple only | Private key passphrase |
 | Region ID | Simple only | OCI region |
 | Tenancy OCID | Simple only | Tenancy OCID |
 | User OCID | Simple only | User OCID |
+| Proxy User | DB Token only | Optional. Enables Oracle proxy authentication — the token identity connects; the proxy user sets the effective DB session |
 | Use Pool | No | Enables a reusable connection pool |
 | Pool Min | Pool only | Minimum connections in pool |
 | Pool Max | Pool only | Maximum connections in pool |
 | Pool Increment | Pool only | Connections added when pool grows |
 | Queue Timeout | Pool only | Timeout for pool queue in milliseconds |
 | Test Connection | — | Button to verify credentials (deploy first, then test) |
+
+Driver mode behavior:
+
+| Behavior | Thick | Thin |
+|----------|-------|------|
+| Runtime scope | Process-wide after first DB connection initialization | Process-wide after first DB connection initialization |
+| DB Token + Proxy User | Not supported (node fails fast with a clear error) | Allowed to proceed to driver behavior |
+
+> **Important:** Node-oracledb mode is process-wide in a single Node-RED runtime. The first active `db-connection` node to initialize the driver sets the mode. Later nodes requesting a different mode will continue using the already-initialized runtime mode and log a warning. Restart Node-RED to switch modes.
+> In Thick mode, if `ORACLE_CLIENT_LIB` is set it is used as `libDir`; otherwise node-oracledb default platform library lookup is used.
 
 ### begin-transaction
 
@@ -70,11 +83,14 @@ Dequeues messages from an Oracle AQ queue.
 | Field | Required | Description |
 |-------|----------|-------------|
 | DB Connection | Yes | References a db-connection config node |
+| Mode | No | **Transactional** (default): triggered by an incoming msg, supports begin/end-transaction. **Continuous**: auto-starts on deploy, long-polls with `AQ_DEQ_WAIT_FOREVER`, auto-commits after each batch — no rollback protection. |
 | Queue Name | Yes | AQ queue name (e.g. `SCHEMA.JSON_QUEUE`) |
 | Subscriber | No | Consumer name for multi-consumer queues |
+| Payload Type | No | **JSON** (default): payload parsed as a JS object. **RAW**: payload as a `Buffer` (convert with `.toString()`). **ADT**: payload as a plain JS object converted from an Oracle DbObject — field names are uppercase. |
+| Object Type | ADT only | Schema-qualified Oracle object type name (e.g. `ADMIN.MY_MSG_TYPE`) |
 | Dequeue Mode | No | **Remove** (default): message is permanently removed on commit. **Browse**: message is read but stays in the queue. **Locked**: message is locked but stays in the queue on commit. |
-| Block Indefinitely | No | Waits forever for messages if checked |
-| Blocking Time (seconds) | No | Wait time if not blocking indefinitely |
+| Block Indefinitely | No | Waits forever for messages if checked (Transactional mode only) |
+| Blocking Time (seconds) | No | Wait time if not blocking indefinitely (Transactional mode only) |
 | Batch Size | No | Messages per dequeue (default: 1) |
 
 **Dequeue modes:**
@@ -91,6 +107,8 @@ Dequeues messages from an Oracle AQ queue.
 
 **Standalone mode:** When used without transaction nodes, creates its own connection with auto-commit. A warning is logged: "Dequeue running without transaction."
 
+**Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. On redeploy/stop, the node interrupts the blocking dequeue call so close can finish promptly without timing out.
+
 ### enqueue
 
 Enqueues JSON messages into an Oracle AQ queue.
@@ -100,7 +118,13 @@ Enqueues JSON messages into an Oracle AQ queue.
 | DB Connection | Yes | References a db-connection config node |
 | Queue Name | Yes | AQ queue name |
 | Recipients | No | Comma-separated subscriber names for multi-consumer queues |
-| User Payload | No | JSON array of messages. If empty, uses `msg.payload` |
+| Delivery Mode | No | **Persistent** (default): written to queue table, survives restarts. **Buffered**: Oracle shared memory only, faster but lost on DB restart — requires thick client mode. |
+| Payload Type | No | **JSON** (default): enqueues JS objects. **RAW**: enqueues strings as UTF-8 Buffers. **ADT**: instantiates Oracle DbObjects from JS objects using the configured object type. |
+| Object Type | ADT only | Schema-qualified Oracle object type name (e.g. `ADMIN.MY_MSG_TYPE`) |
+| User Payload | No | A single object or JSON array. A single object is enqueued as one message; each array element becomes a separate message. If empty, uses `msg.payload` (accepts both shapes). |
+| Output | No | When enabled (default), sends a msg after successful enqueue. Disable to use as a pure sink. |
+
+**Outputs (when enabled):** `msg.enqueued` (array of messages sent), `msg.count` (number of messages enqueued). All upstream `msg` properties are preserved.
 
 ### sql
 
@@ -111,10 +135,11 @@ Executes SQL statements against the Oracle Database.
 | DB Connection | Yes | References a db-connection config node |
 | SQL Source | No | `Editor` (default) uses the textarea; `msg.sql` reads the query from `msg.sql` at runtime |
 | SQL | Editor only | SQL statement to execute |
-| Binds (JSON) | No | Bind variables as a JSON array (`[val1, val2]`) or named object (`{"id": 123}`) |
+| Binds Source | No | `Editor` (default) uses Binds Mapping rows; `msg.binds` reads bind values from `msg.binds` at runtime |
+| Binds Mapping | Editor only | Reorderable bind rows: bind variable + source type (`static text`, `number`, `boolean`, `date`, `msg property`, `JSONata`). `date` defaults to `SYSDATE` (current runtime time) but can be edited to any valid date/datetime string. |
 | Max Rows | No | Maximum rows returned (default: 1000, max: 10000) |
 
-**Outputs:** `msg.payload` (array of row objects), `msg.result` (same, for backward compatibility)
+**Outputs:** `msg.payload` (array of row objects)
 
 > **Important:** This node uses `autoCommit: false`. DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. Use a PL/SQL block with explicit `COMMIT` for DML, or use begin/end transaction nodes.
 
@@ -315,9 +340,7 @@ MQTT connection to the OCI IoT Platform. Manages persistent sessions, command su
 | Field | Required | Description |
 |-------|----------|-------------|
 | Device Host | Yes | MQTT broker hostname from your IoT Domain |
-| Base Endpoint | Yes | Topic prefix (default: `iot/v1`). Derives telemetry, command, and response topics. |
 | Client ID | Yes | MQTT client ID (typically the device/digital twin name) |
-| QoS | No | Quality of Service: 0, 1 (default), or 2 |
 | Auth Type | Yes | Basic (username/password) or Certificate (mTLS) |
 | Username | Basic only | Digital twin `external-key` |
 | Password | Basic only | Vault secret content |
@@ -335,25 +358,25 @@ Publishes telemetry data to the IoT Platform via MQTT.
 | Field | Required | Description |
 |-------|----------|-------------|
 | IoT Config | Yes | References an iot-config node |
+| Topic | No | MQTT topic to publish to. Leave blank to use `msg.topic` at runtime |
+| QoS | No | MQTT QoS level (0, 1, or 2). Can be overridden per message via `msg.qos` |
 | Auto Timestamp | No | Adds `time` field (epoch microseconds) if not present. Default: enabled. |
 
-**Input:** `msg.payload` (telemetry data object)
+**Input:** `msg.payload` (telemetry data), `msg.topic` (used when Topic field is blank), `msg.qos` (overrides configured QoS)
 
 **Outputs:** `msg.payload` (passed through), `msg.topic` (MQTT topic published to)
 
 ### iot-command
 
-Receives commands from the IoT Platform and optionally sends automatic acknowledgments.
+Subscribes to an MQTT topic and outputs a message whenever a command arrives. This node has **no input** — messages arrive from the broker.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| IoT Config | Yes | References an iot-config node |
-| Auto Acknowledge | No | Sends an ack to `rsp/<key>` when a command is received. Default: enabled. |
-| Command Key | No | Filter to only receive commands matching this key. Leave empty for all commands. |
+| IoT Device | Yes | References an iot-config node for the MQTT connection |
+| Topic | Yes | MQTT topic to subscribe to. Supports `#` (multi-level) and `+` (single-level) wildcards |
+| QoS | Yes | Subscription QoS level (0, 1, or 2) |
 
-**Outputs:** `msg.payload` (command data), `msg.commandKey` (extracted from topic), `msg.topic`, `msg.sendResponse` (function for manual ack)
-
-This node has **no input** — commands arrive from the IoT Platform over MQTT.
+**Outputs:** `msg.payload` (JSON object or string — JSON is auto-detected), `msg.commandKey` (portion of the topic matched by `#`, or last segment for fixed topics), `msg.topic` (full received topic)
 
 ### iot-send-command
 
@@ -371,7 +394,9 @@ Sends commands to devices via the OCI REST API.
 
 **Input:** `msg.payload` (command data to send to device)
 
-**Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.commandKey`, `msg.requestEndpoint`, `msg.responseEndpoint`
+**Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.commandKey`, `msg.requestEndpoint`, `msg.responseEndpoint` (only when Wait for Response is enabled)
+
+`iot-send-command` validates Request/Response Duration values before calling OCI and rejects invalid ISO 8601 duration strings.
 
 ## SCM Payload Mappings
 

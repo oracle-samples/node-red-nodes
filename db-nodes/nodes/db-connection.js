@@ -36,14 +36,83 @@
 
 module.exports = function (RED) {
     const oracledb = require("oracledb");
+    const common = require("oci-common");
+    const identitydataplane = require("oci-identitydataplane");
+    const { generateKeyPair } = require("crypto");
+    const TOKEN_AUTH_TYPES = new Set([
+        "config",
+        "instancePrincipal",
+        "resourcePrincipal",
+        "sessionToken",
+        "simple"
+    ]);
 
     require('oracledb/plugins/token/extensionOci');
 
+    function parseTokenExpiry(token) {
+        const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(Buffer.from(base64, 'base64').toString('ascii')).exp * 1000;
+    }
+
+    let initializedDriverMode = null;
+    let thickInitArgs = null;
+
     oracledb.events = true;
 
-    oracledb.initOracleClient(
-        { libDir: process.env.ORACLE_CLIENT_LIB || '/usr/lib/oracle/23/client64/lib' }
-    );
+    function normalizeDriverMode(mode) {
+        return (mode || "thick").toLowerCase() === "thin" ? "thin" : "thick";
+    }
+
+    function ensureDriverMode(node) {
+        const requestedMode = normalizeDriverMode(node && node.driverMode);
+        const nodeName = (node && node.name) || "db-connection";
+
+        if (!initializedDriverMode) {
+            if (requestedMode === "thick") {
+                const envLibDir = (process.env.ORACLE_CLIENT_LIB || "").trim();
+                const initArgs = envLibDir ? { libDir: envLibDir } : null;
+                try {
+                    if (initArgs) {
+                        oracledb.initOracleClient(initArgs);
+                    } else {
+                        oracledb.initOracleClient();
+                    }
+                } catch (err) {
+                    if (err && err.code === "NJS-118") {
+                        throw new Error(
+                            "Oracle driver mode conflict: Thin mode was already initialized in this Node-RED runtime before this db-connection requested Thick mode. Restart Node-RED and keep db-connection Driver Mode consistent."
+                        );
+                    }
+                    throw err;
+                }
+                thickInitArgs = initArgs;
+            }
+            initializedDriverMode = requestedMode;
+            return initializedDriverMode;
+        }
+
+        if (initializedDriverMode !== requestedMode) {
+            if (node) {
+                node.warn(
+                    `Driver Mode '${requestedMode}' requested by '${nodeName}', but runtime is already in '${initializedDriverMode}' mode. Continuing with '${initializedDriverMode}'. Restart Node-RED to switch modes.`
+                );
+            }
+            return initializedDriverMode;
+        }
+
+        if (requestedMode === "thick" && thickInitArgs) {
+            oracledb.initOracleClient(thickInitArgs);
+        }
+        return initializedDriverMode;
+    }
+
+    function validateModeSpecificAuth(node, effectiveMode) {
+        if (effectiveMode === "thick" && TOKEN_AUTH_TYPES.has(node.authType) && node.proxyUser) {
+            throw new Error(
+                "Proxy User is not supported with DB Token authentication while runtime is using Thick mode. Use Thin mode after a Node-RED restart, or clear Proxy User."
+            );
+        }
+    }
 
     function DbConnectionNode(config) {
         RED.nodes.createNode(this, config);
@@ -51,8 +120,10 @@ module.exports = function (RED) {
 
         node.usePool = !!config.usePool;
         node.authType = config.authType;
+        node.driverMode = normalizeDriverMode(config.driverMode);
         node.externalAuth = !!config.externalAuth;
         node.tnsString = config.tnsString || "";
+        node.walletLocation = config.walletLocation || "";
         node.scope = config.scope || "";
         node.configFileLocation = config.configFileLocation || "";
         node.profile = config.profile || "";
@@ -64,12 +135,48 @@ module.exports = function (RED) {
         node.regionId = config.regionId || "";
         node.tenancyOCID = config.tenancyOCID || "";
         node.userOCID = config.userOCID || "";
+        node.proxyUser = config.proxyUser || "";
         node.poolMin = Number(config.poolMin);
         node.poolMax = Number(config.poolMax);
         node.poolIncrement = Number(config.poolIncrement);
         node.queueTimeout = Number(config.queueTimeout);
 
         let pool = null;
+        node.tokenCache = null;
+        node.debug(`DB driver mode requested: ${node.driverMode}`);
+
+        async function getTokenWithCache(refresh, config, buildProvider) {
+            if (!refresh && node.tokenCache && Date.now() < node.tokenCache.expiry) {
+                return { token: node.tokenCache.token, privateKey: node.tokenCache.privateKey };
+            }
+            const provider = await buildProvider();
+            const client = new identitydataplane.DataplaneClient({
+                authenticationDetailsProvider: provider
+            });
+            const keyPair = await new Promise((resolve, reject) => {
+                generateKeyPair('rsa', {
+                    modulusLength: 4096,
+                    publicKeyEncoding: { type: 'spki', format: 'pem' },
+                    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+                }, (err, publicKey, privateKey) => {
+                    if (err) return reject(err);
+                    resolve({ publicKey, privateKey });
+                });
+            });
+            const response = await client.generateScopedAccessToken({
+                generateScopedAccessTokenDetails: {
+                    scope: config.scope || "urn:oracle:db::id::*",
+                    publicKey: keyPair.publicKey
+                }
+            });
+            const token = response.securityToken.token;
+            node.tokenCache = {
+                token,
+                privateKey: keyPair.privateKey,
+                expiry: parseTokenExpiry(token)
+            };
+            return { token, privateKey: keyPair.privateKey };
+        }
 
         function getConnectString() {
             if (!node.tnsString || typeof node.tnsString !== "string") {
@@ -81,6 +188,13 @@ module.exports = function (RED) {
         function buildAuthTypes() {
             const connectString = getConnectString();
             const options = { connectString };
+            const walletPath = String(node.walletLocation || "").trim();
+
+            if (walletPath) {
+                // Use wallet directory for Oracle Net config and wallet lookup.
+                options.configDir = walletPath;
+                options.walletLocation = walletPath;
+            }
 
             switch (node.authType) {
                 case "basic":
@@ -95,6 +209,7 @@ module.exports = function (RED) {
                         scope: node.scope || undefined,
                     };
                     options.externalAuth = node.externalAuth;
+                    if (node.proxyUser) options.user = `[${node.proxyUser}]`;
                     break;
                 case "instancePrincipal":
                     options.tokenAuthConfigOci = {
@@ -102,6 +217,33 @@ module.exports = function (RED) {
                         scope: node.scope || undefined,
                     };
                     options.externalAuth = node.externalAuth;
+                    if (node.proxyUser) options.user = `[${node.proxyUser}]`;
+                    break;
+                case "resourcePrincipal":
+                    options.accessToken = async function (_refresh, config) {
+                        return getTokenWithCache(_refresh, config, () =>
+                            common.ResourcePrincipalAuthenticationDetailsProvider.builder()
+                        );
+                    };
+                    options.accessTokenConfig = {
+                        scope: node.scope || undefined,
+                    };
+                    options.externalAuth = node.externalAuth;
+                    if (node.proxyUser) options.user = `[${node.proxyUser}]`;
+                    break;
+                case "sessionToken":
+                    options.accessToken = async function (_refresh, config) {
+                        return getTokenWithCache(_refresh, config, () =>
+                            new common.SessionAuthDetailProvider(config.configFileLocation, config.profile)
+                        );
+                    };
+                    options.accessTokenConfig = {
+                        configFileLocation: node.configFileLocation || "/home/opc/.oci/config",
+                        profile: node.profile || "DEFAULT",
+                        scope: node.scope || undefined,
+                    };
+                    options.externalAuth = node.externalAuth;
+                    if (node.proxyUser) options.user = `[${node.proxyUser}]`;
                     break;
                 case "simple":
                     options.tokenAuthConfigOci = {
@@ -114,6 +256,7 @@ module.exports = function (RED) {
                         user: node.userOCID,
                     };
                     options.externalAuth = node.externalAuth;
+                    if (node.proxyUser) options.user = `[${node.proxyUser}]`;
                     break;
                 default:
                     throw new Error(`Unsupported auth type: ${node.authType}`);
@@ -123,6 +266,8 @@ module.exports = function (RED) {
 
         node.getStandaloneConnection = async function () {
             try {
+                const effectiveMode = ensureDriverMode(node);
+                validateModeSpecificAuth(node, effectiveMode);
                 const options = buildAuthTypes();
                 return await oracledb.getConnection(options);
             } catch (err) {
@@ -134,6 +279,8 @@ module.exports = function (RED) {
         async function initPool() {
             if (!node.usePool) return;
             if (pool) return pool;
+            const effectiveMode = ensureDriverMode(node);
+            validateModeSpecificAuth(node, effectiveMode);
             const options = buildAuthTypes();
             Object.assign(options, {
                 poolMin: node.poolMin,
@@ -185,7 +332,7 @@ module.exports = function (RED) {
         let connection;
         try {
             connection = await node.getConnection();
-            const result = await connection.execute("SELECT 1 FROM DUAL");
+            await connection.execute("SELECT 1 FROM DUAL");
             res.json({ success: true, message: "Connection successful" });
         } catch (err) {
             res.json({ success: false, message: err.message });

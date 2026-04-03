@@ -48,8 +48,9 @@ module.exports = function (RED) {
         }
 
         node.addTimestamp = config.addTimestamp !== false;  // Default true
+        node.topic = (config.topic || "").trim();
+        node.qos = parseInt(config.qos) || 1;
 
-        // Track connection state
         function onConnection(state) {
             switch (state) {
                 case "connected":
@@ -69,7 +70,6 @@ module.exports = function (RED) {
         }
         node.iotDevice.onConnection(onConnection);
 
-        // Set initial status
         if (node.iotDevice.isConnected()) {
             node.status({ fill: "green", shape: "dot", text: "connected" });
         } else {
@@ -89,17 +89,25 @@ module.exports = function (RED) {
                 payload = { value: payload };
             }
 
-            // Add timestamp in epoch microseconds if enabled and not already present
+            // Add timestamp if missing.
             if (node.addTimestamp && payload.time == null) {
                 payload.time = Math.floor(Date.now() * 1000);
             }
 
             var payloadStr = JSON.stringify(payload);
-            var topic = node.iotDevice.telemetryTopic;
+            var topic = node.topic ||
+                (msg.topic !== undefined && msg.topic !== "" ? String(msg.topic) : null);
+            if (!topic) {
+                node.status({ fill: "red", shape: "dot", text: "no topic" });
+                node.error("No topic configured and msg.topic not set", msg);
+                return done(new Error("No topic"));
+            }
+            var opts = { qos: node.qos };
+            if (msg.qos !== undefined && msg.qos !== null) { opts.qos = Number(msg.qos); }
 
             node.status({ fill: "yellow", shape: "dot", text: "publishing" });
 
-            node.iotDevice.publish(topic, payloadStr, {}, function (err) {
+            node.iotDevice.publish(topic, payloadStr, opts, function (err) {
                 if (err) {
                     node.status({ fill: "red", shape: "dot", text: "publish failed" });
                     msg.error = err.message;

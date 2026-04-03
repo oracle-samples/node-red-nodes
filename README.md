@@ -70,7 +70,7 @@ gh repo clone oracle-samples/node-red-nodes
 - Node-RED v3.0+
 - Node.js v18+
 - npm
-- Oracle Instant Client 23c (for DB nodes)
+- Oracle Instant Client 23c (required only when DB `Driver Mode` is `Thick`)
 
 #### Required Node-RED Dependencies
 
@@ -94,6 +94,15 @@ sudo dnf install oracle-instantclient-sqlplus
 ```
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
+>
+> If your DB flows use `Driver Mode = Thin`, Oracle Instant Client is not required.
+
+### Local Install Note (Palette Manager Upload)
+
+For local/offline installs via the Node-RED editor, you must generate an npm-packed tarball yourself with `npm pack`.
+GitHub source/release tarballs are not directly uploadable in Palette Manager because they do not use the expected npm archive layout (`package/package.json`).
+
+See [Detailed installation: Install from Local `.tgz` in Palette Manager](./docs/installation.md#13-install-from-local-tgz-in-palette-manager).
 
 ## Documentation
 

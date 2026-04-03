@@ -41,7 +41,7 @@ gh repo clone oracle-samples/node-red-nodes
 - Node-RED v3.0+
 - Node.js v18+
 - npm
-- Oracle Instant Client 23c
+- Oracle Instant Client 23c (required only when DB `Driver Mode` is `Thick`)
 
 ### Required Node-RED Dependencies
 
@@ -52,6 +52,8 @@ npm install oracledb
 ```
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
+>
+> If your DB connections use `Driver Mode = Thin`, Oracle Instant Client is not required.
 
 ## Documentation
 

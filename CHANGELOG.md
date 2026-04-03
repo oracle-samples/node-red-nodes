@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.3.2] - 2026-04-03
+
+### Added
+- `db-connection` Driver Mode toggle (Thick / Thin), Wallet Path, Proxy User, and two new auth types: DB Token — Resource Principal and DB Token — Session Token.
+- `db-connection` inline help text for all auth types, connection options, and Test Connection behaviour.
+- `sql` row-based Binds Mapping editor with source types (static, number, boolean, date, msg property, JSONata) and runtime `msg.binds` support.
+- `dequeue` Continuous mode — auto-starts on deploy, long-polls with no input trigger, immediate auto-commit. Transactional mode (default) is unchanged.
+- `enqueue` Delivery Mode (Persistent / Buffered), Payload Type (JSON / RAW / ADT), single-object auto-wrap, and optional output port.
+- `dequeue` Payload Type (JSON / RAW / ADT) with automatic ADT-to-plain-object conversion.
+
+### Changed
+- `iot-config` is now connection-only. Topic and QoS moved to individual node editors, following the `mqtt-broker` / `mqtt-in` / `mqtt-out` pattern.
+- `iot-telemetry` Topic and QoS fields added to editor. Topic falls back to `msg.topic`; `msg.qos` overrides QoS per message.
+- `iot-command` Topic (required) and QoS fields added to editor. Auto-acknowledge and `msg.sendResponse()` removed — use a separate publish node to send responses.
+- `sql` outputs rows in `msg.payload` only; `msg.result` removed.
+- `db-connection` auth type labels clarified (e.g. "Config File Auth" → "DB Token — Config File"). Existing nodes unaffected.
+
+### Fixed
+- `oci-config` Instance/Resource Principal async builder not awaited — caused `getPassphrase is not a function` on Test Connection.
+- OCI service nodes (`oci-notification`, `oci-object-storage`, `oci-logging`, `oci-log-analytics`, `iot-send-command`) passed a Promise instead of a resolved auth provider to SDK clients.
+- `dequeue` ADT NJS-106 crash — payload read after `connection.close()`. Fixed by extracting payloads before closing.
+- `dequeue` Continuous mode hanging deploy shutdown with "Close timed out". Fixed with coordinated `connection.break()` stop path.
+- `db-connection` Resource Principal and Session Token bypassed the `extensionOci` plugin (missing dispatch case / wrong key ID format). Both now implemented directly via `accessToken` callback.
+- `iot-send-command` duration fields now validated as ISO 8601 before calling OCI; `msg.responseEndpoint` only set when Wait for Response is enabled.
+
+---
+
 ## [0.3.1] - 2026-03-23
 
 ### Added

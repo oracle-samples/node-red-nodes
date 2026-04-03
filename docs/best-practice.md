@@ -47,7 +47,7 @@ All SCM transaction nodes use structured mapping rows with three source types:
 
 **Persistent sessions:** The iot-config node connects with `clean: false`. This ensures the IoT Platform retains messages while the device is briefly offline. Do not override this setting.
 
-**Auto-acknowledge:** The iot-command node sends acks by default. Disable auto-ack only when you need to send a custom response after processing the command (use `msg.sendResponse()` in a function node).
+**Command responses:** The iot-command node does not auto-acknowledge. To send a response after processing a command, publish explicitly using a separate `iot-telemetry` or `mqtt out` node on whatever response topic your protocol requires.
 
 **Client ID uniqueness:** Only one MQTT connection per Client ID is allowed. If you use both iot-config and built-in MQTT nodes with the same Client ID, they will disconnect each other. Use different Client IDs or use one or the other.
 

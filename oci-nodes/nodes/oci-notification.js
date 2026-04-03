@@ -54,9 +54,9 @@ module.exports = function (RED) {
 
         let client = null;
 
-        function getClient() {
+        async function getClient() {
             if (client) return client;
-            const provider = node.ociConfig.getAuthProvider();
+            const provider = await node.ociConfig.getAuthProvider();
             client = new ons.NotificationDataPlaneClient({
                 authenticationDetailsProvider: provider
             });
@@ -82,7 +82,7 @@ module.exports = function (RED) {
                 const title = node.msgTitle || msg.title || "";
                 const body = node.msgBody || (typeof msg.payload === "string" ? msg.payload : JSON.stringify(msg.payload));
 
-                const onsClient = getClient();
+                const onsClient = await getClient();
                 const response = await onsClient.publishMessage({
                     topicId: topicId,
                     messageDetails: {

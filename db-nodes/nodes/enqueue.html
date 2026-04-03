@@ -43,12 +43,49 @@ RED.nodes.registerType("enqueue", {
         connection: { type: "db-connection", required: true },
         queueName: { value: "" },
         recipients: { value: "" },
-        userPayload: { value: "" }
+        userPayload: { value: "" },
+        deliveryMode: { value: "persistent" },
+        payloadType: { value: "json" },
+        adtTypeName: { value: "" },
+        enableOutput: { value: true },
+        outputs: { value: 1 }
     },
     inputs: 1, outputs: 1,
     color: "#4C825C",
     icon: "font-awesome/fa-upload",
-    label: function () { return this.name || "enqueue"; }
+    label: function () { return this.name || "enqueue"; },
+    oneditprepare: function () {
+        var node = this;
+        $("#node-input-outputs").val(node.outputs);
+        $("#node-input-enableOutput").prop("checked", node.enableOutput !== false);
+        $("#node-input-enableOutput").on("change", function () {
+            $("#node-input-outputs").val(this.checked ? 1 : 0);
+        });
+        var PAYLOAD_HINTS = {
+            json: 'A JSON object or array. A single object is enqueued as one message; each array element becomes a separate message. If empty, <code>msg.payload</code> is used.',
+            raw:  'A plain string, encoded to a UTF-8 Buffer. For multiple messages, leave empty and pass an array of strings or Buffers via <code>msg.payload</code>.',
+            adt:  'A JSON object or array. Field names must match the Oracle type\'s attribute names (uppercase). A single object becomes one message; each array element becomes a separate message. If empty, <code>msg.payload</code> is used.'
+        };
+        function updatePayloadType() {
+            var type = $("#node-input-payloadType").val();
+            $("#enqueue-adt-row").toggle(type === "adt");
+            $("#enqueue-payload-hint").html(PAYLOAD_HINTS[type] || PAYLOAD_HINTS.json);
+        }
+        $("#node-input-payloadType").on("change", updatePayloadType);
+        updatePayloadType();
+
+        function updateDeliveryWarning() {
+            if ($("#node-input-deliveryMode").val() === "buffered") {
+                $("#enqueue-persistent-note").hide();
+                $("#enqueue-buffered-warning").show();
+            } else {
+                $("#enqueue-persistent-note").show();
+                $("#enqueue-buffered-warning").hide();
+            }
+        }
+        $("#node-input-deliveryMode").on("change", updateDeliveryWarning);
+        updateDeliveryWarning();
+    }
 });
 </script>
 
@@ -71,15 +108,45 @@ RED.nodes.registerType("enqueue", {
         <input type="text" id="node-input-recipients">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Optional recipients for multi-consumer queues.</div>
     </div>
+    <div class="form-row">
+        <label for="node-input-deliveryMode"><i class="fa fa-tachometer"></i> Delivery Mode</label>
+        <select id="node-input-deliveryMode" style="width:70%">
+            <option value="persistent">Persistent (default)</option>
+            <option value="buffered">Buffered</option>
+        </select>
+    </div>
+    <div id="enqueue-persistent-note" style="margin-left:105px;font-size:11px;color:#888;margin-top:-6px;">
+        Messages are written to the queue table and committed to disk — durable across database restarts.
+    </div>
+    <div id="enqueue-buffered-warning" style="margin-left:105px;font-size:11px;color:#c47a00;margin-top:-6px;display:none;">
+        Buffered messages live in Oracle shared memory only — lost on DB restart. Auto-commits immediately after enqueue. Requires thick client mode.
+    </div>
     <hr/>
     <div class="form-row">
+        <label for="node-input-payloadType"><i class="fa fa-file-code-o"></i> Payload Type</label>
+        <select id="node-input-payloadType" style="width:70%">
+            <option value="json">JSON</option>
+            <option value="raw">RAW</option>
+            <option value="adt">ADT (Object Type)</option>
+        </select>
+    </div>
+    <div id="enqueue-adt-row" class="form-row" style="display:none">
+        <label for="node-input-adtTypeName"><i class="fa fa-cube"></i> Object Type</label>
+        <input type="text" id="node-input-adtTypeName" placeholder="SCHEMA.TYPE_NAME">
+        <div style="font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
+    </div>
+    <div class="form-row">
         <label for="node-input-userPayload"><i class="fa fa-code"></i> Payload</label>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
-            JSON array of messages to enqueue (e.g. <code>[{...}, {...}]</code>).
-            If empty, <code>msg.payload</code> is used at runtime.
-        </div>
+        <div id="enqueue-payload-hint" style="font-size:11px;color:#888;margin-bottom:4px;"></div>
         <textarea id="node-input-userPayload" rows="5" style="width:100%;margin-top:5px;"></textarea>
     </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-enableOutput"><i class="fa fa-sign-out"></i> Output</label>
+        <input type="checkbox" id="node-input-enableOutput" style="width:auto;">
+        <span style="margin-left:6px;font-size:12px;color:#888;">Add output port and pass msg downstream to continue the flow</span>
+    </div>
+    <input type="hidden" id="node-input-outputs">
 </script>
 
 <script type="text/x-red" data-help-name="enqueue">
@@ -90,17 +157,26 @@ RED.nodes.registerType("enqueue", {
     <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
     <dt>Queue Name</dt><dd>Name of the AQ to enqueue into.</dd>
     <dt>Recipients</dt><dd>Optional recipients for multi-consumer queues.</dd>
+    <dt>Delivery Mode</dt>
+    <dd><strong>Persistent</strong> (default): messages are written to the queue table and committed to disk — durable across database restarts.
+    <strong>Buffered</strong>: messages are stored in Oracle shared memory only — faster, but lost on DB restart. Auto-commits immediately after enqueue. Requires thick client mode.</dd>
+    <dt>Payload Type</dt>
+    <dd><strong>JSON</strong> (default): payload is a JS object enqueued as <code>DB_TYPE_JSON</code>.
+    <strong>RAW</strong>: payload is a string encoded to a UTF-8 Buffer.
+    <strong>ADT</strong>: payload is a JS object instantiated as an Oracle DbObject using the specified Object Type. Field names must match the Oracle type's attribute names (uppercase).</dd>
+    <dt>Object Type</dt>
+    <dd>ADT only. Schema-qualified Oracle object type name, e.g. <code>ADMIN.MY_MSG_TYPE</code>. Must exist in the database and match the queue's payload type.</dd>
     <dt>Payload</dt>
-    <dd>JSON array of messages. If the textarea is empty, <code>msg.payload</code> is used instead
-    (must be an array). Each array element becomes one AQ message.</dd>
+    <dd>JSON: a single object or array — each element becomes one AQ message. RAW: a plain string encoded to a Buffer. ADT: a single object or array with uppercase field names matching the Oracle type. If empty, <code>msg.payload</code> is used instead.</dd>
 </dl>
 
 <h3>Outputs</h3>
+<p>Output is optional. Enable the <strong>Output</strong> toggle to send a msg after a successful enqueue.</p>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">string</span></dt>
-    <dd>Success message indicating how many messages were enqueued.</dd>
-    <dt>error <span class="property-type">object</span></dt>
-    <dd>Error details on failure (message, code).</dd>
+    <dt>enqueued <span class="property-type">array</span></dt>
+    <dd>The array of objects that were enqueued.</dd>
+    <dt>count <span class="property-type">number</span></dt>
+    <dd>Number of messages enqueued.</dd>
 </dl>
 
 <h3>Details</h3>

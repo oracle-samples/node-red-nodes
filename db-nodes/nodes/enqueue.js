@@ -37,6 +37,11 @@
 module.exports = function(RED) {
     const oracledb = require("oracledb");
 
+    const DELIVERY_MODES = {
+        persistent: oracledb.AQ_MSG_DELIV_MODE_PERSISTENT,
+        buffered:   oracledb.AQ_MSG_DELIV_MODE_BUFFERED
+    };
+
     function DbEnqueueNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -44,6 +49,10 @@ module.exports = function(RED) {
         node.queueName = config.queueName;
         node.recipients = config.recipients || null;
         node.userPayload = config.userPayload;
+        node.enableOutput = config.enableOutput !== false;
+        node.deliveryMode = config.deliveryMode || "persistent";
+        node.payloadType = config.payloadType || "json";
+        node.adtTypeName = config.adtTypeName || "";
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
@@ -59,47 +68,64 @@ module.exports = function(RED) {
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
                 connection = await node.connection.getConnection();
 
-                // Use configured payload, or fall back to msg.payload
-                const rawPayload = node.userPayload && node.userPayload.trim()
-                    ? node.userPayload
-                    : JSON.stringify(msg.payload);
-
-                try {
-                    arr = JSON.parse(rawPayload);
-                    if (!Array.isArray(arr)) {
-                        throw new Error("Payload must be a JSON array: [{...}, {...}]");
+                if (node.payloadType === "raw") {
+                    const raw = (node.userPayload && node.userPayload.trim())
+                        ? node.userPayload
+                        : msg.payload;
+                    arr = Array.isArray(raw) ? raw : [raw];
+                } else {
+                    try {
+                        const raw = (node.userPayload && node.userPayload.trim())
+                            ? JSON.parse(node.userPayload)
+                            : msg.payload;
+                        arr = Array.isArray(raw) ? raw : [raw];
+                    } catch (parseErr) {
+                        node.status({ fill: "red", shape: "dot", text: "invalid payload" });
+                        msg.error = parseErr.message;
+                        node.error(parseErr, msg);
+                        return done(parseErr);
                     }
-                } catch (parseErr) {
-                    node.status({ fill: "red", shape: "dot", text: "invalid payload" });
-                    msg.error = parseErr.message;
-                    node.error(parseErr, msg);
-                    return done(parseErr);
                 }
 
+                const queuePayloadType = node.payloadType === "adt" ? node.adtTypeName.toUpperCase()
+                    : node.payloadType === "raw" ? oracledb.DB_TYPE_RAW
+                    : oracledb.DB_TYPE_JSON;
+
                 const queue = await connection.getQueue(node.queueName, {
-                    payloadType: oracledb.DB_TYPE_JSON,
+                    payloadType: queuePayloadType,
                 });
 
+                queue.enqOptions.deliveryMode = DELIVERY_MODES[node.deliveryMode] || oracledb.AQ_MSG_DELIV_MODE_PERSISTENT;
                 if (node.recipients) {
                     queue.enqOptions.recipients = node.recipients;
                 }
 
-                const messages = arr.map(function (item) {
-                    return { payload: item };
-                });
+                var messages;
+                if (node.payloadType === "adt") {
+                    messages = arr.map(function(item) {
+                        return { payload: new queue.payloadTypeClass(item) };
+                    });
+                } else if (node.payloadType === "raw") {
+                    messages = arr.map(function(item) {
+                        return { payload: Buffer.isBuffer(item) ? item : Buffer.from(String(item)) };
+                    });
+                } else {
+                    messages = arr.map(function(item) {
+                        return { payload: item };
+                    });
+                }
 
                 await queue.enqMany(messages);
                 await connection.commit();
 
                 node.status({ fill: "green", shape: "dot", text: `enqueued ${messages.length}` });
-                // Build a clean output message — only serializable properties
-                var outMsg = {
-                    _msgid: msg._msgid,
-                    payload: `Successfully enqueued ${messages.length} messages`,
-                    enqueued: arr,
-                    count: messages.length
-                };
-                send(outMsg);
+                if (node.enableOutput) {
+                    var outMsg = Object.assign({}, msg, {
+                        enqueued: arr,
+                        count: messages.length
+                    });
+                    send(outMsg);
+                }
                 done();
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "error" });

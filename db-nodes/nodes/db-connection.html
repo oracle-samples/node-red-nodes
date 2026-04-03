@@ -41,7 +41,9 @@ RED.nodes.registerType("db-connection", {
     defaults: {
         usePool: { value: false },
         authType: { value: "basic" },
+        driverMode: { value: "thick" },
         tnsString: { value: "" },
+        walletLocation: { value: "" },
         externalAuth: { value: true },
         scope: { value: "" },
         configFileLocation: { value: "" },
@@ -54,7 +56,8 @@ RED.nodes.registerType("db-connection", {
         poolMin: { value: "" },
         poolMax: { value: "" },
         poolIncrement: { value: "" },
-        queueTimeout: { value: "" }
+        queueTimeout: { value: "" },
+        proxyUser: { value: "" }
     },
     credentials: {
         username: { type: "text" },
@@ -62,7 +65,7 @@ RED.nodes.registerType("db-connection", {
         passphrase: { type: "password" }
     },
     label: function () {
-        var labels = { basic: "Basic", config: "Config File", instancePrincipal: "Instance Principal", simple: "API Key" };
+        var labels = { basic: "Basic", config: "DB Token (Config File)", instancePrincipal: "DB Token (Instance Principal)", resourcePrincipal: "DB Token (Resource Principal)", sessionToken: "DB Token (Session Token)", simple: "DB Token (API Key)" };
         var authLabel = labels[this.authType] || this.authType;
         return this.tnsString ? authLabel + " (" + this.tnsString.substring(0, 20) + ")" : "DB Connection";
     },
@@ -76,8 +79,10 @@ RED.nodes.registerType("db-connection", {
             $(".external-auth").hide();
             $(".pool-options").toggle(usePool);
             if (type === "basic") $(".auth-basic").show();
-            if (type === "config") { $(".auth-config").show(); $(".external-auth").show(); }
+            if (type === "config") { $(".auth-config").show(); $(".external-auth").show(); $("#profile-caption").text(""); }
             if (type === "instancePrincipal") { $(".auth-ip").show(); $(".external-auth").show(); }
+            if (type === "resourcePrincipal") { $(".auth-rp").show(); $(".external-auth").show(); }
+            if (type === "sessionToken") { $(".auth-session").show(); $(".auth-session-scope").show(); $(".external-auth").show(); $("#profile-caption").text("Enter the profile name you used when running oci session authenticate."); }
             if (type === "simple") { $(".auth-simple").show(); $(".external-auth").show(); }
         }
         updateAuthFields();
@@ -131,10 +136,24 @@ RED.nodes.registerType("db-connection", {
         <label for="node-config-input-authType"><i class="fa fa-key"></i> Auth Type</label>
         <select id="node-config-input-authType" style="width:200px;">
             <option value="basic">Basic (User/Pass)</option>
-            <option value="config">Config File Auth</option>
-            <option value="instancePrincipal">Instance Principal</option>
-            <option value="simple">Simple Auth</option>
+            <option value="config">DB Token — Config File</option>
+            <option value="instancePrincipal">DB Token — Instance Principal</option>
+            <option value="resourcePrincipal">DB Token — Resource Principal</option>
+            <option value="sessionToken">DB Token — Session Token</option>
+            <option value="simple">DB Token — API Key</option>
         </select>
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-driverMode"><i class="fa fa-exchange"></i> Driver Mode</label>
+        <select id="node-config-input-driverMode" style="width:200px;">
+            <option value="thick">Thick (Oracle Client)</option>
+            <option value="thin">Thin (Pure JS)</option>
+        </select>
+    </div>
+    <div class="form-row" style="margin-top:-8px;">
+        <span style="margin-left:120px;font-size:11px;color:#666;">
+            Driver mode is process-wide in Node-RED. Keep this setting consistent across all db-connection nodes.
+        </span>
     </div>
     <div class="form-row external-auth">
         <label for="node-config-input-externalAuth" style="width:120px;"><i class="fa fa-shield"></i> External Auth</label>
@@ -151,8 +170,8 @@ RED.nodes.registerType("db-connection", {
             <input type="password" id="node-config-input-password">
         </div>
     </div>
-    <!-- CONFIG FILE AUTH -->
-    <div class="auth-section auth-config">
+    <!-- CONFIG FILE AUTH / SESSION TOKEN AUTH -->
+    <div class="auth-section auth-config auth-session">
         <div class="form-row">
             <label for="node-config-input-configFileLocation"><i class="fa fa-file-text-o"></i> Config File</label>
             <input type="text" id="node-config-input-configFileLocation" placeholder="/home/opc/.oci/config">
@@ -160,6 +179,7 @@ RED.nodes.registerType("db-connection", {
         <div class="form-row">
             <label for="node-config-input-profile"><i class="fa fa-id-card-o"></i> Profile</label>
             <input type="text" id="node-config-input-profile" placeholder="DEFAULT">
+            <div id="profile-caption" style="font-size:11px;color:#888;margin-top:3px;"></div>
         </div>
     </div>
     <!-- SIMPLE AUTH -->
@@ -190,19 +210,33 @@ RED.nodes.registerType("db-connection", {
         </div>
     </div>
     <!-- SHARED SCOPE -->
-    <div class="auth-section auth-config auth-ip">
+    <div class="auth-section auth-config auth-ip auth-rp auth-session auth-session-scope">
         <div class="form-row">
             <label for="node-config-input-scope"><i class="fa fa-shield"></i> Scope</label>
             <input type="text" id="node-config-input-scope">
         </div>
     </div>
+    <!-- PROXY USER (DB Token auth types only) -->
+    <div class="auth-section auth-config auth-ip auth-rp auth-session auth-simple">
+        <div class="form-row">
+            <label for="node-config-input-proxyUser"><i class="fa fa-user-circle-o"></i> Proxy User</label>
+            <input type="text" id="node-config-input-proxyUser" placeholder="optional">
+        </div>
+    </div>
     </fieldset>
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
-    <div class="auth-section auth-basic auth-config auth-ip auth-simple">
+    <div class="auth-section auth-basic auth-config auth-ip auth-rp auth-session auth-simple">
         <div class="form-row">
             <label for="node-config-input-tnsString"><i class="fa fa-server"></i> TNS String</label>
             <textarea id="node-config-input-tnsString" rows="5" style="width:100%;" placeholder="(description=(address=(protocol=tcps)...))"></textarea>
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-walletLocation"><i class="fa fa-folder-open-o"></i> Wallet Path</label>
+            <input type="text" id="node-config-input-walletLocation" placeholder="/path/to/wallet_dir">
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+                Optional wallet/config directory (for example containing <code>tnsnames.ora</code>, <code>sqlnet.ora</code>, and wallet files).
+            </div>
         </div>
     </div>
     <div class="form-row" style="text-align:center;">
@@ -240,4 +274,51 @@ RED.nodes.registerType("db-connection", {
         <input type="number" id="node-config-input-queueTimeout" min="0" style="width:100px;">
     </div>
     </fieldset>
+</script>
+
+<script type="text/html" data-help-name="db-connection">
+<p>Shared configuration node for connecting to Oracle Database. All DB nodes (sql, enqueue, dequeue, begin-transaction) reference this config node.</p>
+
+<h3>Authentication</h3>
+<dl class="message-properties">
+    <dt>Basic</dt>
+    <dd>Direct database username and password. Does not use OCI IAM. Suitable for on-premises databases or environments where IAM is not available.</dd>
+
+    <dt>DB Token — Config File</dt>
+    <dd>Uses an OCI config file with an API key to obtain a DB-scoped IAM token. The config file must contain <code>tenancy</code>, <code>user</code>, <code>fingerprint</code>, <code>key_file</code>, and <code>region</code>. Defaults to <code>~/.oci/config</code> with the <code>DEFAULT</code> profile.</dd>
+
+    <dt>DB Token — Instance Principal</dt>
+    <dd>Uses the OCI Instance Principal identity of the compute instance running Node-RED. No credentials are required — the instance metadata service provides authentication automatically. Only works on OCI compute instances.</dd>
+
+    <dt>DB Token — Resource Principal</dt>
+    <dd>Uses the OCI Resource Principal identity of the OCI resource running Node-RED (e.g. OCI Functions, OKE pods). No credentials are required — the resource's dynamic group membership and assigned policies determine access. Only works within OCI environments that support Resource Principal injection.</dd>
+
+    <dt>DB Token — Session Token</dt>
+    <dd>Uses an OCI CLI session token generated by <code>oci session authenticate</code>. The OCI config file must contain a <code>security_token_file</code> entry pointing to the generated token file. Session tokens expire; refresh them with <code>oci session refresh</code> before they expire. Useful for local development without storing long-lived API keys.</dd>
+
+    <dt>DB Token — API Key</dt>
+    <dd>Explicit API key authentication using tenancy OCID, user OCID, fingerprint, private key path, and region. Equivalent to Config File auth but with credentials entered directly in the node editor rather than read from a file.</dd>
+</dl>
+
+<h3>Connection</h3>
+<dl class="message-properties">
+    <dt>TNS String</dt>
+    <dd>Oracle connect descriptor for the target database. Obtain this from the OCI Console under your Autonomous Database → Database Connection, or from your DBA.</dd>
+    <dt>Wallet Path</dt>
+    <dd>Optional directory path used for Oracle wallet and network config lookup. This is passed as node-oracledb connection <code>configDir</code> and <code>walletLocation</code> so both Thick and Thin mode can resolve wallet-based connections.</dd>
+    <dt>External Auth</dt>
+    <dd>Must be enabled for all DB Token auth types. Instructs the driver to use externally-provided IAM credentials rather than a username and password.</dd>
+    <dt>Driver Mode</dt>
+    <dd>Select <code>Thick</code> to use Oracle Client libraries, or <code>Thin</code> to use the pure JavaScript driver. This setting is process-wide in Node-RED and must be the same across all active db-connection nodes.</dd>
+    <dt>Scope</dt>
+    <dd>Optional. Restricts the DB token to a specific compartment or database. Leave blank to allow access to all databases in the tenancy (<code>urn:oracle:db::id::*</code>).</dd>
+    <dt>Proxy User</dt>
+    <dd>Optional. Specifies a database proxy user for DB Token auth. Proxy User with DB Token auth is not supported in Thick mode; use Thin mode or leave Proxy User empty.</dd>
+</dl>
+
+<h3>Connection Pool</h3>
+<p>Enables a reusable connection pool. Recommended for flows that execute frequent queries. Set <b>Pool Min</b> and <b>Pool Max</b> to control the number of open connections; <b>Pool Increment</b> controls how many are added when the pool grows; <b>Queue Timeout</b> is the maximum milliseconds a request waits for a connection before failing.</p>
+
+<h3>Test Connection</h3>
+<p>Executes <code>SELECT 1 FROM DUAL</code> to verify connectivity. The node must be deployed before the test button becomes active — click <b>Update</b> then <b>Deploy</b> first.</p>
 </script>

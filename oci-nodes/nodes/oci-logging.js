@@ -56,16 +56,15 @@ module.exports = function (RED) {
         node.severity = config.severity || "INFO";
         node.payloadSource = config.payloadSource || "mappings";
 
-        // Parse mappings
         var mappings = [];
         try { mappings = JSON.parse(config.mappings || "[]"); } catch (e) { mappings = []; }
         if (!Array.isArray(mappings)) mappings = [];
 
         let client = null;
 
-        function getClient() {
+        async function getClient() {
             if (client) return client;
-            const provider = node.ociConfig.getAuthProvider();
+            const provider = await node.ociConfig.getAuthProvider();
             client = new loggingingestion.LoggingClient({
                 authenticationDetailsProvider: provider
             });
@@ -111,7 +110,6 @@ module.exports = function (RED) {
                 const logSubject = msg.logSubject || "";
                 const severity = msg.severity || node.severity || "INFO";
 
-                // Build log data from mappings or msg.payload
                 var logData;
                 if (node.payloadSource === "payload") {
                     logData = msg.payload;
@@ -119,7 +117,7 @@ module.exports = function (RED) {
                     logData = resolvePayload(mappings, msg);
                 }
 
-                // Ensure logData is an object so we can inject timestamp/level
+                // Normalize object payloads with timestamp/level.
                 if (typeof logData === "object" && logData !== null && !Array.isArray(logData)) {
                     if (!logData.timestamp) {
                         logData.timestamp = new Date().toISOString();
@@ -145,16 +143,15 @@ module.exports = function (RED) {
 
                 const now = new Date();
 
-                // Build the LogEntryBatch → LogEntry structure required by PutLogsDetails
                 const logEntryBatch = {
                     source: logSource,
                     type: logType,
-                    defaultlogentrytime: now,   // required; must be camelCase exactly as-is
+                    defaultlogentrytime: now,
                     entries: [
                         {
-                            id: randomUUID(),   // required; must be a UUID (not an OCI OCID)
-                            data: logData,      // required; the log record content (<1 MB)
-                            time: now           // optional per-entry override of defaultlogentrytime
+                            id: randomUUID(),
+                            data: logData,
+                            time: now
                         }
                     ]
                 };
@@ -164,11 +161,11 @@ module.exports = function (RED) {
                 }
 
                 const putLogsDetails = {
-                    specversion: "1.0",         // required; only valid value is "1.0"
+                    specversion: "1.0",
                     logEntryBatches: [logEntryBatch]
                 };
 
-                const logClient = getClient();
+                const logClient = await getClient();
 
                 const response = await logClient.putLogs({
                     logId: logId,

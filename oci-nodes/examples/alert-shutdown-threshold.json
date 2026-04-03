@@ -13,6 +13,8 @@
         "z": "5b7105f00c7c8bff",
         "name": "",
         "iotDevice": "a1fbb2cfb60372b7",
+        "topic": "iot/v1/telemetry",
+        "qos": "1",
         "addTimestamp": true,
         "x": 360,
         "y": 220,
@@ -163,8 +165,8 @@
         "z": "5b7105f00c7c8bff",
         "name": "",
         "iotDevice": "a1fbb2cfb60372b7",
-        "autoAck": true,
-        "commandFilter": "",
+        "topic": "iot/v1/cmd/shutdown",
+        "qos": "1",
         "x": 180,
         "y": 480,
         "wires": [
@@ -193,9 +195,7 @@
         "id": "a1fbb2cfb60372b7",
         "type": "iot-config",
         "deviceHost": "",
-        "baseEndpoint": "iot/v1",
         "clientId": "",
-        "qos": "1",
         "authType": "basic",
         "caCertPath": "",
         "clientCertPath": "",
@@ -221,7 +221,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.3.1"
+            "node-red-nodes": "0.3.2"
         }
     }
 ]

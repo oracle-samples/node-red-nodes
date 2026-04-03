@@ -37,12 +37,27 @@
 module.exports = function(RED) {
     const oracledb = require("oracledb");
 
-    // Map config values to oracledb constants
+    // Map config values to oracledb constants.
     const DEQ_MODES = {
         "remove":  oracledb.AQ_DEQ_MODE_REMOVE,
         "browse":  oracledb.AQ_DEQ_MODE_BROWSE,
         "locked":  oracledb.AQ_DEQ_MODE_LOCKED
     };
+
+    // Convert Oracle DbObject payloads to plain JS objects.
+    // Non-ADT values pass through unchanged.
+    function dbObjectToPojo(obj) {
+        if (obj && obj._objType && obj._objType.attributes) {
+            const result = {};
+            for (const attr of obj._objType.attributes) {
+                const val = obj[attr.name];
+                result[attr.name] = (val && val._objType && val._objType.attributes)
+                    ? dbObjectToPojo(val) : val;
+            }
+            return result;
+        }
+        return obj;
+    }
 
     function DbDequeueNode(config) {
         RED.nodes.createNode(this, config);
@@ -50,10 +65,17 @@ module.exports = function(RED) {
 
         node.queueName = config.queueName;
         node.subscriber = config.subscriber || null;
-        node.wait = Number(config.wait) || 0;
-        node.waitForever = !!config.waitForever;
         node.batchSize = Number(config.batchSize) || 1;
         node.deqMode = config.deqMode || "remove";
+        node.mode = config.mode || "transactional";
+        node.wait = Number(config.wait) || 0;
+        node.waitForever = !!config.waitForever;
+        node.payloadType = config.payloadType || "json";
+        node.adtTypeName = config.adtTypeName || "";
+
+        const queuePayloadType = node.payloadType === "adt" ? node.adtTypeName.toUpperCase()
+            : node.payloadType === "raw" ? oracledb.DB_TYPE_RAW
+            : oracledb.DB_TYPE_JSON;
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
@@ -61,88 +83,152 @@ module.exports = function(RED) {
             return;
         }
 
-        node.on("input", async (msg, send, done) => {
-            let connection;
-            let owned = false;
+        // ─── TRANSACTIONAL MODE ───────────────────────────────────────────────
+        // Triggered by incoming msg. Supports begin-transaction / end-transaction.
+        // Falls back to a standalone connection with auto-commit when no transaction
+        // is present on msg.
+        if (node.mode === "transactional") {
+            node.on("input", async function (msg, send, done) {
+                var connection = null;
+                var ownConnection = false;
 
-            try {
-                // Use transaction connection if available (from begin-transaction)
-                if (msg.transaction && msg.transaction.connection) {
-                    connection = msg.transaction.connection;
-                    owned = false;
-                } else {
-                    // Standalone mode — create own connection (no rollback protection)
-                    node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
-                    node.warn("Dequeue running without transaction — messages will be auto-committed and cannot be rolled back on downstream failure.");
-                    connection = await node.connection.getConnection();
-                    owned = true;
-                }
-
-                const queue = await connection.getQueue(node.queueName, {
-                    payloadType: oracledb.DB_TYPE_JSON,
-                });
-
-                if (node.subscriber) {
-                    queue.deqOptions.consumerName = node.subscriber;
-                }
-
-                if (node.waitForever === true) {
-                    queue.deqOptions.wait = oracledb.AQ_DEQ_WAIT_FOREVER;
-                } else {
-                    queue.deqOptions.wait = Number(node.wait);
-                }
-
-                // Set dequeue mode from config
-                queue.deqOptions.mode = DEQ_MODES[node.deqMode] || oracledb.AQ_DEQ_MODE_REMOVE;
-                queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
-
-                const messages = await queue.deqMany(node.batchSize);
-
-                // Commit only if connection is owned by this node (standalone mode)
-                if (owned) {
-                    await connection.commit();
-                }
-
-                if (!messages || messages.length === 0) {
-                    node.status({ fill: "yellow", shape: "ring", text: "no messages" });
-                    send(msg);
-                    return done();
-                }
-
-                node.status({ fill: "green", shape: "dot", text: `dequeued ${messages.length}` });
-
-                for (const m of messages) {
-                    var outMsg = {
-                        _msgid: msg._msgid,
-                        dequeued: m.payload,
-                        payload: m.payload
-                    };
-                    if (msg.transaction) {
-                        Object.defineProperty(outMsg, 'transaction', {
-                            value: msg.transaction,
-                            enumerable: false,
-                            writable: true
-                        });
+                try {
+                    if (msg.transaction && msg.transaction.connection) {
+                        connection = msg.transaction.connection;
+                    } else {
+                        connection = await node.connection.getConnection();
+                        ownConnection = true;
                     }
-                    send(outMsg);
+
+                    const queue = await connection.getQueue(node.queueName, {
+                        payloadType: queuePayloadType,
+                    });
+
+                    if (node.subscriber) queue.deqOptions.consumerName = node.subscriber;
+                    queue.deqOptions.mode = DEQ_MODES[node.deqMode] || oracledb.AQ_DEQ_MODE_REMOVE;
+                    queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
+                    queue.deqOptions.wait = node.waitForever
+                        ? oracledb.AQ_DEQ_WAIT_FOREVER
+                        : node.wait;
+
+                    const messages = await queue.deqMany(node.batchSize);
+
+                    // Read and normalize payloads before closing the connection.
+                    const payloads = messages ? messages.map(m => dbObjectToPojo(m.payload)) : [];
+
+                    if (ownConnection) {
+                        await connection.commit();
+                        await connection.close();
+                        connection = null;
+                    }
+
+                    if (payloads.length === 0) {
+                        node.status({ fill: "grey", shape: "dot", text: "no messages" });
+                    }
+
+                    for (const payload of payloads) {
+                        var outMsg = Object.assign({}, msg, {
+                            payload: payload,
+                            dequeued: payload
+                        });
+                        if (msg.transaction) {
+                            Object.defineProperty(outMsg, "transaction", {
+                                value: msg.transaction,
+                                enumerable: false,
+                                writable: true,
+                                configurable: true
+                            });
+                        }
+                        send(outMsg);
+                    }
+
+                    done();
+                } catch (err) {
+                    if (connection && ownConnection) {
+                        try { await connection.close(); } catch (e) {}
+                    }
+                    done(err);
                 }
-                done();
-            } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "error" });
-                msg.error = {
-                    message: err.message,
-                    code: err.errorNum || null
-                };
-                node.error(err, msg);
-                done(err);
-            } finally {
-                if (owned && connection) {
-                    try { await connection.close(); } catch (e) {
-                        node.warn(`Failed to close connection: ${e.message}`);
+            });
+        }
+
+        // ─── CONTINUOUS MODE ──────────────────────────────────────────────────
+        // Starts on deploy. Opens a persistent connection and loops indefinitely
+        // with AQ_DEQ_WAIT_FOREVER. Commits immediately after each batch — no
+        // rollback protection. Mirrors the MQTT In pattern.
+        if (node.mode === "continuous") {
+            let running = false;
+            let connection = null;
+            let listenerPromise = null;
+
+            async function startListening() {
+                running = true;
+                try {
+                    node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
+                    connection = await node.connection.getConnection();
+
+                    const queue = await connection.getQueue(node.queueName, {
+                        payloadType: queuePayloadType,
+                    });
+                    if (node.subscriber) queue.deqOptions.consumerName = node.subscriber;
+                    queue.deqOptions.wait = oracledb.AQ_DEQ_WAIT_FOREVER;
+                    queue.deqOptions.mode = DEQ_MODES[node.deqMode] || oracledb.AQ_DEQ_MODE_REMOVE;
+                    queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
+
+                    node.status({ fill: "green", shape: "ring", text: "listening" });
+
+                    while (running) {
+                        const messages = await queue.deqMany(node.batchSize);
+                        if (!running) {
+                            break;
+                        }
+
+                        if (messages && messages.length > 0) {
+                            await connection.commit();
+                            node.status({ fill: "green", shape: "dot", text: `dequeued ${messages.length}` });
+                            for (const m of messages) {
+                                const payload = dbObjectToPojo(m.payload);
+                                node.send({
+                                    _msgid: RED.util.generateId(),
+                                    dequeued: payload,
+                                    payload: payload
+                                });
+                            }
+                            node.status({ fill: "green", shape: "ring", text: "listening" });
+                        }
+                    }
+                } catch (err) {
+                    if (running) {
+                        node.status({ fill: "red", shape: "dot", text: err.message });
+                        node.error(err.message);
+                    }
+                    // if !running: error came from connection.close() during shutdown — ignore
+                } finally {
+                    if (connection) {
+                        try { await connection.close(); } catch (e) {}
+                        connection = null;
                     }
                 }
             }
-        });
+
+            node.on("close", async (done) => {
+                running = false;
+                if (connection) {
+                    try { await connection.break(); } catch (e) {}
+                }
+                if (listenerPromise) {
+                    try { await listenerPromise; } catch (e) {}
+                }
+                if (connection) {
+                    try { await connection.close(); } catch (e) {}
+                    connection = null;
+                }
+                node.status({});
+                done();
+            });
+
+            listenerPromise = startListening();
+        }
     }
 
     RED.nodes.registerType("dequeue", DbDequeueNode);

@@ -47,10 +47,14 @@ module.exports = function (RED) {
             return;
         }
 
-        node.autoAck = config.autoAck !== false;  // Default true
-        node.commandFilter = (config.commandFilter || "").trim();
+        node.commandTopic = (config.topic || "").trim();
+        if (!node.commandTopic) {
+            node.status({ fill: "red", shape: "ring", text: "topic required" });
+            node.error("Topic is required");
+            return;
+        }
+        node.qos = parseInt(config.qos) || 1;
 
-        // Track connection state
         function onConnection(state) {
             switch (state) {
                 case "connected":
@@ -70,7 +74,6 @@ module.exports = function (RED) {
         }
         node.iotDevice.onConnection(onConnection);
 
-        // Set initial status
         if (node.iotDevice.isConnected()) {
             node.status({ fill: "green", shape: "dot", text: "listening" });
         } else {
@@ -78,43 +81,42 @@ module.exports = function (RED) {
         }
 
         /**
-         * Command callback — fires when the IoT Platform delivers a command.
+         * Extract a "command key" from the received topic given the subscription pattern.
+         * - Pattern ending in /#  → key is the portion that matched #
+         * - Fixed pattern (no wildcard) → key is the last topic segment
          */
-        function onCommand(commandKey, payload, topic) {
-            // Apply filter if configured
-            if (node.commandFilter && commandKey !== node.commandFilter) {
-                return;  // Skip commands that don't match the filter
+        function extractCommandKey(pattern, receivedTopic) {
+            if (pattern.endsWith("/#")) {
+                var prefix = pattern.slice(0, -2);  // strip trailing /#
+                if (receivedTopic.startsWith(prefix + "/")) {
+                    return receivedTopic.slice(prefix.length + 1);
+                }
+                return receivedTopic;
             }
+            // For fixed topics, use the last segment as the key.
+            var parts = receivedTopic.split("/");
+            return parts[parts.length - 1];
+        }
+
+        /**
+         * Called by iot-config whenever a message arrives on a matching topic.
+         * @param {string} receivedTopic - The actual MQTT topic the message arrived on
+         * @param {*} payload - Parsed JSON or raw string
+         */
+        function onCommand(receivedTopic, payload) {
+            var commandKey = extractCommandKey(node.commandTopic, receivedTopic);
 
             var msg = {
                 payload: payload,
                 commandKey: commandKey,
-                topic: topic
+                topic: receivedTopic
             };
 
-            node.status({ fill: "blue", shape: "dot", text: "cmd: " + commandKey });
-
-            // Auto-acknowledge if enabled
-            if (node.autoAck) {
-                var ackPayload = {
-                    status: "acknowledged",
-                    time: Math.floor(Date.now() * 1000)  // Epoch microseconds
-                };
-                node.iotDevice.sendResponse(commandKey, ackPayload, function (err) {
-                    if (err) {
-                        node.warn("Auto-ack failed for " + commandKey + ": " + err.message);
-                    }
-                });
-            }
-
-            // Attach helper for manual response
-            msg.sendResponse = function (responsePayload, callback) {
-                node.iotDevice.sendResponse(commandKey, responsePayload, callback);
-            };
+            node.status({ fill: "blue", shape: "dot", text: commandKey || receivedTopic });
 
             node.send(msg);
 
-            // Reset status after a brief delay
+            // Restore listening status after a brief visual cue.
             setTimeout(function () {
                 if (node.iotDevice.isConnected()) {
                     node.status({ fill: "green", shape: "dot", text: "listening" });
@@ -122,10 +124,10 @@ module.exports = function (RED) {
             }, 2000);
         }
 
-        node.iotDevice.onCommand(onCommand);
+        node.iotDevice.subscribe(node.commandTopic, node.qos, onCommand);
 
         node.on("close", function () {
-            node.iotDevice.offCommand(onCommand);
+            node.iotDevice.unsubscribe(node.commandTopic, onCommand);
             node.iotDevice.offConnection(onConnection);
         });
     }

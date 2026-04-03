@@ -39,17 +39,31 @@ module.exports = function (RED) {
     const fs = require("fs");
     const path = require("path");
 
+    /**
+     * Match an MQTT topic against a subscription pattern.
+     * Supports # (multi-level wildcard, must be last segment) and + (single-level wildcard).
+     */
+    function mqttTopicMatches(pattern, topic) {
+        if (pattern === "#") return true;
+        var patternParts = pattern.split("/");
+        var topicParts = topic.split("/");
+        for (var i = 0; i < patternParts.length; i++) {
+            if (patternParts[i] === "#") return true;
+            if (i >= topicParts.length) return false;
+            if (patternParts[i] !== "+" && patternParts[i] !== topicParts[i]) return false;
+        }
+        return patternParts.length === topicParts.length;
+    }
+
     function IotDeviceNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // Connection settings
+        // Connection settings.
         node.deviceHost = config.deviceHost || "";
-        node.baseEndpoint = (config.baseEndpoint || "iot/v1").replace(/\/+$/, "");
         node.clientId = config.clientId || "";
-        node.qos = parseInt(config.qos) || 1;
 
-        // Auth settings
+        // Auth settings.
         node.authType = config.authType || "basic";
         node.username = (this.credentials && this.credentials.username) || "";
         node.password = (this.credentials && this.credentials.password) || "";
@@ -57,18 +71,13 @@ module.exports = function (RED) {
         node.clientCertPath = config.clientCertPath || "";
         node.clientKeyPath = config.clientKeyPath || "";
 
-        // Proxy settings
+        // Proxy settings.
         node.useProxy = config.useProxy || false;
         node.proxyUrl = config.proxyUrl || "";
 
-        // Derived topics
-        node.telemetryTopic = node.baseEndpoint + "/telemetry";
-        node.cmdTopicPrefix = node.baseEndpoint + "/cmd/";
-        node.rspTopicPrefix = node.baseEndpoint + "/rsp/";
-
-        // State
+        // Runtime state.
         let client = null;
-        let commandListeners = [];
+        let topicSubscriptions = {};   // topic → [{qos, callback}, ...]
         let connectionListeners = [];
         let reconnectCount = 0;
 
@@ -86,7 +95,7 @@ module.exports = function (RED) {
                 connectTimeout: 30000
             };
 
-            // CA certificate (optional — modern Node.js uses system CA store)
+            // Optional CA certificate override.
             if (node.caCertPath && fs.existsSync(node.caCertPath)) {
                 opts.ca = [fs.readFileSync(node.caCertPath)];
             }
@@ -130,35 +139,33 @@ module.exports = function (RED) {
                 reconnectCount = 0;
                 node.log("Connected to " + node.deviceHost);
 
-                // Subscribe to all command topics
-                client.subscribe(node.cmdTopicPrefix + "#", { qos: node.qos }, function (err) {
-                    if (err) {
-                        node.error("Command subscribe failed: " + err.message);
-                    } else {
-                        node.log("Subscribed to " + node.cmdTopicPrefix + "#");
-                    }
+                // Re-subscribe all registered topic listeners.
+                Object.keys(topicSubscriptions).forEach(function (t) {
+                    var maxQos = topicSubscriptions[t].reduce(function (m, s) { return Math.max(m, s.qos || 1); }, 0);
+                    client.subscribe(t, { qos: maxQos }, function (err) {
+                        if (err) node.error("Subscribe failed for " + t + ": " + err.message);
+                        else node.log("Subscribed to " + t);
+                    });
                 });
 
-                // Notify connection listeners
                 connectionListeners.forEach(function (cb) { cb("connected"); });
             });
 
             client.on("message", function (topic, message) {
-                if (topic.startsWith(node.cmdTopicPrefix)) {
-                    var payload;
-                    try {
-                        payload = JSON.parse(message.toString());
-                    } catch (e) {
-                        payload = message.toString();
-                    }
-
-                    var commandKey = topic.substring(node.cmdTopicPrefix.length);
-
-                    // Notify all command listeners
-                    commandListeners.forEach(function (cb) {
-                        cb(commandKey, payload, topic);
-                    });
+                var payload;
+                try {
+                    payload = JSON.parse(message.toString());
+                } catch (e) {
+                    payload = message.toString();
                 }
+
+                Object.keys(topicSubscriptions).forEach(function (pattern) {
+                    if (mqttTopicMatches(pattern, topic)) {
+                        topicSubscriptions[pattern].forEach(function (sub) {
+                            sub.callback(topic, payload);
+                        });
+                    }
+                });
             });
 
             client.on("reconnect", function () {
@@ -194,35 +201,42 @@ module.exports = function (RED) {
                 if (callback) return callback(err);
                 return;
             }
-            var pubOpts = Object.assign({ qos: node.qos }, opts || {});
+            var pubOpts = Object.assign({ qos: 1 }, opts || {});
             client.publish(topic, payload, pubOpts, callback);
         };
 
         /**
-         * Send a response/ack for a command.
-         * @param {string} commandKey - The command key from the command topic
-         * @param {object} responsePayload - Response data
-         * @param {function} [callback] - Called on publish complete
+         * Subscribe to an MQTT topic. The callback is called for each matching message.
+         * On reconnect, all registered subscriptions are restored automatically.
+         * @param {string} topic - MQTT topic pattern (supports # and + wildcards)
+         * @param {number} qos - QoS level (0, 1, or 2)
+         * @param {function} callback - function(receivedTopic, payload)
          */
-        node.sendResponse = function (commandKey, responsePayload, callback) {
-            var topic = node.rspTopicPrefix + commandKey;
-            var payload = JSON.stringify(responsePayload);
-            node.publish(topic, payload, {}, callback);
+        node.subscribe = function (topic, qos, callback) {
+            if (!topicSubscriptions[topic]) topicSubscriptions[topic] = [];
+            topicSubscriptions[topic].push({ qos: qos || 1, callback: callback });
+            if (client && client.connected) {
+                client.subscribe(topic, { qos: qos || 1 }, function (err) {
+                    if (err) node.error("Subscribe failed for " + topic + ": " + err.message);
+                });
+            }
         };
 
         /**
-         * Register a callback for incoming commands.
-         * @param {function} callback - function(commandKey, payload, topic)
+         * Unsubscribe a previously registered callback from a topic.
+         * The MQTT subscription is dropped when no more callbacks remain for that topic.
+         * @param {string} topic - The topic pattern passed to subscribe()
+         * @param {function} callback - The exact callback reference passed to subscribe()
          */
-        node.onCommand = function (callback) {
-            commandListeners.push(callback);
-        };
-
-        /**
-         * Unregister a command callback.
-         */
-        node.offCommand = function (callback) {
-            commandListeners = commandListeners.filter(function (cb) { return cb !== callback; });
+        node.unsubscribe = function (topic, callback) {
+            if (!topicSubscriptions[topic]) return;
+            topicSubscriptions[topic] = topicSubscriptions[topic].filter(function (s) {
+                return s.callback !== callback;
+            });
+            if (topicSubscriptions[topic].length === 0) {
+                delete topicSubscriptions[topic];
+                if (client && client.connected) client.unsubscribe(topic);
+            }
         };
 
         /**
@@ -247,12 +261,12 @@ module.exports = function (RED) {
             return client && client.connected;
         };
 
-        // Connect immediately on node creation
+        // Connect on node creation.
         connect();
 
-        // Cleanup on close
+        // Cleanup on close.
         node.on("close", function (done) {
-            commandListeners = [];
+            topicSubscriptions = {};
             connectionListeners = [];
             if (client) {
                 client.end(true, function () {
@@ -272,9 +286,7 @@ module.exports = function (RED) {
         }
     });
 
-    // =========================================================================
-    // Test Connection HTTP endpoint
-    // =========================================================================
+    // Test Connection HTTP endpoint.
     RED.httpAdmin.post("/iot-config/:id/test", RED.auth.needsPermission("iot-config.write"), function (req, res) {
         var configNode = RED.nodes.getNode(req.params.id);
         if (!configNode) {
@@ -285,7 +297,7 @@ module.exports = function (RED) {
             return res.json({ success: false, message: "No device host configured." });
         }
 
-        // Test by creating a temporary MQTT connection
+        // Test with a temporary MQTT connection.
         var url = "mqtts://" + configNode.deviceHost + ":8883";
         var opts = {
             clientId: configNode.clientId + "_test_" + Date.now(),
@@ -293,7 +305,7 @@ module.exports = function (RED) {
             protocol: "mqtts",
             port: 8883,
             connectTimeout: 15000,
-            reconnectPeriod: 0   // Don't auto-reconnect for test
+            reconnectPeriod: 0
         };
 
         if (configNode.caCertPath && fs.existsSync(configNode.caCertPath)) {

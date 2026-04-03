@@ -40,6 +40,8 @@ can be accepted.
    the issue number as part of your branch name, e.g. `1234-fixes`.
 1. Ensure that any documentation is updated with the changes that are required
    by your change.
+1. Update `CHANGELOG.md` under the `Unreleased` section for every user-visible
+   change (Added/Changed/Fixed as applicable).
 1. Ensure that any samples are updated if the base image has been changed.
 1. Submit the pull request. *Do not leave the pull request blank*. Explain exactly
    what your changes are meant to do and provide simple steps on how to validate.

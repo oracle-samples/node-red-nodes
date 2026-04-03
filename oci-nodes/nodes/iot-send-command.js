@@ -36,6 +36,24 @@
 
 module.exports = function (RED) {
     const iot = require("oci-iot");
+    const ISO_8601_DURATION_REGEX = /^P(?=\d|T\d)(?:\d+Y)?(?:\d+M)?(?:\d+W)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/;
+
+    function normalizeBaseEndpoint(value) {
+        const cleaned = String(value || "iot/v1").trim().replace(/^\/+|\/+$/g, "");
+        return cleaned || "iot/v1";
+    }
+
+    function normalizeCommandKey(value) {
+        return String(value || "").trim().replace(/^\/+|\/+$/g, "");
+    }
+
+    function normalizeDuration(value, fieldName) {
+        const normalized = String(value || "").trim().toUpperCase();
+        if (!ISO_8601_DURATION_REGEX.test(normalized)) {
+            throw new Error(fieldName + " must be a valid ISO 8601 duration (e.g. PT10M, PT1H, P1D)");
+        }
+        return normalized;
+    }
 
     function IotSendCommandNode(config) {
         RED.nodes.createNode(this, config);
@@ -49,7 +67,7 @@ module.exports = function (RED) {
         }
 
         node.digitalTwinOcid = config.digitalTwinOcid || "";
-        node.baseEndpoint = (config.baseEndpoint || "iot/v1").replace(/\/+$/, "");
+        node.baseEndpoint = normalizeBaseEndpoint(config.baseEndpoint);
         node.commandKey = config.commandKey || "";
         node.requestDuration = config.requestDuration || "PT10M";
         node.responseDuration = config.responseDuration || "PT10M";
@@ -57,9 +75,9 @@ module.exports = function (RED) {
 
         let client = null;
 
-        function getClient() {
+        async function getClient() {
             if (client) return client;
-            const provider = node.ociConfig.getAuthProvider();
+            const provider = await node.ociConfig.getAuthProvider();
             client = new iot.IotClient({
                 authenticationDetailsProvider: provider
             });
@@ -82,28 +100,32 @@ module.exports = function (RED) {
                     return done(err);
                 }
 
-                const cmdKey = node.commandKey || msg.commandKey || "default";
+                const rawCommandKey = node.commandKey || msg.commandKey || "default";
+                const cmdKey = normalizeCommandKey(rawCommandKey) || "default";
                 const requestEndpoint = node.baseEndpoint + "/cmd/" + cmdKey;
                 const responseEndpoint = node.baseEndpoint + "/rsp/" + cmdKey;
+                const requestDuration = normalizeDuration(node.requestDuration, "Request Duration");
+                let responseDuration;
 
                 var requestData = msg.payload;
                 if (typeof requestData !== "object" || requestData === null) {
                     requestData = { value: requestData };
                 }
 
-                const iotClient = getClient();
+                const iotClient = await getClient();
 
-                // Build the invokeRawCommand details with JSON format discriminator
+                // Build command request payload.
                 var invokeRawCommandDetails = {
                     requestDataFormat: "JSON",
                     requestEndpoint: requestEndpoint,
                     requestData: requestData,
-                    requestDuration: node.requestDuration
+                    requestDuration: requestDuration
                 };
 
                 if (node.waitForResponse) {
+                    responseDuration = normalizeDuration(node.responseDuration, "Response Duration");
                     invokeRawCommandDetails.responseEndpoint = responseEndpoint;
-                    invokeRawCommandDetails.responseDuration = node.responseDuration;
+                    invokeRawCommandDetails.responseDuration = responseDuration;
                 }
 
                 const response = await iotClient.invokeRawCommand({
@@ -115,7 +137,11 @@ module.exports = function (RED) {
                 msg.statusCode = response.__httpStatusCode || 200;
                 msg.commandKey = cmdKey;
                 msg.requestEndpoint = requestEndpoint;
-                msg.responseEndpoint = responseEndpoint;
+                if (node.waitForResponse) {
+                    msg.responseEndpoint = responseEndpoint;
+                } else {
+                    delete msg.responseEndpoint;
+                }
 
                 node.status({ fill: "green", shape: "dot", text: "sent: " + cmdKey });
                 send(msg);
