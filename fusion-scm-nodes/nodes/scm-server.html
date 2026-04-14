@@ -39,12 +39,14 @@ RED.nodes.registerType("scm-server", {
     color: "#4F7D7B",
     category: "config",
     defaults: {
-        hostname: { value: "" },
-        version: { value: "" },
-        tokenUrl: { value: "" },
-        scope: { value: "" },
-        proxyUrl: { value: "" },
-        useProxy: { value: false },
+        name:           { value: "" },
+        hostname:       { value: "", required: true },
+        version:        { value: "", required: true },
+        tokenUrl:       { value: "", required: true },
+        scope:          { value: "", required: true },
+        proxyUrl:       { value: "" },
+        useProxy:       { value: false },
+        useExpiryFallback: { value: false },
         tokenExpiryMins: { value: 60 }
     },
     credentials: {
@@ -52,6 +54,7 @@ RED.nodes.registerType("scm-server", {
         password: { type: "password" }
     },
     label: function() {
+        if (this.name) return this.name;
         return this.hostname || "SCM Server";
     },
     oneditprepare: function() {
@@ -61,11 +64,22 @@ RED.nodes.registerType("scm-server", {
         }
         toggleProxy();
         $("#node-config-input-useProxy").on("change", toggleProxy);
+
+        function toggleExpiryFallback() {
+            var show = $("#node-config-input-useExpiryFallback").is(":checked");
+            $("#expiry-fallback-row").toggle(show);
+        }
+        toggleExpiryFallback();
+        $("#node-config-input-useExpiryFallback").on("change", toggleExpiryFallback);
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="scm-server">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Optional display name">
+    </div>
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
     <div class="form-row">
         <label for="node-config-input-hostname"><i class="fa fa-server"></i> Hostname</label>
@@ -95,8 +109,15 @@ RED.nodes.registerType("scm-server", {
         <input type="text" id="node-config-input-scope">
     </div>
     <div class="form-row">
-        <label for="node-config-input-tokenExpiryMins"><i class="fa fa-clock-o"></i> Token Expiry (min)</label>
+        <label for="node-config-input-useExpiryFallback" style="width:auto;"><i class="fa fa-clock-o"></i> Use Expiry Fallback</label>
+        <input type="checkbox" id="node-config-input-useExpiryFallback" style="margin-left:6px;width:auto;vertical-align:middle;">
+    </div>
+    <div class="form-row" id="expiry-fallback-row">
+        <label for="node-config-input-tokenExpiryMins"><i class="fa fa-clock-o"></i> Fallback (min)</label>
         <input type="number" id="node-config-input-tokenExpiryMins" value="60" min="1" style="width:80px;">
+        <div style="font-size:11px;color:#888;margin-top:2px;">
+            Used only when the token response does not include <code>expires_in</code>.
+        </div>
     </div>
     </fieldset>
 
@@ -110,4 +131,41 @@ RED.nodes.registerType("scm-server", {
         <input type="text" id="node-config-input-proxyUrl" placeholder="http://proxy.example.com:80">
     </div>
     </fieldset>
+</script>
+
+<script type="text/x-red" data-help-name="scm-server">
+<p>Config node for Oracle Fusion SCM API connectivity and OAuth token settings.</p>
+
+<h3>Connection</h3>
+<dl class="message-properties">
+    <dt>Hostname</dt>
+    <dd>Fusion SCM host (for example <code>example.fa.us2.oraclecloud.com</code>).</dd>
+    <dt>API Version</dt>
+    <dd>Fusion REST API version segment used by SCM nodes (for example <code>11.13.18.05</code>).</dd>
+</dl>
+
+<h3>Authentication</h3>
+<dl class="message-properties">
+    <dt>Client ID / Client Secret</dt>
+    <dd>OAuth client credentials used to obtain access tokens.</dd>
+    <dt>Token URL</dt>
+    <dd>OAuth token endpoint URL for your Fusion environment.</dd>
+    <dt>Scope</dt>
+    <dd>OAuth scope string required by your Fusion tenant.</dd>
+    <dt>Expiry Fallback (min)</dt>
+    <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer.</dd>
+</dl>
+
+<h3>Network</h3>
+<dl class="message-properties">
+    <dt>Use Proxy / Proxy URL</dt>
+    <dd>Enable and configure an HTTP(S) proxy for outbound SCM API calls when required by your network.</dd>
+</dl>
+
+<h3>Notes</h3>
+<ul>
+    <li>Token URL must use HTTPS — a non-HTTPS URL is rejected at deploy time.</li>
+    <li>Hostname, API Version, Token URL, and Scope must all be set before deploying; missing fields raise a clear error at deploy time.</li>
+    <li>Do not use production credentials in exported example flows.</li>
+</ul>
 </script>

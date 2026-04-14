@@ -45,7 +45,7 @@ module.exports = function(RED) {
 
         node.server = RED.nodes.getNode(config.server);
         if (!node.server) {
-            node.status({ fill: "red", shape: "ring", text: "No SCM server" });
+            node.status({ fill: "red", shape: "ring", text: "no SCM server" });
             node.error("No SCM Server configured");
             return;
         }
@@ -55,9 +55,9 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             try {
-                const paramValue = config.serialNumber || msg.serialNumber;
+                const paramValue = msg.serialNumber || config.serialNumber;
                 if (!paramValue) {
-                    node.status({ fill: "red", shape: "ring", text: "No SerialNumber" });
+                    node.status({ fill: "red", shape: "ring", text: "no serial number" });
                     const err = new Error("No SerialNumber provided");
                     node.error(err.message, msg);
                     return done(err);
@@ -66,12 +66,15 @@ module.exports = function(RED) {
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                const baseUrl = config.urlOverride || node.server.buildUrl("installedBaseAssets");
-                const finalUrl = `${baseUrl}?q=SerialNumber=${paramValue}`;
+                const baseUrl = node.server.buildUrl("installedBaseAssets");
+                const parsed = new URL(baseUrl);
+                parsed.searchParams.set("q", `SerialNumber=${paramValue}`);
+                const finalUrl = parsed.toString();
                 ensureHttps(finalUrl);
 
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
                 const response = await axios.get(finalUrl, {
+                    timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -87,10 +90,13 @@ module.exports = function(RED) {
                 done();
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "read failed" });
-                msg.error = err.message || err.toString();
+                msg.error = {
+                    message: err.message || err.toString(),
+                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
+                };
                 msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error;
-                node.error(msg.error, msg);
+                msg.payload = err.response?.data || msg.error.message;
+                node.error(msg.error.message, msg);
                 done(err);
             }
         });

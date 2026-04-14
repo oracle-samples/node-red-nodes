@@ -35,6 +35,9 @@
  */
 
 module.exports = function (RED) {
+  var DEFAULT_MAX_COMPOSITE_ENTRIES = 1000;
+  var DEFAULT_MAX_COMPOSITE_AGE_SEC = 3600;
+
   function SmoTransformerNode(config) {
     RED.nodes.createNode(this, config);
     var node = this;
@@ -48,26 +51,41 @@ module.exports = function (RED) {
     node.requiredFields = parseJsonSafe(config.requiredFields, []);
     node.splitFields = parseJsonSafe(config.splitFields, []);
     node.customJsonata = config.customJsonata || "";
-    node.staleTimeout = parseInt(config.staleTimeout) || 0;
+    node.staleTimeout = parseInt(config.staleTimeout, 10) || 0;
+    node.maxCompositeEntries = Math.max(1, parseInt(config.maxCompositeEntries, 10) || DEFAULT_MAX_COMPOSITE_ENTRIES);
+    node.maxCompositeAgeSec = Math.max(1, parseInt(config.maxCompositeAgeSec, 10) || DEFAULT_MAX_COMPOSITE_AGE_SEC);
 
     var compositeStore = {};
     var staleTimers = {};
 
-    node.on("input", function (msg) {
+    node.on("input", function (msg, send, done) {
       try {
         var payload = msg.payload;
         if (!payload || typeof payload !== "object") {
           node.warn("Invalid payload: expected an object");
+          done();
           return;
         }
 
         // Custom JSONata override
         if (node.customJsonata && node.customJsonata.trim() !== "") {
-          var expr = RED.util.prepareJSONataExpression(node.customJsonata, node);
+          var expr;
+          try {
+            expr = RED.util.prepareJSONataExpression(node.customJsonata, node);
+          } catch (prepErr) {
+            node.error("JSONata preparation error: " + prepErr.message, msg);
+            done(prepErr);
+            return;
+          }
           RED.util.evaluateJSONataExpression(expr, msg, function (err, result) {
-            if (err) { node.error("JSONata evaluation error: " + err.message, msg); return; }
+            if (err) {
+              node.error("JSONata evaluation error: " + err.message, msg);
+              done(err);
+              return;
+            }
             msg.payload = result;
-            node.send(msg);
+            send(msg);
+            done();
           });
           return;
         }
@@ -91,13 +109,15 @@ module.exports = function (RED) {
         };
 
         if (node.enableComposite) {
-          handleComposite(node, msg, outputPayload, compositeStore, staleTimers);
+          handleComposite(node, msg, outputPayload, compositeStore, staleTimers, send, done);
         } else {
           msg.payload = outputPayload;
-          node.send(msg);
+          send(msg);
+          done();
         }
       } catch (e) {
         node.error("Transform error: " + e.message, msg);
+        done(e);
       }
     });
 
@@ -257,47 +277,130 @@ module.exports = function (RED) {
     return result;
   }
 
-  function handleComposite(node, msg, outputPayload, compositeStore, staleTimers) {
-    var requiredFields = node.requiredFields;
-    var isComplete = true;
+  function isCompositeComplete(outputPayload, requiredFields) {
     for (var i = 0; i < requiredFields.length; i++) {
-      if (outputPayload.data[requiredFields[i]] == null) { isComplete = false; break; }
+      if (outputPayload.data[requiredFields[i]] == null) return false;
+    }
+    return true;
+  }
+
+  function buildCompositeKey(outputPayload, eventTypeCode) {
+    if (outputPayload.entityCode == null || outputPayload.eventTime == null) return null;
+    return outputPayload.entityCode + "_" + outputPayload.eventTime + "_" + eventTypeCode;
+  }
+
+  function clearCompositeTimer(staleTimers, key) {
+    if (staleTimers[key]) {
+      clearTimeout(staleTimers[key]);
+      delete staleTimers[key];
+    }
+  }
+
+  function flushCompositeEntry(node, compositeStore, staleTimers, key, reason, send) {
+    var entry = compositeStore[key];
+    if (!entry) return;
+    delete compositeStore[key];
+    clearCompositeTimer(staleTimers, key);
+    node.warn("Composite message flushed (" + reason + "): " + key);
+    var outMsg = RED.util.cloneMessage(entry.msg || {});
+    outMsg.payload = entry.payload;
+    (send || node.send.bind(node))(outMsg);
+  }
+
+  function enforceCompositeLimits(node, compositeStore, staleTimers, send) {
+    var keys = Object.keys(compositeStore);
+    if (keys.length === 0) return;
+
+    var now = Date.now();
+    var maxAgeMs = node.maxCompositeAgeSec * 1000;
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var entry = compositeStore[key];
+      if (!entry) continue;
+      if (maxAgeMs > 0 && now - (entry.createdAt || now) > maxAgeMs) {
+        flushCompositeEntry(node, compositeStore, staleTimers, key, "max pending age exceeded", send);
+      }
     }
 
-    if (isComplete) {
+    keys = Object.keys(compositeStore);
+    if (keys.length <= node.maxCompositeEntries) return;
+    keys.sort(function (a, b) {
+      var aTs = (compositeStore[a] && compositeStore[a].createdAt) || 0;
+      var bTs = (compositeStore[b] && compositeStore[b].createdAt) || 0;
+      return aTs - bTs;
+    });
+    while (Object.keys(compositeStore).length > node.maxCompositeEntries && keys.length > 0) {
+      flushCompositeEntry(node, compositeStore, staleTimers, keys.shift(), "max pending entries exceeded", send);
+    }
+  }
+
+  function scheduleStaleTimer(node, compositeStore, staleTimers, key, send) {
+    clearCompositeTimer(staleTimers, key);
+    if (node.staleTimeout <= 0) return;
+    staleTimers[key] = setTimeout(function () {
+      flushCompositeEntry(node, compositeStore, staleTimers, key, "stale timeout", send);
+      if (Object.keys(compositeStore).length === 0) node.status({});
+    }, node.staleTimeout * 1000);
+  }
+
+  function handleComposite(node, msg, outputPayload, compositeStore, staleTimers, send, done) {
+    var requiredFields = node.requiredFields || [];
+    if (isCompositeComplete(outputPayload, requiredFields)) {
       msg.payload = outputPayload;
-      node.send(msg);
+      node.status({});
+      send(msg);
+      done();
       return;
     }
 
-    var key = (outputPayload.entityCode || "unknown") + "_" +
-              (outputPayload.eventTime || "unknown") + "_" + node.eventTypeCode;
-
-    if (!compositeStore[key]) {
-      compositeStore[key] = outputPayload;
-      node.status({ fill: "yellow", shape: "ring", text: "waiting: " + key });
-      if (node.staleTimeout > 0) {
-        staleTimers[key] = setTimeout(function () {
-          var stale = compositeStore[key];
-          if (stale) {
-            delete compositeStore[key]; delete staleTimers[key];
-            node.warn("Stale composite message flushed: " + key);
-            node.status({});
-            msg.payload = stale; node.send(msg);
-          }
-        }, node.staleTimeout * 1000);
-      }
-    } else {
-      var stored = compositeStore[key];
-      delete compositeStore[key];
-      if (staleTimers[key]) { clearTimeout(staleTimers[key]); delete staleTimers[key]; }
-
-      var merged = Object.assign({}, stored, outputPayload);
-      merged.data = mergeData(stored.data || {}, outputPayload.data || {});
-      msg.payload = merged;
-      node.status({});
-      node.send(msg);
+    var key = buildCompositeKey(outputPayload, node.eventTypeCode);
+    if (!key) {
+      var keyErr = new Error("Composite mode requires both entityCode and eventTime for incomplete messages");
+      node.status({ fill: "red", shape: "ring", text: "missing composite key fields" });
+      node.error(keyErr.message, msg);
+      done(keyErr);
+      return;
     }
+
+    enforceCompositeLimits(node, compositeStore, staleTimers, send);
+
+    var now = Date.now();
+    var existing = compositeStore[key];
+    if (!existing) {
+      compositeStore[key] = {
+        payload: outputPayload,
+        msg: RED.util.cloneMessage(msg),
+        createdAt: now,
+        updatedAt: now
+      };
+      node.status({ fill: "yellow", shape: "ring", text: "waiting: " + key });
+      scheduleStaleTimer(node, compositeStore, staleTimers, key, send);
+      enforceCompositeLimits(node, compositeStore, staleTimers, send);
+      done();
+      return;
+    }
+
+    clearCompositeTimer(staleTimers, key);
+
+    var merged = Object.assign({}, existing.payload, outputPayload);
+    merged.data = mergeData((existing.payload && existing.payload.data) || {}, outputPayload.data || {});
+    if (isCompositeComplete(merged, requiredFields)) {
+      delete compositeStore[key];
+      node.status({});
+      msg.payload = merged;
+      send(msg);
+      done();
+      return;
+    }
+
+    existing.payload = merged;
+    existing.msg = RED.util.cloneMessage(msg);
+    existing.updatedAt = now;
+    compositeStore[key] = existing;
+    node.status({ fill: "yellow", shape: "ring", text: "waiting: " + key });
+    scheduleStaleTimer(node, compositeStore, staleTimers, key, send);
+    enforceCompositeLimits(node, compositeStore, staleTimers, send);
+    done();
   }
 
   RED.nodes.registerType("smo-transformer", SmoTransformerNode);

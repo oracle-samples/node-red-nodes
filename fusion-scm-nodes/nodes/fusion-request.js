@@ -52,7 +52,7 @@ module.exports = function(RED) {
 
         node.server = RED.nodes.getNode(config.server);
         if (!node.server) {
-            node.status({ fill: "red", shape: "ring", text: "No SCM server" });
+            node.status({ fill: "red", shape: "ring", text: "no SCM server" });
             node.error("No SCM Server configured");
             return;
         }
@@ -69,7 +69,7 @@ module.exports = function(RED) {
                 const token = await node.server.getToken();
 
                 const txType = config.transactionType || "custom";
-                const method = (config.method || "POST").toUpperCase();
+                const method = (msg.method || config.method || "POST").toUpperCase();
 
                 let url;
                 if (txType === "custom") {
@@ -77,12 +77,9 @@ module.exports = function(RED) {
                 } else {
                     url = node.server.buildUrl(ENDPOINT_MAP[txType] || "");
                 }
-
-                if (config.urlOverride) url = config.urlOverride;
-
                 if (!url) {
                     const err = new Error("No URL configured");
-                    node.status({ fill: "red", shape: "ring", text: "Missing URL" });
+                    node.status({ fill: "red", shape: "ring", text: "no custom URL" });
                     node.error(err.message, msg);
                     return done(err);
                 }
@@ -105,6 +102,7 @@ module.exports = function(RED) {
                 const response = await axios({
                     method: method.toLowerCase(),
                     url,
+                    timeout: 30000,
                     data: (method !== "GET" && method !== "DELETE") ? payload : undefined,
                     params: (method === "GET") ? payload : undefined,
                     httpsAgent: proxyAgent || undefined,
@@ -117,15 +115,18 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "success" });
+                node.status({ fill: "green", shape: "dot", text: "sent" });
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "failed" });
-                msg.error = err.message || err.toString();
+                node.status({ fill: "red", shape: "dot", text: "request failed" });
+                msg.error = {
+                    message: err.message || err.toString(),
+                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
+                };
                 msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error;
-                node.error(msg.error, msg);
+                msg.payload = err.response?.data || msg.error.message;
+                node.error(msg.error.message, msg);
                 done(err);
             }
         });

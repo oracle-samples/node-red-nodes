@@ -39,6 +39,7 @@ RED.nodes.registerType("oci-config", {
     category: "config",
     color: "#F0CC72",
     defaults: {
+        name: { value: "" },
         authType: { value: "config" },
         region: { value: "" },
         compartmentOcid: { value: "" },
@@ -55,6 +56,7 @@ RED.nodes.registerType("oci-config", {
     label: function () {
         var labels = { config: "Config File", instancePrincipal: "Instance Principal", resourcePrincipal: "Resource Principal", simple: "API Key" };
         var authLabel = labels[this.authType] || this.authType;
+        if (this.name) return this.name;
         return this.region ? authLabel + " (" + this.region + ")" : "OCI Config";
     },
     oneditprepare: function () {
@@ -108,6 +110,10 @@ RED.nodes.registerType("oci-config", {
 </script>
 
 <script type="text/x-red" data-template-name="oci-config">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Optional display name">
+    </div>
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
     <div class="form-row">
         <label for="node-config-input-authType"><i class="fa fa-key"></i> Auth Type</label>
@@ -176,4 +182,36 @@ RED.nodes.registerType("oci-config", {
         </div>
     </div>
     </fieldset>
+</script>
+
+<script type="text/x-red" data-help-name="oci-config">
+<p>Provides shared OCI authentication and default region/compartment settings for OCI service nodes.</p>
+
+<h3>Authentication Types</h3>
+<dl class="message-properties">
+    <dt>Config File</dt>
+    <dd>Uses an OCI CLI config file (for example <code>~/.oci/config</code>) and profile name.</dd>
+    <dt>Instance Principal</dt>
+    <dd>Uses instance principal auth when running on OCI compute.</dd>
+    <dt>Resource Principal</dt>
+    <dd>Uses resource principal auth when running inside supported OCI services.</dd>
+    <dt>API Key (Simple)</dt>
+    <dd>Uses tenancy/user OCIDs, fingerprint, private key path, and optional passphrase.</dd>
+</dl>
+
+<h3>OCI Settings</h3>
+<dl class="message-properties">
+    <dt>Region</dt>
+    <dd>Optional default OCI region for child nodes.</dd>
+    <dt>Compartment OCID</dt>
+    <dd>Optional default compartment OCID used by child nodes unless overridden.</dd>
+    <dt>Test Connection</dt>
+    <dd>Validates the current configuration and credentials against OCI after deploy.</dd>
+</dl>
+
+<h3>Notes</h3>
+<ul>
+    <li>After changing config values, click <b>Update</b> and then <b>Deploy</b> before using Test Connection.</li>
+    <li>Child nodes can override region/compartment values at node level when needed.</li>
+</ul>
 </script>

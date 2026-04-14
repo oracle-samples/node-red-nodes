@@ -35,10 +35,41 @@
 -->
 
 <script type="text/javascript">
+var MAX_ADVANCED_INIT_SQL_LENGTH = 1000;
+var MAX_ADVANCED_INIT_SQL_STATEMENTS = 10;
+var FORBIDDEN_ADVANCED_INIT_TOKENS_RE = /\b(BEGIN|DECLARE|EXECUTE|IMMEDIATE|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|DROP|CREATE|GRANT|REVOKE|COMMIT|ROLLBACK|CALL|DBMS_[A-Z0-9_]+)\b/i;
+
+function validateAdvancedInitSqlInput(rawSql) {
+    var text = String(rawSql || "").trim();
+    if (!text) return { ok: true };
+
+    if (text.length > MAX_ADVANCED_INIT_SQL_LENGTH) {
+        return { ok: false, message: "Advanced (restricted) SQL exceeds " + MAX_ADVANCED_INIT_SQL_LENGTH + " characters." };
+    }
+
+    var statements = text.split(";").map(function(s) { return s.trim(); }).filter(Boolean);
+    if (statements.length > MAX_ADVANCED_INIT_SQL_STATEMENTS) {
+        return { ok: false, message: "Advanced (restricted) SQL supports at most " + MAX_ADVANCED_INIT_SQL_STATEMENTS + " statements." };
+    }
+
+    for (var i = 0; i < statements.length; i++) {
+        var stmt = statements[i];
+        if (!/^ALTER\s+SESSION\s+SET\s+/i.test(stmt)) {
+            return { ok: false, message: "Statement " + (i + 1) + " must start with ALTER SESSION SET." };
+        }
+        if (FORBIDDEN_ADVANCED_INIT_TOKENS_RE.test(stmt)) {
+            return { ok: false, message: "Statement " + (i + 1) + " contains forbidden SQL tokens." };
+        }
+    }
+
+    return { ok: true };
+}
+
 RED.nodes.registerType("db-connection", {
     category: "config",
     color: "#4C825C",
     defaults: {
+        name: { value: "" },
         usePool: { value: false },
         authType: { value: "basic" },
         driverMode: { value: "thick" },
@@ -57,7 +88,15 @@ RED.nodes.registerType("db-connection", {
         poolMax: { value: "" },
         poolIncrement: { value: "" },
         queueTimeout: { value: "" },
-        proxyUser: { value: "" }
+        proxyUser: { value: "" },
+        nlsLanguage: { value: "" },
+        nlsTerritory: { value: "" },
+        timeZone: { value: "" },
+        nlsNumeric: { value: "" },
+        nlsDateFmt: { value: "" },
+        nlsTsFmt: { value: "" },
+        nlsTsTzFmt: { value: "" },
+        sessionInitSql: { value: "" }
     },
     credentials: {
         username: { type: "text" },
@@ -67,10 +106,24 @@ RED.nodes.registerType("db-connection", {
     label: function () {
         var labels = { basic: "Basic", config: "DB Token (Config File)", instancePrincipal: "DB Token (Instance Principal)", resourcePrincipal: "DB Token (Resource Principal)", sessionToken: "DB Token (Session Token)", simple: "DB Token (API Key)" };
         var authLabel = labels[this.authType] || this.authType;
+        if (this.name) return this.name;
         return this.tnsString ? authLabel + " (" + this.tnsString.substring(0, 20) + ")" : "DB Connection";
     },
     oneditprepare: function () {
         var nodeId = this.id;
+
+        var tabs = RED.tabs.create({
+            id: "node-config-tabs",
+            onchange: function(tab) {
+                $("#node-config-tabs-content").children().hide();
+                $("#" + tab.id).show();
+            }
+        });
+        tabs.addTab({ id: "tab-auth", label: "Auth" });
+        tabs.addTab({ id: "tab-connection", label: "Connection" });
+        tabs.addTab({ id: "tab-pool", label: "Pool" });
+        tabs.addTab({ id: "tab-nls", label: "NLS" });
+        setTimeout(function(){ tabs.activateTab("tab-auth"); }, 0);
 
         function updateAuthFields() {
             var type = $("#node-config-input-authType").val();
@@ -89,8 +142,20 @@ RED.nodes.registerType("db-connection", {
         $("#node-config-input-authType").on("change", updateAuthFields);
         $("#node-config-input-usePool").on("change", updateAuthFields);
 
-        // Warn when fields are changed since last deploy.
-        // Deferred so Node-RED's own field population during init doesn't trigger the warning.
+        $("#node-config-input-nlsNumeric").on("change", function(){
+            var v = $(this).val();
+            if (v && v.length !== 2) {
+                RED.notify("NLS_NUMERIC_CHARACTERS must be exactly two characters, e.g. ,.", "warning");
+            }
+        });
+
+        $("#node-config-input-sessionInitSql").on("change blur", function() {
+            var result = validateAdvancedInitSqlInput($(this).val());
+            if (!result.ok) {
+                RED.notify(result.message, "warning");
+            }
+        });
+
         setTimeout(function () {
             $("[id^='node-config-input-']").on("change input", function () {
                 $("#deploy-warning")
@@ -99,13 +164,11 @@ RED.nodes.registerType("db-connection", {
             });
         }, 0);
 
-        // Test Connection button
         $("#btn-test-connection").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-connection-result");
             btn.prop("disabled", true);
             resultEl.text("Testing...").css("color", "#888");
-
             $.ajax({
                 url: "db-connection/" + nodeId + "/test",
                 type: "POST",
@@ -121,112 +184,124 @@ RED.nodes.registerType("db-connection", {
                     if (err.status === 404) msg = "Deploy the flow first, then test";
                     resultEl.text("✗ " + msg).css("color", "#d62728");
                 },
-                complete: function () {
-                    btn.prop("disabled", false);
-                }
+                complete: function () { btn.prop("disabled", false); }
             });
         });
+    },
+    oneditsave: function () {
+        var result = validateAdvancedInitSqlInput($("#node-config-input-sessionInitSql").val());
+        if (!result.ok) {
+            RED.notify(result.message, "error");
+            return false;
+        }
+        return true;
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="db-connection">
-    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
-    <div class="form-row">
-        <label for="node-config-input-authType"><i class="fa fa-key"></i> Auth Type</label>
-        <select id="node-config-input-authType" style="width:200px;">
-            <option value="basic">Basic (User/Pass)</option>
-            <option value="config">DB Token — Config File</option>
-            <option value="instancePrincipal">DB Token — Instance Principal</option>
-            <option value="resourcePrincipal">DB Token — Resource Principal</option>
-            <option value="sessionToken">DB Token — Session Token</option>
-            <option value="simple">DB Token — API Key</option>
-        </select>
+    <div class="form-row node-config-tabs-row">
+        <ul id="node-config-tabs" class="red-ui-tabs"></ul>
     </div>
-    <div class="form-row">
-        <label for="node-config-input-driverMode"><i class="fa fa-exchange"></i> Driver Mode</label>
-        <select id="node-config-input-driverMode" style="width:200px;">
-            <option value="thick">Thick (Oracle Client)</option>
-            <option value="thin">Thin (Pure JS)</option>
-        </select>
-    </div>
-    <div class="form-row" style="margin-top:-8px;">
-        <span style="margin-left:120px;font-size:11px;color:#666;">
-            Driver mode is process-wide in Node-RED. Keep this setting consistent across all db-connection nodes.
-        </span>
-    </div>
-    <div class="form-row external-auth">
-        <label for="node-config-input-externalAuth" style="width:120px;"><i class="fa fa-shield"></i> External Auth</label>
-        <input type="checkbox" id="node-config-input-externalAuth" style="margin-left:0;width:auto;">
-    </div>
-    <!-- BASIC AUTH -->
-    <div class="auth-section auth-basic">
-        <div class="form-row">
-            <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
-            <input type="text" id="node-config-input-username">
-        </div>
-        <div class="form-row">
-            <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
-            <input type="password" id="node-config-input-password">
-        </div>
-    </div>
-    <!-- CONFIG FILE AUTH / SESSION TOKEN AUTH -->
-    <div class="auth-section auth-config auth-session">
-        <div class="form-row">
-            <label for="node-config-input-configFileLocation"><i class="fa fa-file-text-o"></i> Config File</label>
-            <input type="text" id="node-config-input-configFileLocation" placeholder="/home/opc/.oci/config">
-        </div>
-        <div class="form-row">
-            <label for="node-config-input-profile"><i class="fa fa-id-card-o"></i> Profile</label>
-            <input type="text" id="node-config-input-profile" placeholder="DEFAULT">
-            <div id="profile-caption" style="font-size:11px;color:#888;margin-top:3px;"></div>
-        </div>
-    </div>
-    <!-- SIMPLE AUTH -->
-    <div class="auth-section auth-simple">
-        <div class="form-row">
-            <label for="node-config-input-fingerprint"><i class="fa fa-fingerprint"></i> Fingerprint</label>
-            <input type="text" id="node-config-input-fingerprint">
-        </div>
-        <div class="form-row">
-            <label for="node-config-input-privateKeyLocation"><i class="fa fa-key"></i> Private Key Path</label>
-            <input type="text" id="node-config-input-privateKeyLocation">
-        </div>
-        <div class="form-row">
-            <label for="node-config-input-passphrase"><i class="fa fa-lock"></i> Passphrase</label>
-            <input type="password" id="node-config-input-passphrase">
-        </div>
-        <div class="form-row">
-            <label for="node-config-input-regionId"><i class="fa fa-map-marker"></i> Region</label>
-            <input type="text" id="node-config-input-regionId">
-        </div>
-        <div class="form-row">
-            <label for="node-config-input-userOCID"><i class="fa fa-user"></i> User OCID</label>
-            <input type="text" id="node-config-input-userOCID">
-        </div>
-        <div class="form-row">
-            <label for="node-config-input-tenancyOCID"><i class="fa fa-building"></i> Tenancy OCID</label>
-            <input type="text" id="node-config-input-tenancyOCID">
-        </div>
-    </div>
-    <!-- SHARED SCOPE -->
-    <div class="auth-section auth-config auth-ip auth-rp auth-session auth-session-scope">
-        <div class="form-row">
-            <label for="node-config-input-scope"><i class="fa fa-shield"></i> Scope</label>
-            <input type="text" id="node-config-input-scope">
-        </div>
-    </div>
-    <!-- PROXY USER (DB Token auth types only) -->
-    <div class="auth-section auth-config auth-ip auth-rp auth-session auth-simple">
-        <div class="form-row">
-            <label for="node-config-input-proxyUser"><i class="fa fa-user-circle-o"></i> Proxy User</label>
-            <input type="text" id="node-config-input-proxyUser" placeholder="optional">
-        </div>
-    </div>
-    </fieldset>
+    <div id="node-config-tabs-content" class="red-ui-stack" style="min-height:360px;">
 
-    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
-    <div class="auth-section auth-basic auth-config auth-ip auth-rp auth-session auth-simple">
+        <div id="tab-auth" class="red-ui-tab-content">
+        <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
+        <div class="form-row">
+            <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+            <input type="text" id="node-config-input-name" placeholder="Optional display name">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-authType"><i class="fa fa-key"></i> Auth Type</label>
+            <select id="node-config-input-authType" style="width:200px;">
+                <option value="basic">Basic (User/Pass)</option>
+                <option value="config">DB Token — Config File</option>
+                <option value="instancePrincipal">DB Token — Instance Principal</option>
+                <option value="resourcePrincipal">DB Token — Resource Principal</option>
+                <option value="sessionToken">DB Token — Session Token</option>
+                <option value="simple">DB Token — API Key</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-driverMode"><i class="fa fa-exchange"></i> Driver Mode</label>
+            <select id="node-config-input-driverMode" style="width:200px;">
+                <option value="thick">Thick (Oracle Client)</option>
+                <option value="thin">Thin (Pure JS)</option>
+            </select>
+        </div>
+        <div class="form-row" style="margin-top:-8px;">
+            <span style="margin-left:120px;font-size:11px;color:#666;">
+                Driver mode is process-wide. Keep consistent across all db-connection nodes.
+            </span>
+        </div>
+        <div class="form-row external-auth">
+            <label for="node-config-input-externalAuth" style="width:120px;"><i class="fa fa-shield"></i> External Auth</label>
+            <input type="checkbox" id="node-config-input-externalAuth" style="margin-left:0;width:auto;">
+        </div>
+        <div class="auth-section auth-basic">
+            <div class="form-row">
+                <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
+                <input type="text" id="node-config-input-username">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
+                <input type="password" id="node-config-input-password">
+            </div>
+        </div>
+        <div class="auth-section auth-config auth-session">
+            <div class="form-row">
+                <label for="node-config-input-configFileLocation"><i class="fa fa-file-text-o"></i> Config File</label>
+                <input type="text" id="node-config-input-configFileLocation" placeholder="/home/opc/.oci/config">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-profile"><i class="fa fa-id-card-o"></i> Profile</label>
+                <input type="text" id="node-config-input-profile" placeholder="DEFAULT">
+                <div id="profile-caption" style="font-size:11px;color:#888;margin-top:3px;"></div>
+            </div>
+        </div>
+        <div class="auth-section auth-simple">
+            <div class="form-row">
+                <label for="node-config-input-fingerprint"><i class="fa fa-fingerprint"></i> Fingerprint</label>
+                <input type="text" id="node-config-input-fingerprint">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-privateKeyLocation"><i class="fa fa-key"></i> Private Key Path</label>
+                <input type="text" id="node-config-input-privateKeyLocation">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-passphrase"><i class="fa fa-lock"></i> Passphrase</label>
+                <input type="password" id="node-config-input-passphrase">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-regionId"><i class="fa fa-map-marker"></i> Region</label>
+                <input type="text" id="node-config-input-regionId">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-userOCID"><i class="fa fa-user"></i> User OCID</label>
+                <input type="text" id="node-config-input-userOCID">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-tenancyOCID"><i class="fa fa-building"></i> Tenancy OCID</label>
+                <input type="text" id="node-config-input-tenancyOCID">
+            </div>
+        </div>
+        <div class="auth-section auth-config auth-ip auth-rp auth-session auth-session-scope">
+            <div class="form-row">
+                <label for="node-config-input-scope"><i class="fa fa-shield"></i> Scope</label>
+                <input type="text" id="node-config-input-scope">
+            </div>
+        </div>
+        <div class="auth-section auth-config auth-ip auth-rp auth-session auth-simple">
+            <div class="form-row">
+                <label for="node-config-input-proxyUser"><i class="fa fa-user-circle-o"></i> Proxy User</label>
+                <input type="text" id="node-config-input-proxyUser" placeholder="optional">
+            </div>
+        </div>
+        </fieldset>
+        </div>
+
+        <div id="tab-connection" class="red-ui-tab-content">
+        <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
         <div class="form-row">
             <label for="node-config-input-tnsString"><i class="fa fa-server"></i> TNS String</label>
             <textarea id="node-config-input-tnsString" rows="5" style="width:100%;" placeholder="(description=(address=(protocol=tcps)...))"></textarea>
@@ -235,45 +310,92 @@ RED.nodes.registerType("db-connection", {
             <label for="node-config-input-walletLocation"><i class="fa fa-folder-open-o"></i> Wallet Path</label>
             <input type="text" id="node-config-input-walletLocation" placeholder="/path/to/wallet_dir">
             <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-                Optional wallet/config directory (for example containing <code>tnsnames.ora</code>, <code>sqlnet.ora</code>, and wallet files).
+                Wallet and network config directory (required for ADB and TCPS connections). Applies to all auth types.
             </div>
         </div>
-    </div>
-    <div class="form-row" style="text-align:center;">
-        <button type="button" class="red-ui-button" id="btn-test-connection">
-            <i class="fa fa-plug"></i> Test Connection
-        </button>
-        <span id="test-connection-result" style="margin-left:10px;font-size:12px;"></span>
-    </div>
-    <div class="form-row" style="text-align:center;margin-top:2px;">
-        <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
-            <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+        <div class="form-row" style="text-align:center;margin-top:12px;">
+            <button type="button" class="red-ui-button" id="btn-test-connection">
+                <i class="fa fa-plug"></i> Test Connection
+            </button>
+            <span id="test-connection-result" style="margin-left:10px;font-size:12px;"></span>
         </div>
-    </div>
-    </fieldset>
+        <div class="form-row" style="text-align:center;margin-top:4px;">
+            <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+                <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+            </div>
+        </div>
+        </fieldset>
+        </div>
 
-    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection Pool</legend>
-    <div class="form-row">
-        <label for="node-config-input-usePool" style="width:120px;"><i class="fa fa-database"></i> Use Pool</label>
-        <input type="checkbox" id="node-config-input-usePool" style="margin-left:0;width:auto;">
+        <div id="tab-pool" class="red-ui-tab-content">
+        <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection Pool</legend>
+        <div class="form-row">
+            <label for="node-config-input-usePool" style="width:140px;"><i class="fa fa-database"></i> Use Pool</label>
+            <input type="checkbox" id="node-config-input-usePool" style="margin-left:0;width:auto;">
+        </div>
+        <div class="form-row pool-options">
+            <label for="node-config-input-poolMin" style="width:140px;"><i class="fa fa-minus-circle"></i> Pool Min</label>
+            <input type="number" id="node-config-input-poolMin" min="0" style="width:80px;">
+        </div>
+        <div class="form-row pool-options">
+            <label for="node-config-input-poolMax" style="width:140px;"><i class="fa fa-plus-circle"></i> Pool Max</label>
+            <input type="number" id="node-config-input-poolMax" min="1" style="width:80px;">
+        </div>
+        <div class="form-row pool-options">
+            <label for="node-config-input-poolIncrement" style="width:140px;"><i class="fa fa-sort-numeric-asc"></i> Pool Increment</label>
+            <input type="number" id="node-config-input-poolIncrement" min="1" style="width:80px;">
+        </div>
+        <div class="form-row pool-options">
+            <label for="node-config-input-queueTimeout" style="width:140px;"><i class="fa fa-clock-o"></i> Queue Timeout (ms)</label>
+            <input type="number" id="node-config-input-queueTimeout" min="0" style="width:100px;">
+        </div>
+        </fieldset>
+        </div>
+
+        <div id="tab-nls" class="red-ui-tab-content">
+        <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Session Settings (NLS)</legend>
+        <div class="form-row">
+            <label for="node-config-input-nlsLanguage" style="width:175px;"><i class="fa fa-globe"></i> NLS_LANGUAGE</label>
+            <input type="text" id="node-config-input-nlsLanguage" placeholder="e.g. AMERICAN">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-nlsTerritory" style="width:175px;"><i class="fa fa-map"></i> NLS_TERRITORY</label>
+            <input type="text" id="node-config-input-nlsTerritory" placeholder="e.g. AMERICA">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-timeZone" style="width:175px;"><i class="fa fa-clock-o"></i> TIME_ZONE</label>
+            <input type="text" id="node-config-input-timeZone" placeholder="e.g. UTC or -05:00">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-nlsNumeric" style="width:175px;"><i class="fa fa-calculator"></i> NLS_NUMERIC_CHARACTERS</label>
+            <input type="text" id="node-config-input-nlsNumeric" placeholder=",." style="width:60px;">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-nlsDateFmt" style="width:175px;"><i class="fa fa-calendar"></i> NLS_DATE_FORMAT</label>
+            <input type="text" id="node-config-input-nlsDateFmt" placeholder="YYYY-MM-DD">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-nlsTsFmt" style="width:175px;"><i class="fa fa-calendar"></i> NLS_TIMESTAMP_FORMAT</label>
+            <input type="text" id="node-config-input-nlsTsFmt" placeholder="YYYY-MM-DD HH24:MI:SS.FF">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-nlsTsTzFmt" style="width:175px;"><i class="fa fa-calendar"></i> NLS_TIMESTAMP_TZ_FORMAT</label>
+            <input type="text" id="node-config-input-nlsTsTzFmt" placeholder="YYYY-MM-DD HH24:MI:SS.FF TZH:TZM">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-sessionInitSql" style="width:175px;"><i class="fa fa-code"></i> Advanced (restricted)</label>
+        </div>
+        <div class="form-row">
+            <textarea id="node-config-input-sessionInitSql" rows="6" style="width:100%;" placeholder="ALTER SESSION SET ... ; ALTER SESSION SET ..."></textarea>
+        </div>
+        <div class="form-tips" style="margin-top:4px;">
+            Advanced (restricted) accepts only <code>ALTER SESSION SET ...</code> statements.
+            Limits: max 1000 characters and max 10 statements separated by <code>;</code>.
+        </div>
+        </fieldset>
+        </div>
+
     </div>
-    <div class="form-row pool-options">
-        <label for="node-config-input-poolMin"><i class="fa fa-minus-circle"></i> Pool Min</label>
-        <input type="number" id="node-config-input-poolMin" min="0" style="width:80px;">
-    </div>
-    <div class="form-row pool-options">
-        <label for="node-config-input-poolMax"><i class="fa fa-plus-circle"></i> Pool Max</label>
-        <input type="number" id="node-config-input-poolMax" min="1" style="width:80px;">
-    </div>
-    <div class="form-row pool-options">
-        <label for="node-config-input-poolIncrement"><i class="fa fa-sort-numeric-asc"></i> Pool Increment</label>
-        <input type="number" id="node-config-input-poolIncrement" min="1" style="width:80px;">
-    </div>
-    <div class="form-row pool-options">
-        <label for="node-config-input-queueTimeout"><i class="fa fa-clock-o"></i> Queue Timeout (ms)</label>
-        <input type="number" id="node-config-input-queueTimeout" min="0" style="width:100px;">
-    </div>
-    </fieldset>
 </script>
 
 <script type="text/html" data-help-name="db-connection">
@@ -318,6 +440,20 @@ RED.nodes.registerType("db-connection", {
 
 <h3>Connection Pool</h3>
 <p>Enables a reusable connection pool. Recommended for flows that execute frequent queries. Set <b>Pool Min</b> and <b>Pool Max</b> to control the number of open connections; <b>Pool Increment</b> controls how many are added when the pool grows; <b>Queue Timeout</b> is the maximum milliseconds a request waits for a connection before failing.</p>
+
+<h3>Session Settings (NLS)</h3>
+<p>Optional. Each field maps to an Oracle <code>ALTER SESSION SET</code> statement executed immediately after every new connection. Leave blank to accept database server defaults.</p>
+<dl class="message-properties">
+    <dt>NLS_LANGUAGE</dt><dd>Default language for messages, day/month names. Example: <code>AMERICAN</code></dd>
+    <dt>NLS_TERRITORY</dt><dd>Default conventions for numbers, dates, currency. Example: <code>AMERICA</code></dd>
+    <dt>TIME_ZONE</dt><dd>Session time zone. Accepts region names (<code>UTC</code>) or offsets (<code>-05:00</code>).</dd>
+    <dt>NLS_NUMERIC_CHARACTERS</dt><dd>Decimal and group separator — exactly two characters. Example: <code>,.</code> (European) or <code>.,</code> (US).</dd>
+    <dt>NLS_DATE_FORMAT</dt><dd>Format mask for <code>DATE</code> to string conversion. Example: <code>YYYY-MM-DD</code>.</dd>
+    <dt>NLS_TIMESTAMP_FORMAT</dt><dd>Format mask for <code>TIMESTAMP</code>. Example: <code>YYYY-MM-DD HH24:MI:SS.FF</code>.</dd>
+    <dt>NLS_TIMESTAMP_TZ_FORMAT</dt><dd>Format mask for <code>TIMESTAMP WITH TIME ZONE</code>. Example: <code>YYYY-MM-DD HH24:MI:SS.FF TZH:TZM</code>.</dd>
+    <dt>Advanced (restricted)</dt><dd>Optional advanced session SQL. Only <code>ALTER SESSION SET ...</code> statements are allowed. Statements are semicolon-separated, with a maximum of 10 statements and 1000 total characters.</dd>
+</dl>
+<p>Pool connections: NLS settings are applied only when a pooled connection does not already carry the correct session tag. Warm connections that were already configured are reused with no overhead.</p>
 
 <h3>Test Connection</h3>
 <p>Executes <code>SELECT 1 FROM DUAL</code> to verify connectivity. The node must be deployed before the test button becomes active — click <b>Update</b> then <b>Deploy</b> first.</p>

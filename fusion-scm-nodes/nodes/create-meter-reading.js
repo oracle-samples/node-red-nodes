@@ -45,7 +45,7 @@ module.exports = function(RED) {
 
         node.server = RED.nodes.getNode(config.server);
         if (!node.server) {
-            node.status({ fill: "red", shape: "ring", text: "No SCM server" });
+            node.status({ fill: "red", shape: "ring", text: "no SCM server" });
             node.error("No SCM Server configured");
             return;
         }
@@ -58,13 +58,14 @@ module.exports = function(RED) {
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                const url = config.urlOverride || node.server.buildUrl("meterReadings");
+                const url = node.server.buildUrl("meterReadings");
                 ensureHttps(url);
 
                 const payload = resolvePayload(mappings, msg, RED);
 
                 node.status({ fill: "yellow", shape: "dot", text: "creating..." });
                 const response = await axios.post(url, payload, {
+                    timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -112,11 +113,14 @@ module.exports = function(RED) {
     }
 
     function handleError(node, msg, err, done) {
-        node.status({ fill: "red", shape: "dot", text: "failed" });
-        msg.error = err.message || err.toString();
+        node.status({ fill: "red", shape: "dot", text: "create failed" });
+        msg.error = {
+                    message: err.message || err.toString(),
+                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
+                };
         msg.statusCode = err.response?.status || 0;
-        msg.payload = err.response?.data || msg.error;
-        node.error(msg.error, msg);
+        msg.payload = err.response?.data || msg.error.message;
+        node.error(msg.error.message, msg);
         done(err);
     }
 

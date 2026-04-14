@@ -1,6 +1,6 @@
 {
   "name": "fusion-scm-nodes",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Node-RED nodes for Oracle Fusion SCM",
   "license": "UPL-1.0",
   "engines": {

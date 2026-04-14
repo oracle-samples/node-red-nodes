@@ -47,7 +47,11 @@ module.exports = function (RED) {
         "simple"
     ]);
 
+    // Required so oracledb recognises tokenAuthConfigOci on connection options.
     require('oracledb/plugins/token/extensionOci');
+    const MAX_ADVANCED_INIT_SQL_LENGTH = 1000;
+    const MAX_ADVANCED_INIT_SQL_STATEMENTS = 10;
+    const FORBIDDEN_ADVANCED_INIT_TOKENS_RE = /\b(BEGIN|DECLARE|EXECUTE|IMMEDIATE|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|DROP|CREATE|GRANT|REVOKE|COMMIT|ROLLBACK|CALL|DBMS_[A-Z0-9_]+)\b/i;
 
     function parseTokenExpiry(token) {
         const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -140,6 +144,20 @@ module.exports = function (RED) {
         node.poolMax = Number(config.poolMax);
         node.poolIncrement = Number(config.poolIncrement);
         node.queueTimeout = Number(config.queueTimeout);
+        node.nlsLanguage = config.nlsLanguage || "";
+        node.nlsTerritory = config.nlsTerritory || "";
+        node.timeZone = config.timeZone || "";
+        node.nlsNumeric = config.nlsNumeric || "";
+        node.nlsDateFmt = config.nlsDateFmt || "";
+        node.nlsTsFmt = config.nlsTsFmt || "";
+        node.nlsTsTzFmt = config.nlsTsTzFmt || "";
+        node.sessionInitSql = config.sessionInitSql || "";
+        // _nlsTag: null = not yet computed; "" = computed but no NLS settings active;
+        // "NLSv1|..." = computed with settings. Checked on every getConnection call so
+        // _computeNlsInit() only runs once per node instance.
+        node._nlsTag = null;
+        node._nlsAlterStmts = [];
+        node._extraInitStmts = [];
 
         let pool = null;
         node.tokenCache = null;
@@ -185,6 +203,71 @@ module.exports = function (RED) {
             return node.tnsString.trim();
         }
 
+        // NLS values come from user config and are interpolated into ALTER SESSION SQL
+        // strings, so single quotes must be doubled to prevent injection.
+        function _escapeSqlLiteral(v) {
+            return String(v).replace(/'/g, "''");
+        }
+
+        function validateAdvancedInitSql(rawSql) {
+            const text = String(rawSql || "").trim();
+            if (!text) return [];
+
+            if (text.length > MAX_ADVANCED_INIT_SQL_LENGTH) {
+                throw new Error("Advanced (restricted) SQL exceeds " + MAX_ADVANCED_INIT_SQL_LENGTH + " characters");
+            }
+
+            const statements = text.split(";").map((s) => s.trim()).filter(Boolean);
+            if (statements.length > MAX_ADVANCED_INIT_SQL_STATEMENTS) {
+                throw new Error("Advanced (restricted) SQL supports at most " + MAX_ADVANCED_INIT_SQL_STATEMENTS + " statements");
+            }
+
+            for (let i = 0; i < statements.length; i++) {
+                const stmt = statements[i];
+                if (!/^ALTER\s+SESSION\s+SET\s+/i.test(stmt)) {
+                    throw new Error("Advanced (restricted) SQL statement " + (i + 1) + " must start with ALTER SESSION SET");
+                }
+                if (FORBIDDEN_ADVANCED_INIT_TOKENS_RE.test(stmt)) {
+                    throw new Error("Advanced (restricted) SQL statement " + (i + 1) + " contains a forbidden token");
+                }
+            }
+
+            return statements;
+        }
+
+        function buildNlsAlterStatements() {
+            const stmts = [];
+            if (node.nlsLanguage) stmts.push("ALTER SESSION SET NLS_LANGUAGE='" + _escapeSqlLiteral(node.nlsLanguage) + "'");
+            if (node.nlsTerritory) stmts.push("ALTER SESSION SET NLS_TERRITORY='" + _escapeSqlLiteral(node.nlsTerritory) + "'");
+            if (node.timeZone) stmts.push("ALTER SESSION SET TIME_ZONE='" + _escapeSqlLiteral(node.timeZone) + "'");
+            if (node.nlsNumeric) stmts.push("ALTER SESSION SET NLS_NUMERIC_CHARACTERS='" + _escapeSqlLiteral(node.nlsNumeric) + "'");
+            if (node.nlsDateFmt) stmts.push("ALTER SESSION SET NLS_DATE_FORMAT='" + _escapeSqlLiteral(node.nlsDateFmt) + "'");
+            if (node.nlsTsFmt) stmts.push("ALTER SESSION SET NLS_TIMESTAMP_FORMAT='" + _escapeSqlLiteral(node.nlsTsFmt) + "'");
+            if (node.nlsTsTzFmt) stmts.push("ALTER SESSION SET NLS_TIMESTAMP_TZ_FORMAT='" + _escapeSqlLiteral(node.nlsTsTzFmt) + "'");
+            return stmts;
+        }
+
+        function _computeNlsInit() {
+            const parts = [];
+            const push = (k, v) => { if (v) parts.push(k + "=" + String(v)); };
+            push("LANG", node.nlsLanguage);
+            push("TERR", node.nlsTerritory);
+            push("TZ", node.timeZone);
+            push("NUM", node.nlsNumeric);
+            push("DF", node.nlsDateFmt);
+            push("TS", node.nlsTsFmt);
+            push("TSTZ", node.nlsTsTzFmt);
+            node._nlsTag = parts.length ? "NLSv1|" + parts.join(";") : "";
+            node._nlsAlterStmts = buildNlsAlterStatements();
+            node._extraInitStmts = validateAdvancedInitSql(node.sessionInitSql);
+        }
+
+        async function _applyNlsToConnection(connection) {
+            if (node._nlsAlterStmts.length === 0 && node._extraInitStmts.length === 0) return;
+            for (const sql of node._nlsAlterStmts) { await connection.execute(sql); }
+            for (const sql of node._extraInitStmts) { await connection.execute(sql); }
+        }
+
         function buildAuthTypes() {
             const connectString = getConnectString();
             const options = { connectString };
@@ -220,6 +303,9 @@ module.exports = function (RED) {
                     if (node.proxyUser) options.user = `[${node.proxyUser}]`;
                     break;
                 case "resourcePrincipal":
+                    // ResourcePrincipal and sessionToken do not implement the interface
+                    // expected by the extensionOci plugin — the accessToken callback
+                    // is used directly instead of tokenAuthConfigOci.
                     options.accessToken = async function (_refresh, config) {
                         return getTokenWithCache(_refresh, config, () =>
                             common.ResourcePrincipalAuthenticationDetailsProvider.builder()
@@ -266,10 +352,13 @@ module.exports = function (RED) {
 
         node.getStandaloneConnection = async function () {
             try {
+                if (node._nlsTag === null) { _computeNlsInit(); }
                 const effectiveMode = ensureDriverMode(node);
                 validateModeSpecificAuth(node, effectiveMode);
                 const options = buildAuthTypes();
-                return await oracledb.getConnection(options);
+                const conn = await oracledb.getConnection(options);
+                await _applyNlsToConnection(conn);
+                return conn;
             } catch (err) {
                 node.error("DB Standalone Connection Failed: " + err.message);
                 throw err;
@@ -288,6 +377,16 @@ module.exports = function (RED) {
                 poolIncrement: node.poolIncrement,
                 queueTimeout: node.queueTimeout,
             });
+            if (node._nlsTag === null) { _computeNlsInit(); }
+            // Only register sessionCallback when NLS settings are active; otherwise
+            // pool connections are reused without any session init overhead.
+            if (node._nlsTag) {
+                options.sessionCallback = async function (connection) {
+                    if (connection.tag === node._nlsTag) return;
+                    await _applyNlsToConnection(connection);
+                    connection.tag = node._nlsTag;
+                };
+            }
             pool = await oracledb.createPool(options);
             return pool;
         }
@@ -295,7 +394,9 @@ module.exports = function (RED) {
         node.getPoolConnection = async function () {
             const p = await initPool();
             if (!p) throw new Error("Pool is not enabled or failed");
-            return await p.getConnection();
+            // Passing tag lets Oracle prefer a connection already configured for this
+            // NLS fingerprint, avoiding an unnecessary sessionCallback round-trip.
+            return await p.getConnection(node._nlsTag ? { tag: node._nlsTag } : undefined);
         };
 
         node.getConnection = async function () {

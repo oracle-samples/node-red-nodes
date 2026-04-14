@@ -141,7 +141,8 @@
       customEventType: { value: "" }, entityCodeFields: { value: '["deviceId","machineId"]' },
       fieldMappings: { value: "[]" }, enableNesting: { value: false }, nestingKey: { value: "" },
       enableComposite: { value: false }, requiredFields: { value: "[]" }, splitFields: { value: "[]" },
-      customJsonata: { value: "" }, staleTimeout: { value: 0 }
+      customJsonata: { value: "" }, staleTimeout: { value: 0 },
+      maxCompositeEntries: { value: 1000 }, maxCompositeAgeSec: { value: 3600 }
     },
     inputs: 1, outputs: 1, icon: "cog.svg",
     label: function () {
@@ -182,6 +183,8 @@
           $("#node-input-nestingKey").val("");
           $("#node-input-enableComposite").prop("checked", false).trigger("change");
           renderRequiredFields([]); renderSplitFields([]); $("#node-input-staleTimeout").val(0);
+          $("#node-input-maxCompositeEntries").val(1000);
+          $("#node-input-maxCompositeAgeSec").val(3600);
           return;
         }
         $("#custom-event-type-row").hide();
@@ -247,6 +250,8 @@
         renderRequiredFields(preset.requiredFields || []);
         renderSplitFields(preset.splitFields || []);
         $("#node-input-staleTimeout").val(preset.staleTimeout || 0);
+        $("#node-input-maxCompositeEntries").val(preset.maxCompositeEntries || 1000);
+        $("#node-input-maxCompositeAgeSec").val(preset.maxCompositeAgeSec || 3600);
       }
 
       var fm = node.fieldMappings;
@@ -538,6 +543,14 @@
       <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = disabled)</label>
       <input type="number" id="node-input-staleTimeout" value="0" min="0" style="width:80px;" />
     </div></div>
+    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+      <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Composites</label>
+      <input type="number" id="node-input-maxCompositeEntries" value="1000" min="1" style="width:100px;" />
+    </div></div>
+    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+      <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Age (seconds)</label>
+      <input type="number" id="node-input-maxCompositeAgeSec" value="3600" min="1" style="width:100px;" />
+    </div></div>
   </div>
   <hr />
   <div class="form-row">
@@ -571,5 +584,7 @@
     <li><b>Default values:</b> If an incoming field is missing from the payload, the default value is used instead.</li>
     <li><b>Static Value:</b> Writes a constant value to the outgoing field with no incoming field required.</li>
     <li><b>Presence-based value maps:</b> Use <code>__present__</code> in a value map to map based on field existence.</li>
+    <li><b>Composite identity:</b> For incomplete composite fragments, both <code>entityCode</code> and <code>eventTime</code> must be present. Missing key parts now fail fast instead of using a shared fallback key.</li>
+    <li><b>Pending bounds:</b> Composite pending entries are bounded by stale timeout, max pending age, and max pending count to prevent unbounded memory growth.</li>
   </ul>
 </script>

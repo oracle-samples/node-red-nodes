@@ -182,7 +182,7 @@ RED.nodes.registerType("oci-logging", {
         <label for="node-input-logId"><i class="fa fa-file-text-o"></i> Log OCID</label>
         <input type="text" id="node-input-logId" placeholder="ocid1.log.oc1...">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            OCID of the Custom Log created in OCI Console → Logging. If empty, provide <code>msg.logId</code>.
+            OCID of the Custom Log created in OCI Console → Logging. If empty, reads from <code>msg.logId</code>.
         </div>
     </div>
     <hr/>
@@ -253,27 +253,18 @@ RED.nodes.registerType("oci-logging", {
 <p>This node targets the <b>OCI Logging</b> service — not Log Analytics. Use this to write application events
 to a log that can feed OCI Service Connectors, alarms, or the Logging Explorer.</p>
 
-<h3>Prerequisites</h3>
-<ol>
-    <li>In OCI Console &rarr; <b>Logging</b>, create a <b>Log Group</b> and then a <b>Custom Log</b> inside it.</li>
-    <li>Copy the Custom Log's <b>OCID</b> and paste it into the <b>Log OCID</b> field.</li>
-    <li>Ensure the OCI principal has the IAM policy:<br/>
-        <code>Allow dynamic-group &lt;dg&gt; to use log-content in compartment &lt;c&gt;</code>
-    </li>
-</ol>
-
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>OCI Config</dt>
     <dd>References an OCI Config node for authentication and region.</dd>
     <dt>Log OCID</dt>
-    <dd>OCID of the Custom Log. Format: <code>ocid1.log.oc1.&lt;region&gt;.&lt;...&gt;</code>. If this field is blank, the node uses <code>msg.logId</code>.</dd>
+    <dd>OCID of the Custom Log. Format: <code>ocid1.log.oc1.&lt;region&gt;.&lt;...&gt;</code>. If empty, reads from <code>msg.logId</code>.</dd>
     <dt>Log Source</dt>
-    <dd>Producer identifier stored in each log batch (e.g. <code>node-red</code>, <code>iot-gateway</code>). Overridden by <code>msg.logSource</code>.</dd>
+    <dd>Producer identifier stored in each log batch (e.g. <code>node-red</code>, <code>iot-gateway</code>). If empty, reads from <code>msg.logSource</code>.</dd>
     <dt>Log Type</dt>
-    <dd>Category string stored in each log batch (e.g. <code>application.events</code>, <code>iot.telemetry</code>). Overridden by <code>msg.logType</code>.</dd>
+    <dd>Category string stored in each log batch (e.g. <code>application.events</code>, <code>iot.telemetry</code>). If empty, reads from <code>msg.logType</code>.</dd>
     <dt>Default Severity</dt>
-    <dd>Written as <code>level</code> in the log entry if the payload does not already contain it. Overridden by <code>msg.severity</code>.</dd>
+    <dd>Written as <code>level</code> in the log entry if the payload does not already contain it. If empty, reads from <code>msg.severity</code>.</dd>
     <dt>Payload Source</dt>
     <dd>
         <b>Payload Mappings</b> &mdash; build the log entry using the mapping rows. Each row specifies:
@@ -288,23 +279,7 @@ to a log that can feed OCI Service Connectors, alarms, or the Logging Explorer.<
     </dd>
 </dl>
 
-<h3>Runtime Inputs</h3>
-<dl class="message-properties">
-    <dt>logId <span class="property-type">string</span></dt>
-    <dd>Used only when the node's <b>Log OCID</b> field is empty.</dd>
-    <dt>logSource <span class="property-type">string</span></dt>
-    <dd>Override the log source label.</dd>
-    <dt>logType <span class="property-type">string</span></dt>
-    <dd>Override the log type label.</dd>
-    <dt>logSubject <span class="property-type">string</span></dt>
-    <dd>Optional sub-resource path (e.g. <code>/flows/threshold-monitor</code>).</dd>
-    <dt>severity <span class="property-type">string</span></dt>
-    <dd>Override the severity/level field injected into the log entry.</dd>
-    <dt>payload <span class="property-type">any</span></dt>
-    <dd>Used as the log entry data when Payload Source is <code>msg.payload</code>.</dd>
-</dl>
-
-<h3>Output</h3>
+<h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload.opcRequestId <span class="property-type">string</span></dt>
     <dd>OCI request trace ID. Provide this when contacting Oracle Support.</dd>
@@ -312,11 +287,27 @@ to a log that can feed OCI Service Connectors, alarms, or the Logging Explorer.<
     <dd>HTTP status code returned by OCI (typically <code>200</code> on success).</dd>
     <dt>statusCode <span class="property-type">number</span></dt>
     <dd>HTTP status code (200 on success).</dd>
-    <dt>error <span class="property-type">string</span></dt>
-    <dd>Error message (only on failure).</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 
-<h3>How It Works (SDK internals)</h3>
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.logId <span class="property-type">string</span></dt>
+    <dd>Overrides Log OCID when the field is blank.</dd>
+    <dt>msg.logSource <span class="property-type">string</span></dt>
+    <dd>Overrides the log source label.</dd>
+    <dt>msg.logType <span class="property-type">string</span></dt>
+    <dd>Overrides the log type label.</dd>
+    <dt>msg.logSubject <span class="property-type">string</span></dt>
+    <dd>Optional sub-resource path (e.g. <code>/flows/threshold-monitor</code>).</dd>
+    <dt>msg.severity <span class="property-type">string</span></dt>
+    <dd>Overrides the severity/level field injected into the log entry.</dd>
+    <dt>msg.payload <span class="property-type">any</span></dt>
+    <dd>Used as the log entry data when Payload Source is <code>msg.payload</code>.</dd>
+</dl>
+
+<h3>Details</h3>
 <p>Each invocation calls <code>LoggingClient.putLogs()</code> from <code>oci-loggingingestion</code>.
 The request body structure is:</p>
 <pre>
@@ -336,6 +327,15 @@ PutLogsDetails
 <p>A UUID is generated for each <code>LogEntry.id</code> using <code>crypto.randomUUID()</code>.
 The <code>timestamp</code> and <code>level</code> fields are injected automatically unless already present
 in the payload.</p>
+
+<h3>Prerequisites</h3>
+<ol>
+    <li>In OCI Console &rarr; <b>Logging</b>, create a <b>Log Group</b> and then a <b>Custom Log</b> inside it.</li>
+    <li>Copy the Custom Log's <b>OCID</b> and paste it into the <b>Log OCID</b> field.</li>
+    <li>Ensure the OCI principal has the IAM policy:<br/>
+        <code>Allow dynamic-group &lt;dg&gt; to use log-content in compartment &lt;c&gt;</code>
+    </li>
+</ol>
 
 <h3>Typical Flows</h3>
 <p><b>Log threshold breaches:</b><br/>

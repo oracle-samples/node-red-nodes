@@ -62,9 +62,9 @@ RED.nodes.registerType("begin-transaction", {
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-timeoutSecs"><i class="fa fa-clock-o"></i> Timeout (seconds)</label>
+        <label for="node-input-timeoutSecs" style="width:130px;"><i class="fa fa-clock-o"></i> Timeout (seconds)</label>
         <input type="number" id="node-input-timeoutSecs" min="0" step="1" value="0" style="width:80px;">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             Auto-rollback if end-transaction isn't reached within this time. Set to 0 for no timeout.
         </div>
     </div>
@@ -89,6 +89,10 @@ for use by downstream nodes (dequeue, sql, etc.).</p>
     <dd>The live Oracle DB connection, passed downstream for use by other nodes.</dd>
     <dt>msg.transaction.startedAt <span class="property-type">number</span></dt>
     <dd>Timestamp (ms) when the transaction was opened.</dd>
+    <dt>msg.transaction.timedOut <span class="property-type">boolean</span></dt>
+    <dd>Set to <code>true</code> when the timeout handler rolls back and closes the transaction.</dd>
+    <dt>msg.transaction.endedAt <span class="property-type">number</span></dt>
+    <dd>Timestamp (ms) when timeout auto-ended the transaction.</dd>
 </dl>
 
 <h3>Details</h3>
@@ -97,7 +101,8 @@ The connection stays open until the <b>end transaction</b> node commits and clos
 If the downstream flow fails before reaching end-transaction, the dequeued message is
 never committed and remains available on the queue (automatic rollback on disconnect).</p>
 <p>If <code>msg.transaction.connection</code> already exists (e.g. from an upstream
-begin-transaction), the existing connection is reused.</p>
+begin-transaction), the existing connection is reused. When timeout is enabled, reuse refreshes
+the timeout window so active looping flows do not expire on a stale timer.</p>
 
 <h3>Typical Flow</h3>
 <p><code>begin transaction</code> → <code>dequeue</code> → <i>(processing nodes)</i> → <code>end transaction</code></p>

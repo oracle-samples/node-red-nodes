@@ -37,6 +37,173 @@
 module.exports = function (RED) {
     const oracledb = require("oracledb");
 
+    // Blank string literals, quoted identifiers, and comments in sql so the
+    // placeholder regex cannot match ':' inside literal values like 'call :id'.
+    // Spaces replace content character-for-character to keep indices aligned.
+    function stripSqlForBindScan(sql) {
+        var out = "";
+        var state = "normal";
+
+        for (var i = 0; i < sql.length; i++) {
+            var ch = sql[i];
+            var next = i + 1 < sql.length ? sql[i + 1] : "";
+
+            if (state === "normal") {
+                if (ch === "'" && state === "normal") {
+                    state = "single_quote";
+                    out += " ";
+                    continue;
+                }
+                if (ch === "\"") {
+                    state = "double_quote";
+                    out += " ";
+                    continue;
+                }
+                if (ch === "-" && next === "-") {
+                    state = "line_comment";
+                    out += "  ";
+                    i++;
+                    continue;
+                }
+                if (ch === "/" && next === "*") {
+                    state = "block_comment";
+                    out += "  ";
+                    i++;
+                    continue;
+                }
+                out += ch;
+                continue;
+            }
+
+            if (state === "single_quote") {
+                if (ch === "'" && next === "'") {
+                    // '' is Oracle's escaped single-quote — consume both characters together.
+                    out += "  ";
+                    i++;
+                    continue;
+                }
+                if (ch === "'") {
+                    state = "normal";
+                }
+                out += " ";
+                continue;
+            }
+
+            if (state === "double_quote") {
+                if (ch === "\"") {
+                    state = "normal";
+                }
+                out += " ";
+                continue;
+            }
+
+            if (state === "line_comment") {
+                if (ch === "\n" || ch === "\r") {
+                    state = "normal";
+                    out += ch;
+                } else {
+                    out += " ";
+                }
+                continue;
+            }
+
+            if (state === "block_comment") {
+                if (ch === "*" && next === "/") {
+                    state = "normal";
+                    out += "  ";
+                    i++;
+                } else if (ch === "\n" || ch === "\r") {
+                    out += ch;
+                } else {
+                    out += " ";
+                }
+            }
+        }
+
+        return out;
+    }
+
+    function extractBindPlaceholders(sql) {
+        if (!sql || typeof sql !== "string") {
+            return { named: new Set(), positionalMax: 0 };
+        }
+
+        var sanitized = stripSqlForBindScan(sql);
+        var named = new Set();
+        var positionalMax = 0;
+        // (^|[^:]) prevents matching :: which is Oracle's type-cast operator.
+        var namedRe = /(^|[^:]):([a-zA-Z_][a-zA-Z0-9_]*)/g;
+        var positionalRe = /(^|[^:]):([0-9]+)\b/g;
+        var match;
+
+        while ((match = namedRe.exec(sanitized)) !== null) {
+            named.add(match[2]);
+        }
+        while ((match = positionalRe.exec(sanitized)) !== null) {
+            var n = parseInt(match[2], 10);
+            if (!Number.isNaN(n) && n > positionalMax) {
+                positionalMax = n;
+            }
+        }
+
+        return { named: named, positionalMax: positionalMax };
+    }
+
+    function verifyBindParity(sql, binds) {
+        var placeholders = extractBindPlaceholders(sql);
+        var named = placeholders.named;
+        var positionalMax = placeholders.positionalMax;
+
+        if (named.size > 0 && positionalMax > 0) {
+            throw new Error("SQL cannot mix named and positional bind placeholders");
+        }
+        if (named.size === 0 && positionalMax === 0) {
+            return;
+        }
+
+        if (Array.isArray(binds)) {
+            if (named.size > 0) {
+                throw new Error("Named bind placeholders require object binds");
+            }
+            if (positionalMax > binds.length) {
+                throw new Error("Missing positional binds for placeholders :1..:" + positionalMax + " (have " + binds.length + ")");
+            }
+            return;
+        }
+
+        if (binds && typeof binds === "object") {
+            if (positionalMax > 0) {
+                throw new Error("Positional bind placeholders require array binds");
+            }
+            var missing = [];
+            named.forEach(function(name) {
+                if (!Object.prototype.hasOwnProperty.call(binds, name)) {
+                    missing.push(name);
+                }
+            });
+            if (missing.length > 0) {
+                throw new Error("Missing named binds: " + missing.join(", "));
+            }
+            return;
+        }
+
+        throw new Error("SQL includes bind placeholders but binds are empty");
+    }
+
+    function isAnonymousPlsqlBlock(sql) {
+        return /^\s*(begin|declare)\b[\s\S]*\bend\s*;?\s*$/i.test(sql || "");
+    }
+
+    function hasEditorStatementChain(sql) {
+        if (!sql || typeof sql !== "string") return false;
+        if (isAnonymousPlsqlBlock(sql)) return false;
+        var sanitized = stripSqlForBindScan(sql);
+        var statements = sanitized.split(";").map(function(part) {
+            return part.trim();
+        }).filter(Boolean);
+        return statements.length > 1;
+    }
+
     function DbSqlNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -52,23 +219,25 @@ module.exports = function (RED) {
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
-            node.status({ fill: "red", shape: "dot", text: "No DB connection" });
+            node.status({ fill: "red", shape: "ring", text: "no DB connection" });
             node.error("No DB Connection configured");
             return;
         }
 
+        // "J:" prefix marks the binds field as a JSONata expression; compile once at
+        // deploy time so evaluation per message is fast.
         if (node.bindsSource === "editor" && typeof node.binds === "string" &&
             (node.binds.startsWith("J:") || node.binds.startsWith("j:"))) {
             const exprText = node.binds.substring(2).trim();
             if (!exprText) {
-                node.status({ fill: "red", shape: "dot", text: "invalid binds" });
+                node.status({ fill: "red", shape: "ring", text: "invalid binds" });
                 node.error("Invalid binds: JSONata expression is empty after J: prefix");
                 return;
             }
             try {
                 node.bindsExpr = RED.util.prepareJSONataExpression(exprText, node);
             } catch (exprErr) {
-                node.status({ fill: "red", shape: "dot", text: "invalid binds" });
+                node.status({ fill: "red", shape: "ring", text: "invalid binds" });
                 node.error("Invalid binds JSONata expression: " + exprErr.message);
                 return;
             }
@@ -97,7 +266,7 @@ module.exports = function (RED) {
                 }
             });
         } catch (mappingErr) {
-            node.status({ fill: "red", shape: "dot", text: "invalid binds" });
+            node.status({ fill: "red", shape: "ring", text: "invalid binds" });
             node.error(mappingErr.message);
             return;
         }
@@ -201,7 +370,7 @@ module.exports = function (RED) {
                 if (node.sqlSource === "msg") {
                     sql = msg.sql;
                     if (!sql || typeof sql !== "string") {
-                        node.status({ fill: "red", shape: "dot", text: "No msg.sql" });
+                        node.status({ fill: "red", shape: "ring", text: "no msg.sql" });
                         const err = new Error("SQL Source is set to msg.sql but msg.sql is empty or not a string");
                         node.error(err.message, msg);
                         return done(err);
@@ -209,7 +378,7 @@ module.exports = function (RED) {
                 } else {
                     sql = node.sqlcmd;
                     if (!sql) {
-                        node.status({ fill: "red", shape: "dot", text: "No SQL provided" });
+                        node.status({ fill: "red", shape: "ring", text: "no SQL provided" });
                         const err = new Error("No SQL statement provided");
                         node.error(err.message, msg);
                         return done(err);
@@ -217,12 +386,19 @@ module.exports = function (RED) {
                 }
                 sql = sql.trim();
 
+                if (node.sqlSource === "editor" && hasEditorStatementChain(sql)) {
+                    const err = new Error("Editor SQL must contain exactly one statement (semicolon statement chains are not allowed)");
+                    node.status({ fill: "red", shape: "ring", text: "invalid sql" });
+                    node.error(err.message, msg);
+                    return done(err);
+                }
+
                 let binds = [];
                 if (node.bindsSource === "msg") {
                     try {
                         binds = validateBindsValue(msg.binds);
                     } catch (bindErr) {
-                        node.status({ fill: "red", shape: "dot", text: "invalid binds" });
+                        node.status({ fill: "red", shape: "ring", text: "invalid binds" });
                         node.error("Invalid msg.binds: " + bindErr.message, msg);
                         return done(bindErr);
                     }
@@ -237,15 +413,26 @@ module.exports = function (RED) {
                             binds = validateBindsValue(JSON.parse(node.binds));
                         }
                     } catch (parseErr) {
-                        node.status({ fill: "red", shape: "dot", text: "invalid binds" });
+                        node.status({ fill: "red", shape: "ring", text: "invalid binds" });
                         node.error("Invalid binds: " + parseErr.message, msg);
                         return done(parseErr);
                     }
                 }
 
+                try {
+                    verifyBindParity(sql, binds);
+                } catch (bindParityErr) {
+                    node.status({ fill: "red", shape: "ring", text: "binds mismatch" });
+                    node.error(bindParityErr.message, msg);
+                    return done(bindParityErr);
+                }
+
                 let maxRows = node.maxrows;
                 if (maxRows > 10000) maxRows = 10000;
 
+                // autoCommit:false — SELECTs work fine; DML silently rolls back on
+                // connection close. Callers that need to commit must use an explicit
+                // COMMIT in a PL/SQL block or route through the transaction nodes.
                 const options = {
                     autoCommit: false,
                     outFormat: oracledb.OUT_FORMAT_OBJECT,
@@ -266,9 +453,9 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "error" });
+                node.status({ fill: "red", shape: "dot", text: "query failed" });
                 msg.error = { message: err.message, code: err.errorNum || null };
-                node.error(err, msg);
+                node.error(err.message, msg);
                 done(err);
             } finally {
                 if (connection) {

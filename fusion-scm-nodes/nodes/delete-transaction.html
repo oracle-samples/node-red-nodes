@@ -41,10 +41,9 @@ RED.nodes.registerType("delete-transaction", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
-        urlOverride: { value: "" },
-        overrideUrl: { value: false },
-        transactionInterfaceId: { value: "" },
-        mode: { value: "misc" }
+        customPath: { value: "" },
+        resourceId: { value: "" },
+        mode: { value: "asset" }
     },
     inputs: 1,
     outputs: 1,
@@ -52,15 +51,60 @@ RED.nodes.registerType("delete-transaction", {
     icon: "font-awesome/fa-trash",
     label: function () {
         if (this.name) return this.name;
-        var labels = { asset:"delete asset", meter:"delete meter reading", misc:"delete misc. transaction", subinventory:"delete subinventory transfer" };
+        var labels = { asset:"delete asset", meter:"delete meter reading", misc:"delete miscellaneous transaction", subinventory:"delete subinventory transfer", custom:"delete custom resource" };
         return labels[this.mode] || "delete transaction";
     },
     oneditprepare: function () {
-        var $cb = $("#node-input-overrideUrl");
-        var $urlRow = $("#url-override-row");
-        function toggleUrl() { $urlRow.toggle($cb.is(":checked")); }
-        toggleUrl();
-        $cb.on("change", toggleUrl);
+        var $mode = $("#node-input-mode");
+        var $customRow = $("#custom-path-row");
+        var $endpoint = $("#delete-endpoint-display");
+        var endpointMap = {
+            asset: "installedBaseAssets",
+            meter: "meterReadings",
+            misc: "inventoryStagedTransactions",
+            subinventory: "inventoryStagedTransactions"
+        };
+
+        function updateEndpointPreview() {
+            var mode = $mode.val();
+            var serverNodeId = $("#node-input-server").val();
+            var serverNode = RED.nodes.node(serverNodeId);
+            var resourceId = $("#node-input-resourceId").val().trim();
+
+            if (mode === "custom") {
+                var customPath = $("#node-input-customPath").val().trim();
+                var customBase = customPath || "Enter Custom URL to preview endpoint";
+                $endpoint.text(resourceId && customPath ? customPath + "/" + resourceId : customBase);
+                return;
+            }
+
+            if (!serverNode || !serverNode.hostname || !serverNode.version) {
+                $endpoint.text("Select SCM Server to preview endpoint");
+                return;
+            }
+
+            var endpoint = endpointMap[mode];
+            if (!endpoint) { return; }
+            var base = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint;
+            $endpoint.text(resourceId ? base + "/" + resourceId : base);
+        }
+
+        function toggleCustomPath() {
+            $customRow.toggle($mode.val() === "custom");
+            updateEndpointPreview();
+        }
+
+        toggleCustomPath();
+        $mode.on("change", toggleCustomPath);
+        $("#node-input-server").on("change", updateEndpointPreview);
+        $("#node-input-customPath").on("input", updateEndpointPreview);
+        $("#node-input-resourceId").on("input", updateEndpointPreview);
+        updateEndpointPreview();
+    },
+    oneditsave: function () {
+        if ($("#node-input-mode").val() !== "custom") {
+            $("#node-input-customPath").val("");
+        }
     }
 });
 </script>
@@ -76,53 +120,65 @@ RED.nodes.registerType("delete-transaction", {
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-mode"><i class="fa fa-list"></i> Delete Mode</label>
+        <label for="node-input-mode"><i class="fa fa-list"></i> Delete Type</label>
         <select id="node-input-mode" style="width:200px;">
             <option value="asset">Installed Base Asset</option>
             <option value="meter">Meter Reading</option>
-            <option value="misc">Misc. Transaction</option>
+            <option value="misc">Miscellaneous Transaction</option>
             <option value="subinventory">Subinventory Transfer</option>
+            <option value="custom">Custom</option>
         </select>
     </div>
+    <hr/>
     <div class="form-row">
-        <label for="node-input-transactionInterfaceId"><i class="fa fa-hashtag"></i> Transaction ID</label>
-        <input type="text" id="node-input-transactionInterfaceId" style="width:70%;">
+        <label><i class="fa fa-link"></i> Endpoint</label>
+        <span id="delete-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+    </div>
+    <div class="form-row" id="custom-path-row" style="display:none;">
+        <label for="node-input-customPath"><i class="fa fa-link"></i> Custom URL</label>
+        <input type="text" id="node-input-customPath" style="width:100%;">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Leave empty to read from <code>msg.transactionInterfaceId</code> at runtime.
+            Used only when Delete Type is <code>Custom</code>.
+            Enter the base endpoint only (no query string).
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-overrideUrl" style="width:auto;">
-            <input type="checkbox" id="node-input-overrideUrl" style="width:auto;vertical-align:middle;" />
-            <span style="font-size:12px;color:#666;"> Override URL</span>
-        </label>
-    </div>
-    <div class="form-row" id="url-override-row" style="display:none;">
-        <label for="node-input-urlOverride"><i class="fa fa-pencil"></i> Custom URL</label>
-        <input type="text" id="node-input-urlOverride" style="width:100%;">
+        <label for="node-input-resourceId"><i class="fa fa-hashtag"></i> Resource ID</label>
+        <input type="text" id="node-input-resourceId" style="width:70%;">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            Leave empty to read from <code>msg.resourceId</code>.
+        </div>
     </div>
 </script>
 
 <script type="text/x-red" data-help-name="delete-transaction">
-<p>Deletes a transaction record from Oracle Fusion SCM by its TransactionInterfaceId.</p>
+<p>Deletes an SCM record by resource identifier using the selected Delete Type endpoint.</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Delete Mode</dt><dd>Selects the correct REST endpoint for the resource type being deleted.</dd>
-    <dt>Transaction ID</dt><dd>The <code>TransactionInterfaceId</code> to delete. If left blank, reads from <code>msg.transactionInterfaceId</code>.</dd>
+    <dt>Delete Type</dt><dd>Selects the REST endpoint for the resource type being deleted. Use <code>Custom</code> to provide your own base URL.</dd>
+    <dt>Resource ID</dt><dd>Identifier to append to the selected endpoint. If left blank, reads from <code>msg.resourceId</code>.</dd>
+    <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Delete Type and SCM Server.</dd>
+    <dt>Custom URL</dt><dd>Custom base endpoint used only when Delete Type is <code>Custom</code>. Query parameters are not allowed.</dd>
 </dl>
 
 <h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt><dd>API response on success, error details on failure.</dd>
     <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code (e.g. 204 on success).</dd>
-    <dt>error <span class="property-type">string</span></dt><dd>Error message (only present on failure).</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.resourceId <span class="property-type">string</span></dt><dd>Resource ID — used when the Resource ID field is left blank.</dd>
+    <dt>msg.mode <span class="property-type">string</span></dt><dd>Overrides the Delete Type for this message. Accepted values: <code>asset</code>, <code>meter</code>, <code>misc</code>, <code>subinventory</code>, <code>custom</code>.</dd>
 </dl>
 
 <h3>Details</h3>
 <p>Sends a <code>DELETE</code> request to the appropriate SCM REST endpoint based on the selected mode.
-The Transaction ID can be hardcoded in the config or passed dynamically via <code>msg.transactionInterfaceId</code>
-(e.g. from a previous create node's response).</p>
+The Resource ID can be hardcoded in the config or passed dynamically via <code>msg.resourceId</code>
+(e.g. from a previous create node's response). The resource ID is URL-encoded before path append, and delete requests use a 30-second timeout.</p>
 </script>

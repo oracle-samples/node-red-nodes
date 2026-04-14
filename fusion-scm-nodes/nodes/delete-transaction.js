@@ -45,7 +45,7 @@ module.exports = function(RED) {
 
         node.server = RED.nodes.getNode(config.server);
         if (!node.server) {
-            node.status({ fill: "red", shape: "ring", text: "No SCM server" });
+            node.status({ fill: "red", shape: "ring", text: "no SCM server" });
             node.error("No SCM Server configured");
             return;
         }
@@ -64,11 +64,12 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             try {
-                // Resolve transaction ID from config or msg
-                const txId = config.transactionInterfaceId || msg.transactionInterfaceId;
-                if (!txId) {
-                    node.status({ fill: "red", shape: "ring", text: "No transaction ID" });
-                    const err = new Error("No TransactionInterfaceId provided");
+                // Resolve resource identifier from msg or config
+                const resourceIdRaw = msg.resourceId || config.resourceId;
+                const resourceId = resourceIdRaw == null ? "" : String(resourceIdRaw).trim();
+                if (!resourceId) {
+                    node.status({ fill: "red", shape: "ring", text: "no resource ID" });
+                    const err = new Error("No resource ID provided");
                     node.error(err.message, msg);
                     return done(err);
                 }
@@ -77,14 +78,39 @@ module.exports = function(RED) {
                 const token = await node.server.getToken();
 
                 // Build URL from mode or use override
-                const mode = config.mode || "misc";
-                const endpoint = endpointMap[mode] || "inventoryStagedTransactions";
-                const baseUrl = config.urlOverride || node.server.buildUrl(endpoint);
-                const finalUrl = `${baseUrl}/${txId}`;
-                ensureHttps(finalUrl);
+                const mode = msg.mode || config.mode || "asset";
+                const isCustomMode = mode === "custom";
+                const endpoint = endpointMap[mode];
+                if (!isCustomMode && !endpoint) {
+                    const err = new Error(`Unrecognised delete mode: "${mode}"`);
+                    node.status({ fill: "red", shape: "ring", text: "invalid mode" });
+                    node.error(err.message, msg);
+                    return done(err);
+                }
+                const customPath = String(config.customPath || "").trim();
+                const baseUrl = isCustomMode ? customPath : node.server.buildUrl(endpoint);
+                if (!baseUrl) {
+                    const err = new Error("No custom URL configured for custom delete mode");
+                    node.status({ fill: "red", shape: "ring", text: "no custom URL" });
+                    node.error(err.message, msg);
+                    return done(err);
+                }
+                const parsedUrl = ensureHttps(baseUrl);
+                if (isCustomMode && parsedUrl.search) {
+                    const err = new Error("Custom URL must not include query parameters in custom delete mode");
+                    node.status({ fill: "red", shape: "ring", text: "invalid custom URL" });
+                    node.error(err.message, msg);
+                    return done(err);
+                }
+                const basePath = parsedUrl.pathname.endsWith("/") && parsedUrl.pathname.length > 1
+                    ? parsedUrl.pathname.slice(0, -1)
+                    : parsedUrl.pathname;
+                parsedUrl.pathname = basePath + "/" + encodeURIComponent(resourceId);
+                const finalUrl = parsedUrl.toString();
 
                 node.status({ fill: "yellow", shape: "dot", text: "deleting..." });
                 const response = await axios.delete(finalUrl, {
+                    timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -100,10 +126,13 @@ module.exports = function(RED) {
                 done();
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "delete failed" });
-                msg.error = err.message || err.toString();
+                msg.error = {
+                    message: err.message || err.toString(),
+                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
+                };
                 msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error;
-                node.error(msg.error, msg);
+                msg.payload = err.response?.data || msg.error.message;
+                node.error(msg.error.message, msg);
                 done(err);
             }
         });
