@@ -43,7 +43,7 @@ module.exports = function (RED) {
 
         node.ociConfig = RED.nodes.getNode(config.ociConfig);
         if (!node.ociConfig) {
-            node.status({ fill: "red", shape: "ring", text: "No OCI config" });
+            node.status({ fill: "red", shape: "ring", text: "no OCI config" });
             node.error("No OCI Config configured");
             return;
         }
@@ -71,7 +71,7 @@ module.exports = function (RED) {
             try {
                 node.status({ fill: "yellow", shape: "dot", text: "publishing..." });
 
-                const topicId = node.topicOcid || msg.topicOcid;
+                const topicId = msg.topicOcid || node.topicOcid;
                 if (!topicId) {
                     const err = new Error("No Topic OCID configured or provided in msg.topicOcid");
                     node.status({ fill: "red", shape: "ring", text: "no topic" });
@@ -79,7 +79,7 @@ module.exports = function (RED) {
                     return done(err);
                 }
 
-                const title = node.msgTitle || msg.title || "";
+                const title = msg.title || node.msgTitle || "";
                 const body = node.msgBody || (typeof msg.payload === "string" ? msg.payload : JSON.stringify(msg.payload));
 
                 const onsClient = await getClient();
@@ -97,11 +97,14 @@ module.exports = function (RED) {
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "failed" });
-                msg.error = err.message || err.toString();
+                node.status({ fill: "red", shape: "dot", text: "publish failed" });
+                msg.error = {
+                    message: err.message || err.toString(),
+                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
+                };
                 msg.statusCode = err.statusCode || 0;
                 msg.payload = err.message;
-                node.error(msg.error, msg);
+                node.error(msg.error.message, msg);
                 done(err);
             }
         });

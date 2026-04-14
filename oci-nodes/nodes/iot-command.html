@@ -78,12 +78,7 @@ RED.nodes.registerType("iot-command", {
 </script>
 
 <script type="text/x-red" data-help-name="iot-command">
-<p>Subscribes to an MQTT topic and outputs a message whenever a command arrives.</p>
-
-<h3>Important: This Node Has No Input</h3>
-<p>The command node listens for incoming MQTT messages on the configured topic.
-It has <b>no input port</b> — commands arrive from the broker, not from other nodes.
-Wire its output to your command handling logic.</p>
+<p>Subscribes to an MQTT topic and outputs a message whenever a command arrives from the IoT Platform. This node has no input port — commands arrive from the broker, not from upstream nodes.</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
@@ -101,7 +96,7 @@ Wire its output to your command handling logic.</p>
     <dd>MQTT QoS level for the subscription (0, 1, or 2).</dd>
 </dl>
 
-<h3>Output</h3>
+<h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object | string</span></dt>
     <dd>The command payload. JSON payloads are parsed automatically; other messages are passed as strings.</dd>
@@ -112,6 +107,9 @@ Wire its output to your command handling logic.</p>
     <dt>topic <span class="property-type">string</span></dt>
     <dd>The full MQTT topic the message arrived on.</dd>
 </dl>
+
+<h3>Details</h3>
+<p>Subscribes to the configured MQTT topic on deploy using the IoT Device connection. The subscription is maintained for the lifetime of the node. On each incoming MQTT message, the node parses the payload as JSON (if possible) and emits an output message. Status shows <code>listening</code> while connected and updates on connection state changes.</p>
 
 <h3>Typical Flows</h3>
 <p><b>Receive all commands:</b><br/>

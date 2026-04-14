@@ -35,6 +35,15 @@
 -->
 
 <script type="text/javascript">
+var enqueueEditorStyles = '<style id="enqueue-editor-styles">' +
+    '.enqueue-payload-toolbar{display:flex;justify-content:flex-end;gap:6px;margin-top:4px;margin-bottom:4px;}' +
+    '.enqueue-payload-toolbar .enqueue-json-editor{width:30px;min-width:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;}' +
+    '.enqueue-payload-toolbar .enqueue-json-editor i{font-size:11px;}' +
+'</style>';
+if (!document.getElementById("enqueue-editor-styles")) {
+    $("head").append(enqueueEditorStyles);
+}
+
 RED.nodes.registerType("enqueue", {
     category: "oracle db",
     paletteLabel: "enqueue",
@@ -69,10 +78,32 @@ RED.nodes.registerType("enqueue", {
         function updatePayloadType() {
             var type = $("#node-input-payloadType").val();
             $("#enqueue-adt-row").toggle(type === "adt");
+            var isJsonLike = (type === "json" || type === "adt");
+            $(".enqueue-json-editor").toggle(isJsonLike);
             $("#enqueue-payload-hint").html(PAYLOAD_HINTS[type] || PAYLOAD_HINTS.json);
         }
         $("#node-input-payloadType").on("change", updatePayloadType);
         updatePayloadType();
+
+        $(".enqueue-json-editor").on("click", function () {
+            var type = $("#node-input-payloadType").val();
+            if (type !== "json" && type !== "adt") return;
+            if (!(RED.editor && RED.editor.editJSON)) {
+                RED.notify("JSON editor is not available in this Node-RED version.", { type: "warning" });
+                return;
+            }
+            var payloadEl = $("#node-input-userPayload");
+            RED.editor.editJSON({
+                value: payloadEl.val() || "",
+                complete: function (value) {
+                    var next = value;
+                    if (value && typeof value === "object" && value.value !== undefined) {
+                        next = value.value;
+                    }
+                    payloadEl.val(next || "");
+                }
+            });
+        });
 
         function updateDeliveryWarning() {
             if ($("#node-input-deliveryMode").val() === "buffered") {
@@ -110,7 +141,7 @@ RED.nodes.registerType("enqueue", {
     </div>
     <div class="form-row">
         <label for="node-input-deliveryMode"><i class="fa fa-tachometer"></i> Delivery Mode</label>
-        <select id="node-input-deliveryMode" style="width:70%">
+        <select id="node-input-deliveryMode" style="width:200px;">
             <option value="persistent">Persistent (default)</option>
             <option value="buffered">Buffered</option>
         </select>
@@ -124,7 +155,7 @@ RED.nodes.registerType("enqueue", {
     <hr/>
     <div class="form-row">
         <label for="node-input-payloadType"><i class="fa fa-file-code-o"></i> Payload Type</label>
-        <select id="node-input-payloadType" style="width:70%">
+        <select id="node-input-payloadType" style="width:200px;">
             <option value="json">JSON</option>
             <option value="raw">RAW</option>
             <option value="adt">ADT (Object Type)</option>
@@ -138,7 +169,12 @@ RED.nodes.registerType("enqueue", {
     <div class="form-row">
         <label for="node-input-userPayload"><i class="fa fa-code"></i> Payload</label>
         <div id="enqueue-payload-hint" style="font-size:11px;color:#888;margin-bottom:4px;"></div>
-        <textarea id="node-input-userPayload" rows="5" style="width:100%;margin-top:5px;"></textarea>
+        <div class="enqueue-payload-toolbar">
+            <button type="button" class="red-ui-button red-ui-button-small enqueue-json-editor" title="Open JSON editor">
+                <i class="fa fa-ellipsis-h"></i>
+            </button>
+        </div>
+        <textarea id="node-input-userPayload" rows="5" style="width:100%;"></textarea>
     </div>
     <hr/>
     <div class="form-row">
@@ -167,20 +203,20 @@ RED.nodes.registerType("enqueue", {
     <dt>Object Type</dt>
     <dd>ADT only. Schema-qualified Oracle object type name, e.g. <code>ADMIN.MY_MSG_TYPE</code>. Must exist in the database and match the queue's payload type.</dd>
     <dt>Payload</dt>
-    <dd>JSON: a single object or array — each element becomes one AQ message. RAW: a plain string encoded to a Buffer. ADT: a single object or array with uppercase field names matching the Oracle type. If empty, <code>msg.payload</code> is used instead.</dd>
+    <dd>JSON: a single object or array — each element becomes one AQ message. RAW: a plain string encoded to a Buffer. ADT: a single object or array with uppercase field names matching the Oracle type. If empty, <code>msg.payload</code> is used instead. For JSON/ADT payload types, use <code>...</code> to open the JSON editor.</dd>
 </dl>
 
 <h3>Outputs</h3>
 <p>Output is optional. Enable the <strong>Output</strong> toggle to send a msg after a successful enqueue.</p>
 <dl class="message-properties">
-    <dt>enqueued <span class="property-type">array</span></dt>
-    <dd>The array of objects that were enqueued.</dd>
     <dt>count <span class="property-type">number</span></dt>
     <dd>Number of messages enqueued.</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>Opens its own connection, enqueues the messages, commits, and closes.
-Each element of the JSON array is enqueued as a separate AQ message with
-<code>DB_TYPE_JSON</code> payload type.</p>
+<p>When <code>msg.transaction.connection</code> exists (from <code>begin-transaction</code>), enqueue uses that shared connection and does not auto-commit. The enqueue is finalized by <code>end-transaction</code> commit/rollback.</p>
+<p>Without a transaction connection, enqueue opens its own connection, enqueues, commits, and closes.</p>
+<p>Each element of the JSON array is enqueued as a separate AQ message with <code>DB_TYPE_JSON</code> payload type.</p>
 </script>

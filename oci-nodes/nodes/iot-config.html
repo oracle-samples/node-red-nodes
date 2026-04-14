@@ -39,24 +39,48 @@ RED.nodes.registerType("iot-config", {
     category: "config",
     color: "#F0CC72",
     defaults: {
+        name: { value: "" },
         deviceHost: { value: "", required: true },
         clientId: { value: "", required: true },
         authType: { value: "basic" },
         caCertPath: { value: "" },
         clientCertPath: { value: "" },
         clientKeyPath: { value: "" },
-        useProxy: { value: false },
-        proxyUrl: { value: "" }
+        clean: { value: false },
+        keepalive: { value: 60 },
+        reconnectPeriod: { value: 5000 },
+        connectTimeout: { value: 30000 }
     },
     credentials: {
         username: { type: "text" },
         password: { type: "password" }
     },
     label: function () {
+        if (this.name) return this.name;
         return this.clientId || this.deviceHost || "IoT Device";
     },
     oneditprepare: function () {
         var nodeId = this.id;
+
+        function ensureDefaultNumber(id, fallback) {
+            var raw = $(id).val();
+            if (raw === "" || raw === null || raw === undefined) {
+                $(id).val(fallback);
+            }
+        }
+
+        function clampNumberInput(id, min, max, fallback) {
+            $(id).on("blur change", function () {
+                var n = parseInt($(this).val(), 10);
+                if (isNaN(n)) {
+                    $(this).val(fallback);
+                    return;
+                }
+                if (n < min) n = min;
+                if (n > max) n = max;
+                $(this).val(n);
+            });
+        }
 
         function updateAuthFields() {
             var type = $("#node-config-input-authType").val();
@@ -66,17 +90,12 @@ RED.nodes.registerType("iot-config", {
         }
         updateAuthFields();
         $("#node-config-input-authType").on("change", updateAuthFields);
-
-        // Proxy toggle
-        function updateProxy() {
-            if ($("#node-config-input-useProxy").is(":checked")) {
-                $("#proxy-url-row").show();
-            } else {
-                $("#proxy-url-row").hide();
-            }
-        }
-        updateProxy();
-        $("#node-config-input-useProxy").on("change", updateProxy);
+        ensureDefaultNumber("#node-config-input-keepalive", 60);
+        ensureDefaultNumber("#node-config-input-reconnectPeriod", 5000);
+        ensureDefaultNumber("#node-config-input-connectTimeout", 30000);
+        clampNumberInput("#node-config-input-keepalive", 15, 300, 60);
+        clampNumberInput("#node-config-input-reconnectPeriod", 1000, 60000, 5000);
+        clampNumberInput("#node-config-input-connectTimeout", 5000, 120000, 30000);
 
         // Test Connection
         $("#btn-test-iot").on("click", function () {
@@ -107,6 +126,10 @@ RED.nodes.registerType("iot-config", {
 </script>
 
 <script type="text/x-red" data-template-name="iot-config">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Optional display name">
+    </div>
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
     <div class="form-row">
         <label for="node-config-input-deviceHost"><i class="fa fa-globe"></i> Device Host</label>
@@ -168,18 +191,74 @@ RED.nodes.registerType("iot-config", {
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Network</legend>
     <div class="form-row">
-        <label for="node-config-input-useProxy"><i class="fa fa-exchange"></i> Use Proxy</label>
-        <input type="checkbox" id="node-config-input-useProxy" style="width:auto;vertical-align:middle;">
-    </div>
-    <div class="form-row" id="proxy-url-row" style="display:none;">
-        <label for="node-config-input-proxyUrl"><i class="fa fa-link"></i> Proxy URL</label>
-        <input type="text" id="node-config-input-proxyUrl" placeholder="http://proxy-host:port">
+        <label for="node-config-input-clean" style="width:130px;"><i class="fa fa-history"></i> Clean Session</label>
+        <input type="checkbox" id="node-config-input-clean" style="width:auto;vertical-align:middle;">
+        <span style="font-size:12px;color:#666;"> Start a clean MQTT session (not recommended for command persistence)</span>
     </div>
     <div class="form-row">
-        <button type="button" class="red-ui-button" id="btn-test-iot" style="margin-left:105px;">
+        <label for="node-config-input-keepalive" style="width:130px;"><i class="fa fa-heartbeat"></i> Keep Alive</label>
+        <input type="number" id="node-config-input-keepalive" min="15" max="300" style="width:120px;">
+        <span style="font-size:12px;color:#666;margin-left:8px;">seconds (15-300)</span>
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-reconnectPeriod" style="width:130px;"><i class="fa fa-refresh"></i> Reconnect Period</label>
+        <input type="number" id="node-config-input-reconnectPeriod" min="1000" max="60000" style="width:120px;">
+        <span style="font-size:12px;color:#666;margin-left:8px;">milliseconds (1000-60000)</span>
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-connectTimeout" style="width:130px;"><i class="fa fa-clock-o"></i> Connect Timeout</label>
+        <input type="number" id="node-config-input-connectTimeout" min="5000" max="120000" style="width:120px;">
+        <span style="font-size:12px;color:#666;margin-left:8px;">milliseconds (5000-120000)</span>
+    </div>
+    <div class="form-tips" style="margin-left:135px;margin-top:6px;color:#666;font-size:11px;line-height:1.4">
+        <b>Tip:</b> Keep <code>Clean Session</code> disabled to preserve queued commands and subscriptions across reconnects.
+    </div>
+    <div class="form-row">
+        <button type="button" class="red-ui-button" id="btn-test-iot" style="margin-left:135px;">
             <i class="fa fa-plug"></i> Test Connection
         </button>
         <span id="test-iot-result" style="margin-left:10px;font-size:12px;"></span>
     </div>
     </fieldset>
+</script>
+
+<script type="text/x-red" data-help-name="iot-config">
+<p>Configures the MQTT connection used by <b>iot-telemetry</b> and <b>iot-command</b>.</p>
+
+<h3>Connection</h3>
+<dl class="message-properties">
+    <dt>Device Host</dt>
+    <dd>OCI IoT device host from your IoT Domain. The node connects using <code>mqtts://&lt;deviceHost&gt;:8883</code>.</dd>
+    <dt>Client ID</dt>
+    <dd>MQTT client identifier (typically your device or digital twin instance name).</dd>
+</dl>
+
+<h3>Authentication</h3>
+<dl class="message-properties">
+    <dt>Basic (Username / Password)</dt>
+    <dd>Use your digital twin external key as username and the Vault secret content as password.</dd>
+    <dt>Certificate (mTLS)</dt>
+    <dd>Use client certificate/key file paths (and optional CA cert path).</dd>
+</dl>
+
+<h3>Network (Advanced MQTT Settings)</h3>
+<dl class="message-properties">
+    <dt>Clean Session</dt>
+    <dd>When enabled, starts a clean MQTT session. Default is disabled (<code>clean=false</code>) for persistent command/session behavior.</dd>
+    <dt>Keep Alive</dt>
+    <dd>MQTT keepalive interval in seconds. Default: <code>60</code>.</dd>
+    <dt>Reconnect Period</dt>
+    <dd>Auto-reconnect interval in milliseconds. Default: <code>5000</code>.</dd>
+    <dt>Connect Timeout</dt>
+    <dd>MQTT connection timeout in milliseconds. Default: <code>30000</code>.</dd>
+    <dt>Test Connection</dt>
+    <dd>Creates a temporary MQTT connection to validate host/auth settings.</dd>
+</dl>
+
+<h3>Notes</h3>
+<ul>
+    <li>OCI IoT supports MQTTS on port <code>8883</code>.</li>
+    <li>For command/session persistence, keep <code>Clean Session</code> disabled.</li>
+    <li>If <code>Client ID</code> is empty while <code>clean=false</code>, the node will warn and use a safe fallback for that connection attempt.</li>
+</ul>
 </script>

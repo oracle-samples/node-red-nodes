@@ -199,9 +199,7 @@
         "authType": "basic",
         "caCertPath": "",
         "clientCertPath": "",
-        "clientKeyPath": "",
-        "useProxy": false,
-        "proxyUrl": ""
+        "clientKeyPath": ""
     },
     {
         "id": "8d8f1b07836c5568",
@@ -221,7 +219,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.3.2"
+            "node-red-nodes": "0.4.0"
         }
     }
 ]

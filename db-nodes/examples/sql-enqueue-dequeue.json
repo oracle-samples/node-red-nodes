@@ -79,6 +79,9 @@
         "deqMode": "remove",
         "wait": 0,
         "waitForever": false,
+        "retryEnabled": true,
+        "retryDelayMs": 5000,
+        "maxRetries": 0,
         "batchSize": 1,
         "x": 780,
         "y": 140,
@@ -182,7 +185,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.3.2"
+            "node-red-nodes": "0.4.0"
         }
     }
 ]

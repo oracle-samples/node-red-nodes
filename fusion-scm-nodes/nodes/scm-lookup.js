@@ -40,10 +40,10 @@ module.exports = function(RED) {
     const { ensureHttps } = require("../lib/url.js");
 
     const LOOKUP_TYPES = {
-        installedBaseAsset: { endpoint: "installedBaseAssets", queryParam: "SerialNumber", configField: "queryValue" },
-        meterReading:       { endpoint: "meterReadings",       queryParam: "AssetNumber",   configField: "queryValue" },
-        organizationId:     { endpoint: "inventoryOrganizations", queryParam: "OrganizationName", configField: "queryValue" },
-        custom:             { endpoint: "",                    queryParam: "",              configField: "queryValue" }
+        installedBaseAsset: { endpoint: "installedBaseAssets",      queryParam: "SerialNumber",       configField: "queryValue" },
+        meterReading:       { endpoint: "meterReadings",            queryParam: "AssetNumber",        configField: "queryValue" },
+        organizationId:     { endpoint: "inventoryOrganizations",   queryParam: "OrganizationName",   configField: "queryValue" },
+        custom:             { endpoint: "",                         queryParam: "",                   configField: "queryValue" }
     };
 
     function ScmLookupNode(config) {
@@ -52,7 +52,7 @@ module.exports = function(RED) {
 
         node.server = RED.nodes.getNode(config.server);
         if (!node.server) {
-            node.status({ fill: "red", shape: "ring", text: "No SCM server" });
+            node.status({ fill: "red", shape: "ring", text: "no SCM server" });
             node.error("No SCM Server configured");
             return;
         }
@@ -65,7 +65,7 @@ module.exports = function(RED) {
                 const lookupType = config.lookupType || "installedBaseAsset";
                 const lookup = LOOKUP_TYPES[lookupType] || LOOKUP_TYPES.custom;
 
-                const queryValue = config.queryValue || msg.queryValue;
+                const queryValue = msg.queryValue || config.queryValue;
                 if (!queryValue && lookupType !== "custom") {
                     node.status({ fill: "red", shape: "ring", text: "No query value" });
                     const err = new Error("No query value provided");
@@ -78,19 +78,36 @@ module.exports = function(RED) {
 
                 let finalUrl;
                 if (lookupType === "custom") {
-                    finalUrl = config.customUrl || "";
+                    const base = config.customUrl || "";
                     if (queryValue && config.customQueryParam) {
-                        finalUrl += `?q=${config.customQueryParam}=${queryValue}`;
+                        const parsed = new URL(base);
+                        if (parsed.search) {
+                            const err = new Error("Custom URL must not include query parameters in custom lookup mode");
+                            node.status({ fill: "red", shape: "ring", text: "invalid custom URL" });
+                            node.error(err.message, msg);
+                            return done(err);
+                        }
+                        parsed.searchParams.set("q", `${config.customQueryParam}=${queryValue}`);
+                        finalUrl = parsed.toString();
+                    } else {
+                        const err = new Error("Custom lookup requires both Query Param and Query Value");
+                        node.status({ fill: "red", shape: "ring", text: "config error" });
+                        node.error(err.message, msg);
+                        return done(err);
                     }
                 } else {
                     const baseUrl = node.server.buildUrl(lookup.endpoint);
-                    finalUrl = `${baseUrl}?q=${lookup.queryParam}=${queryValue}`;
+                    // URLSearchParams encodes special characters in queryValue.
+                    const params = new URLSearchParams();
+                    params.set("q", `${lookup.queryParam}=${queryValue}`);
+                    finalUrl = `${baseUrl}?${params.toString()}`;
                 }
 
                 ensureHttps(finalUrl);
 
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
                 const response = await axios.get(finalUrl, {
+                    timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -106,10 +123,13 @@ module.exports = function(RED) {
                 done();
             } catch (err) {
                 node.status({ fill: "red", shape: "dot", text: "lookup failed" });
-                msg.error = err.message || err.toString();
+                msg.error = {
+                    message: err.message || err.toString(),
+                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
+                };
                 msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error;
-                node.error(msg.error, msg);
+                msg.payload = err.response?.data || msg.error.message;
+                node.error(msg.error.message, msg);
                 done(err);
             }
         });

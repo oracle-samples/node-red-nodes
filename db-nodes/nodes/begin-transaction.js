@@ -40,6 +40,7 @@ module.exports = function(RED) {
         const node = this;
 
         node.timeoutSecs = Number(config.timeoutSecs) || 0;
+        node.timeoutHandles = new Set();
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
@@ -47,10 +48,47 @@ module.exports = function(RED) {
             return;
         }
 
+        function clearTrackedTimeout(handle) {
+            if (!handle) return;
+            clearTimeout(handle);
+            node.timeoutHandles.delete(handle);
+        }
+
+        function scheduleTimeout(txn) {
+            clearTrackedTimeout(txn._timeout);
+            txn._timeout = null;
+
+            if (node.timeoutSecs <= 0) {
+                return;
+            }
+
+            var handle = setTimeout(async () => {
+                node.timeoutHandles.delete(handle);
+                txn._timeout = null;
+
+                txn.timedOut = true;
+                txn.endedAt = Date.now();
+                txn._ended = true;
+
+                node.warn(`Transaction timed out after ${node.timeoutSecs}s — rolling back and closing connection`);
+                node.status({ fill: "red", shape: "ring", text: `timed out (${node.timeoutSecs}s)` });
+
+                if (txn.connection) {
+                    try { await txn.connection.rollback(); } catch (e) { /* ignore */ }
+                    try { await txn.connection.close(); } catch (e) { /* ignore */ }
+                    txn.connection = null;
+                }
+            }, node.timeoutSecs * 1000);
+
+            txn._timeout = handle;
+            node.timeoutHandles.add(handle);
+        }
+
         node.on("input", async (msg, send, done) => {
             try {
                 // Reuse existing transaction connection if present
                 if (msg.transaction && msg.transaction.connection) {
+                    scheduleTimeout(msg.transaction);
                     node.status({ fill: "green", shape: "dot", text: "transaction reused" });
                     send(msg);
                     return done();
@@ -76,17 +114,8 @@ module.exports = function(RED) {
                     writable: true,
                     configurable: true
                 });
- 
-                // Set up connection timeout if configured
-                if (node.timeoutSecs > 0) {
-                    txn._timeout = setTimeout(async () => {
-                        node.warn(`Transaction timed out after ${node.timeoutSecs}s — rolling back and closing connection`);
-                        node.status({ fill: "red", shape: "ring", text: `timed out (${node.timeoutSecs}s)` });
-                        try { await connection.rollback(); } catch (e) { /* ignore */ }
-                        try { await connection.close(); } catch (e) { /* ignore */ }
-                        if (msg.transaction) msg.transaction.connection = null;
-                    }, node.timeoutSecs * 1000);
-                }
+
+                scheduleTimeout(txn);
  
                 node.status({ fill: "green", shape: "dot", text: "transaction started" });
                 send(msg);
@@ -96,6 +125,12 @@ module.exports = function(RED) {
                 node.error(err, msg);
                 done(err);
             }
+        });
+
+        node.on("close", function(done) {
+            node.timeoutHandles.forEach((handle) => clearTimeout(handle));
+            node.timeoutHandles.clear();
+            if (done) done();
         });
     }
 

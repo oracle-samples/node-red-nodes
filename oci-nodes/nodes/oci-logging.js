@@ -187,11 +187,14 @@ module.exports = function (RED) {
                 }, 3000);
 
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "failed" });
-                msg.error = err.message || err.toString();
+                node.status({ fill: "red", shape: "dot", text: "ingest failed" });
+                msg.error = {
+                    message: err.message || err.toString(),
+                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
+                };
                 msg.statusCode = err.statusCode || 0;
                 msg.payload = err.message;
-                node.error(msg.error, msg);
+                node.error(msg.error.message, msg);
                 done(err);
             }
         });

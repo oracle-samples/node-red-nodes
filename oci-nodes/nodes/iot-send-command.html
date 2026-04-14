@@ -108,18 +108,6 @@ RED.nodes.registerType("iot-send-command", {
 <script type="text/x-red" data-help-name="iot-send-command">
 <p>Sends a raw command to an OCI IoT Digital Twin instance via the OCI REST API.</p>
 
-<h3>How It Works</h3>
-<p>This node calls the OCI IoT Platform's <code>invokeRawCommand</code> API to send a command
-to a digital twin instance. The platform delivers the command to the device over MQTT
-on the topic <code>&lt;baseEndpoint&gt;/cmd/&lt;commandKey&gt;</code>. If the device is connected
-and listening (e.g. via the <b>iot command</b> node), it receives the command and can
-send an acknowledgment back.</p>
-
-<p><b>Important:</b> This node uses the OCI REST API (via the <b>oci-config</b> node),
-not the MQTT connection. It sends commands <em>to</em> the device through the IoT Platform,
-which is the cloud-to-device direction. This is the equivalent of running
-<code>oci iot digital-twin-instance invoke-raw-json-command</code> from the CLI.</p>
-
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>OCI Config</dt>
@@ -137,27 +125,16 @@ which is the cloud-to-device direction. This is the equivalent of running
     <dd>When enabled, includes a response endpoint so the platform waits for the device
     to send an acknowledgment. When disabled, the command is fire-and-forget.</dd>
     <dt>Request Duration</dt>
-    <dd>How long the platform tries to deliver the command (ISO 8601 duration).
-    Default: <code>PT10M</code> (10 minutes).</dd>
+    <dd>How long the platform tries to deliver the command (ISO 8601 duration, e.g. <code>PT10M</code>, <code>PT1H</code>, <code>P1D</code>).
+    Default: <code>PT10M</code> (10 minutes). Validated before API submission.</dd>
     <dt>Response Duration</dt>
     <dd>How long the platform waits for the device to respond (ISO 8601 duration).
     Default: <code>PT10M</code> (10 minutes). Only used when Wait for Response is enabled.</dd>
+    <dt>Payload</dt>
+    <dd><code>msg.payload</code> is the command data sent to the device (e.g. <code>{"action": "blink", "duration": 5}</code>).</dd>
 </dl>
 
-<p>Durations are validated before API submission and must be valid ISO 8601 values (for example <code>PT10M</code>, <code>PT1H</code>, <code>P1D</code>).</p>
-
-<h3>Input</h3>
-<dl class="message-properties">
-    <dt>payload <span class="property-type">object</span></dt>
-    <dd>The command data to send to the device. This is the JSON payload the device
-    receives (e.g. <code>{"action": "blink", "duration": 5}</code> or <code>{"shutdown": true}</code>).</dd>
-    <dt>commandKey <span class="property-type">string</span></dt>
-    <dd>Optional. The command key if not set in the editor.</dd>
-    <dt>digitalTwinOcid <span class="property-type">string</span></dt>
-    <dd>Optional. The digital twin OCID if not set in the editor.</dd>
-</dl>
-
-<h3>Output</h3>
+<h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt>
     <dd>The OCI API response containing command delivery details.</dd>
@@ -168,10 +145,27 @@ which is the cloud-to-device direction. This is the equivalent of running
     <dt>requestEndpoint <span class="property-type">string</span></dt>
     <dd>The full command topic (e.g. <code>iot/v1/cmd/shutdown</code>).</dd>
     <dt>responseEndpoint <span class="property-type">string</span></dt>
-    <dd>The full response topic (e.g. <code>iot/v1/rsp/shutdown</code>).</dd>
+    <dd>The full response topic (e.g. <code>iot/v1/rsp/shutdown</code>). Included only when <b>Wait for Response</b> is enabled.</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 
-<p><code>responseEndpoint</code> is included only when <b>Wait for Response</b> is enabled.</p>
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt><dd>Overrides Digital Twin OCID when provided.</dd>
+    <dt>msg.commandKey <span class="property-type">string</span></dt><dd>Overrides Command Key when provided.</dd>
+    <dt>msg.payload <span class="property-type">object</span></dt><dd>The command data sent to the device.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>This node calls the OCI IoT Platform's <code>invokeRawCommand</code> API to send a command
+to a digital twin instance. The platform delivers the command to the device over MQTT
+on the topic <code>&lt;baseEndpoint&gt;/cmd/&lt;commandKey&gt;</code>. If the device is connected
+and listening (e.g. via the <b>iot command</b> node), it receives the command and can
+send an acknowledgment back.</p>
+<p>This node uses the OCI REST API (via the <b>oci-config</b> node), not the MQTT connection.
+It sends commands <em>to</em> the device through the IoT Platform — the cloud-to-device direction.
+Equivalent to running <code>oci iot digital-twin-instance invoke-raw-json-command</code> from the CLI.</p>
 
 <h3>Prerequisites</h3>
 <p>Install the OCI SDK in your Node-RED directory:</p>

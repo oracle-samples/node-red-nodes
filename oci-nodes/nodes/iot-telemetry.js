@@ -35,6 +35,11 @@
  */
 
 module.exports = function (RED) {
+    function normalizeQos(value, fallbackQos) {
+        var parsed = Number(value);
+        if (parsed === 0 || parsed === 1 || parsed === 2) return parsed;
+        return fallbackQos;
+    }
 
     function IotTelemetryNode(config) {
         RED.nodes.createNode(this, config);
@@ -49,7 +54,7 @@ module.exports = function (RED) {
 
         node.addTimestamp = config.addTimestamp !== false;  // Default true
         node.topic = (config.topic || "").trim();
-        node.qos = parseInt(config.qos) || 1;
+        node.qos = normalizeQos(config.qos, 1);
 
         function onConnection(state) {
             switch (state) {
@@ -64,7 +69,7 @@ module.exports = function (RED) {
                     node.status({ fill: "red", shape: "ring", text: state });
                     break;
                 case "error":
-                    node.status({ fill: "red", shape: "dot", text: "error" });
+                    node.status({ fill: "red", shape: "dot", text: "connection error" });
                     break;
             }
         }
@@ -90,27 +95,38 @@ module.exports = function (RED) {
             }
 
             // Add timestamp if missing.
+            // OCI IoT expects timestamps in microseconds, not milliseconds.
             if (node.addTimestamp && payload.time == null) {
                 payload.time = Math.floor(Date.now() * 1000);
             }
 
             var payloadStr = JSON.stringify(payload);
-            var topic = node.topic ||
-                (msg.topic !== undefined && msg.topic !== "" ? String(msg.topic) : null);
+            var msgTopic = (msg.topic !== undefined && msg.topic !== null) ? String(msg.topic).trim() : "";
+            var topic = node.topic || (msgTopic !== "" ? msgTopic : null);
             if (!topic) {
                 node.status({ fill: "red", shape: "dot", text: "no topic" });
                 node.error("No topic configured and msg.topic not set", msg);
                 return done(new Error("No topic"));
             }
             var opts = { qos: node.qos };
-            if (msg.qos !== undefined && msg.qos !== null) { opts.qos = Number(msg.qos); }
+            if (msg.qos !== undefined && msg.qos !== null) {
+                var msgQos = normalizeQos(msg.qos, null);
+                if (msgQos === null) {
+                    node.warn("Invalid msg.qos value '" + msg.qos + "'. Falling back to configured QoS " + node.qos + ".");
+                } else {
+                    opts.qos = msgQos;
+                }
+            }
 
             node.status({ fill: "yellow", shape: "dot", text: "publishing" });
 
             node.iotDevice.publish(topic, payloadStr, opts, function (err) {
                 if (err) {
                     node.status({ fill: "red", shape: "dot", text: "publish failed" });
-                    msg.error = err.message;
+                    msg.error = {
+                        message: err.message || String(err),
+                        code: (err.code || null) ? String(err.code) : null
+                    };
                     node.error("Publish failed: " + err.message, msg);
                     return done(err);
                 }

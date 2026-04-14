@@ -35,6 +35,28 @@
  */
 
 module.exports = function (RED) {
+    function normalizeQos(value, fallbackQos) {
+        var parsed = Number(value);
+        if (parsed === 0 || parsed === 1 || parsed === 2) return parsed;
+        return fallbackQos;
+    }
+
+    function isValidSubscriptionPattern(pattern) {
+        if (typeof pattern !== "string" || !pattern.trim()) return false;
+        if (pattern === "#") return true;
+        var parts = pattern.split("/");
+        var hashCount = 0;
+        for (var i = 0; i < parts.length; i++) {
+            var seg = parts[i];
+            if (seg.indexOf("#") !== -1) {
+                if (seg !== "#" || i !== parts.length - 1) return false;
+                hashCount++;
+                if (hashCount > 1) return false;
+            }
+            if (seg.indexOf("+") !== -1 && seg !== "+") return false;
+        }
+        return true;
+    }
 
     function IotCommandNode(config) {
         RED.nodes.createNode(this, config);
@@ -53,7 +75,12 @@ module.exports = function (RED) {
             node.error("Topic is required");
             return;
         }
-        node.qos = parseInt(config.qos) || 1;
+        if (!isValidSubscriptionPattern(node.commandTopic)) {
+            node.status({ fill: "red", shape: "ring", text: "invalid topic pattern" });
+            node.error("Invalid MQTT topic pattern. Use + for full segment wildcard and # only as final segment.");
+            return;
+        }
+        node.qos = normalizeQos(config.qos, 1);
 
         function onConnection(state) {
             switch (state) {
@@ -68,7 +95,7 @@ module.exports = function (RED) {
                     node.status({ fill: "red", shape: "ring", text: state });
                     break;
                 case "error":
-                    node.status({ fill: "red", shape: "dot", text: "error" });
+                    node.status({ fill: "red", shape: "dot", text: "connection error" });
                     break;
             }
         }
@@ -126,9 +153,26 @@ module.exports = function (RED) {
 
         node.iotDevice.subscribe(node.commandTopic, node.qos, onCommand);
 
-        node.on("close", function () {
-            node.iotDevice.unsubscribe(node.commandTopic, onCommand);
-            node.iotDevice.offConnection(onConnection);
+        node.on("close", function (done) {
+            var finished = false;
+            function finish() {
+                if (finished) return;
+                finished = true;
+                node.iotDevice.offConnection(onConnection);
+                done();
+            }
+
+            // iot-config.unsubscribe has an optional callback — the timer guards close completion.
+            var closeTimer = setTimeout(finish, 1500);
+            try {
+                node.iotDevice.unsubscribe(node.commandTopic, onCommand, function () {
+                    clearTimeout(closeTimer);
+                    finish();
+                });
+            } catch (err) {
+                clearTimeout(closeTimer);
+                finish();
+            }
         });
     }
 

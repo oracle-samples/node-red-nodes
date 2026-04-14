@@ -7,14 +7,14 @@ This project provides a set of custom Node-RED nodes that integrate Oracle Fusio
 | Node | Description |
 |------|-------------|
 | **scm-server** | Oracle Fusion Cloud SCM authentication, connection, and proxy config. |
-| **fusion-request** | Unified transaction node (Create Asset, Meter Reading, Misc. Transaction, Subinventory Transfer, Custom). |
+| **fusion-request** | Unified transaction node (Create Asset, Meter Reading, Miscellaneous Transaction, Subinventory Transfer, Custom). |
 | **scm-lookup** | Unified lookup node (Asset, Meter Reading, Organization ID, Custom). |
 | **smo-transformer** | Transforms telemetry data into structured SMO event payloads with preset and custom event types. |
 | **create-asset** | Creates an Installed Base Asset. |
 | **create-meter-reading** | Creates a Meter Reading. |
 | **misc-transaction** | Creates a Miscellaneous Inventory Transaction (receipt or issue). |
 | **subinventory-quantity-transfer** | Creates a Subinventory Transfer. |
-| **delete-transaction** | Deletes a transaction by resource type. |
+| **delete-transaction** | Deletes an SCM resource by mode-specific ID (Asset, Meter, Misc, Subinventory, or Custom endpoint). |
 | **get-ib-asset** | Retrieves an asset by Serial Number. |
 | **get-meter-reading** | Retrieves meter readings by Asset Number. |
 | **get-organization-id** | Retrieves an organization by name. |
@@ -72,6 +72,8 @@ All SCM transaction nodes use structured mapping rows with three source types:
 The smo-transformer converts incoming telemetry or message data into structured SMO event payloads. It supports 8 preset event types (CA_FAULT, CA_STATUS, CA_OPERATION_EXECUTION_START, etc.) that auto-populate field mappings when selected, plus custom event types.
 
 > **Important:** The smo-transformer processes one message at a time. When dequeuing in batches or receiving arrays, place a **split** node (fixed length: 1) before the smo-transformer to ensure individual message processing.
+>
+> **Composite guardrails:** Incomplete composite fragments now require both `entityCode` and `eventTime` (to avoid key collisions), re-check required fields after merge, and enforce max pending age/count bounds even when stale timeout is disabled.
 
 **Typical flow:** `dequeue` → `split` (fixed length: 1) → `smo-transformer`
 

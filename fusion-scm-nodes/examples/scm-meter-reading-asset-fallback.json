@@ -61,8 +61,7 @@
         "z": "4e260a9ffc513bbc",
         "name": "",
         "server": "a6349301075ee7ed",
-        "url": "",
-        "mappings": "AssetNumber: msg.dequeued.AssetNumber\nMeterCode: msg.dequeued.MeterCode\nReadingDate: msg.dequeued.ReadingDate\nMeterUsageCode: msg.dequeued.MeterUsageCode\nReadingValue: msg.dequeued.ReadingValue\nComments: msg.dequeued.Comments",
+        "mappings": "[{\"scmField\":\"AssetNumber\",\"sourceType\":\"dequeued\",\"value\":\"AssetNumber\"},{\"scmField\":\"MeterCode\",\"sourceType\":\"dequeued\",\"value\":\"MeterCode\"},{\"scmField\":\"ReadingDate\",\"sourceType\":\"dequeued\",\"value\":\"ReadingDate\"},{\"scmField\":\"MeterUsageCode\",\"sourceType\":\"dequeued\",\"value\":\"MeterUsageCode\"},{\"scmField\":\"ReadingValue\",\"sourceType\":\"dequeued\",\"value\":\"ReadingValue\"},{\"scmField\":\"Comments\",\"sourceType\":\"dequeued\",\"value\":\"Comments\"}]",
         "x": 520,
         "y": 180,
         "wires": [
@@ -77,8 +76,7 @@
         "z": "4e260a9ffc513bbc",
         "name": "",
         "server": "a6349301075ee7ed",
-        "url": "",
-        "mappings": "AssetNumber: msg.dequeued.AssetNumber\nDescription: msg.dequeued.Description\nItemNumber: msg.dequeued.ItemNumber\nOperatingOrganizationCode: msg.dequeued.OperatingOrganizationCode\nCurrentLocationContextCode: msg.dequeued.CurrentLocationContextCode\nQuantity: msg.dequeued.Quantity\nMaintainableFlag: msg.dequeued.MaintainableFlag\nNewWoAllowedFlag: msg.dequeued.NewWoAllowedFlag",
+        "mappings": "[{\"scmField\":\"AssetNumber\",\"sourceType\":\"dequeued\",\"value\":\"AssetNumber\"},{\"scmField\":\"Description\",\"sourceType\":\"dequeued\",\"value\":\"Description\"},{\"scmField\":\"ItemNumber\",\"sourceType\":\"dequeued\",\"value\":\"ItemNumber\"},{\"scmField\":\"OperatingOrganizationCode\",\"sourceType\":\"dequeued\",\"value\":\"OperatingOrganizationCode\"},{\"scmField\":\"CurrentLocationContextCode\",\"sourceType\":\"dequeued\",\"value\":\"CurrentLocationContextCode\"},{\"scmField\":\"Quantity\",\"sourceType\":\"dequeued\",\"value\":\"Quantity\"},{\"scmField\":\"MaintainableFlag\",\"sourceType\":\"dequeued\",\"value\":\"MaintainableFlag\"},{\"scmField\":\"NewWoAllowedFlag\",\"sourceType\":\"dequeued\",\"value\":\"NewWoAllowedFlag\"}]",
         "x": 930,
         "y": 220,
         "wires": [
@@ -230,7 +228,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.3.2"
+            "node-red-nodes": "0.4.0"
         }
     }
 ]

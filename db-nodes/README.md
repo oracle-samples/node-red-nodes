@@ -9,9 +9,9 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 | **db-connection** | Oracle Database authentication and connection config. Includes Test Connection button. |
 | **begin-transaction** | Opens a managed connection with optional timeout for leak protection. |
 | **end-transaction** | Commits and closes the connection. Shows elapsed time. |
-| **dequeue** | Retrieves messages from Oracle AQ. Supports transactional and standalone modes. |
-| **enqueue** | Publishes messages to Oracle AQ. Supports static payload or `msg.payload`. |
-| **sql** | Executes SQL statements. Supports Editor or `msg.sql` as source. |
+| **dequeue** | Retrieves messages from Oracle AQ. Supports transactional mode and continuous mode with optional reconnect/retry controls. |
+| **enqueue** | Publishes messages to Oracle AQ. Supports static payload or `msg.payload` (JSON/ADT editor includes `...` JSON editor helper). |
+| **sql** | Executes SQL statements. Supports Editor or `msg.sql` as source (Binds Mapping JSONata rows include `...` expression editor helper). |
 
 ## Installation
 
@@ -54,6 +54,8 @@ npm install oracledb
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
 >
 > If your DB connections use `Driver Mode = Thin`, Oracle Instant Client is not required.
+>
+> `oracledb` is a native dependency. Keep Node.js versions aligned between build/runtime environments, and run `npm rebuild oracledb` after Node.js upgrades.
 
 ## Documentation
 

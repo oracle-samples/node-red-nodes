@@ -107,7 +107,7 @@ RED.nodes.registerType("oci-object-storage", {
             <option value="download">Download</option>
         </select>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Can be overridden at runtime with <code>msg.operation</code>.
+            If empty, reads from <code>msg.operation</code>.
         </div>
     </div>
     <hr/>
@@ -115,7 +115,7 @@ RED.nodes.registerType("oci-object-storage", {
         <label for="node-input-namespace"><i class="fa fa-database"></i> Namespace</label>
         <input type="text" id="node-input-namespace" placeholder="your-tenancy-namespace">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Required at runtime. If empty here, provide <code>msg.namespace</code>. Find with <code>oci os ns get</code>.
+            If empty, reads from <code>msg.namespace</code>. Find with <code>oci os ns get</code>.
         </div>
     </div>
     <div class="form-row">
@@ -202,29 +202,20 @@ RED.nodes.registerType("oci-object-storage", {
     <dd>Download-only when output is <code>text</code>. Default <code>utf8</code>. Can be overridden by <code>msg.encoding</code>.</dd>
 </dl>
 
-<h3>Input</h3>
+<h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>operation <span class="property-type">string</span></dt>
-    <dd>Optional runtime override: <code>upload</code> or <code>download</code>.</dd>
-    <dt>namespace <span class="property-type">string</span></dt>
-    <dd>Optional runtime override.</dd>
-    <dt>bucketName <span class="property-type">string</span></dt>
-    <dd>Optional runtime override.</dd>
-    <dt>objectName <span class="property-type">string</span></dt>
-    <dd>Optional runtime override.</dd>
-    <dt>filePath <span class="property-type">string</span></dt>
-    <dd>Optional runtime override.</dd>
-    <dt>contentType <span class="property-type">string</span></dt>
-    <dd>Optional runtime override for uploads.</dd>
-    <dt>downloadOutput <span class="property-type">string</span></dt>
-    <dd>Optional runtime override for downloads: <code>buffer</code> or <code>text</code>.</dd>
-    <dt>encoding <span class="property-type">string</span></dt>
-    <dd>Optional runtime override for text downloads (for example <code>utf8</code>, <code>ascii</code>, <code>latin1</code>).</dd>
-    <dt>payload <span class="property-type">any</span></dt>
-    <dd>Upload body source when operation is <code>upload</code>. If missing and <code>filePath</code> is set, the file is uploaded instead.</dd>
+    <dt>msg.operation <span class="property-type">string</span></dt><dd>Overrides the Operation field: <code>upload</code> or <code>download</code>.</dd>
+    <dt>msg.namespace <span class="property-type">string</span></dt><dd>Overrides the Namespace field.</dd>
+    <dt>msg.bucketName <span class="property-type">string</span></dt><dd>Overrides the Bucket field.</dd>
+    <dt>msg.objectName <span class="property-type">string</span></dt><dd>Overrides the Object Name field.</dd>
+    <dt>msg.filePath <span class="property-type">string</span></dt><dd>Overrides the File Path field.</dd>
+    <dt>msg.contentType <span class="property-type">string</span></dt><dd>Overrides Content Type (upload only).</dd>
+    <dt>msg.downloadOutput <span class="property-type">string</span></dt><dd>Overrides Download Output: <code>buffer</code> or <code>text</code> (download only).</dd>
+    <dt>msg.encoding <span class="property-type">string</span></dt><dd>Overrides Text Encoding for text downloads (e.g. <code>utf8</code>, <code>ascii</code>).</dd>
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Upload body when operation is <code>upload</code>. If absent and File Path is set, the file is uploaded instead.</dd>
 </dl>
 
-<h3>Output</h3>
+<h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object | Buffer | string</span></dt>
     <dd>
@@ -238,8 +229,8 @@ RED.nodes.registerType("oci-object-storage", {
     <dd>The exact final absolute local path written during download, or <code>null</code> when no file path was provided.</dd>
     <dt>eTag, contentType, contentLength, versionId, opcRequestId <span class="property-type">varies</span></dt>
     <dd>Download metadata fields added to <code>msg</code>.</dd>
-    <dt>error <span class="property-type">string</span></dt>
-    <dd>Error message (only on failure).</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 
 <h3>Typical Flows</h3>

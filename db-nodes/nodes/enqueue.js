@@ -62,11 +62,17 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             let connection;
+            let ownConnection = false;
             let arr;
 
             try {
-                node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
-                connection = await node.connection.getConnection();
+                node.status({ fill: "yellow", shape: "dot", text: "enqueueing..." });
+                if (msg.transaction && msg.transaction.connection) {
+                    connection = msg.transaction.connection;
+                } else {
+                    connection = await node.connection.getConnection();
+                    ownConnection = true;
+                }
 
                 if (node.payloadType === "raw") {
                     const raw = (node.userPayload && node.userPayload.trim())
@@ -81,8 +87,8 @@ module.exports = function(RED) {
                         arr = Array.isArray(raw) ? raw : [raw];
                     } catch (parseErr) {
                         node.status({ fill: "red", shape: "dot", text: "invalid payload" });
-                        msg.error = parseErr.message;
-                        node.error(parseErr, msg);
+                        msg.error = { message: parseErr.message, code: null };
+                        node.error(parseErr.message, msg);
                         return done(parseErr);
                     }
                 }
@@ -116,24 +122,35 @@ module.exports = function(RED) {
                 }
 
                 await queue.enqMany(messages);
-                await connection.commit();
+                if (ownConnection) {
+                    // AQ enqueueMany is not auto-committed — messages stay invisible to
+                    // consumers until explicitly committed.
+                    await connection.commit();
+                }
 
                 node.status({ fill: "green", shape: "dot", text: `enqueued ${messages.length}` });
                 if (node.enableOutput) {
                     var outMsg = Object.assign({}, msg, {
-                        enqueued: arr,
                         count: messages.length
                     });
+                    if (msg.transaction) {
+                        Object.defineProperty(outMsg, "transaction", {
+                            value: msg.transaction,
+                            enumerable: false,
+                            writable: true,
+                            configurable: true
+                        });
+                    }
                     send(outMsg);
                 }
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "error" });
+                node.status({ fill: "red", shape: "dot", text: "enqueue failed" });
                 msg.error = { message: err.message, code: err.errorNum || null };
-                node.error(err, msg);
+                node.error(err.message, msg);
                 done(err);
             } finally {
-                if (connection) {
+                if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {
                         node.warn(`Failed to close connection: ${e.message}`);
                     }

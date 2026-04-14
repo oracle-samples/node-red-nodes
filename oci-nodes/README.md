@@ -9,7 +9,7 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | Node | Category | Description |
 |------|----------|-------------|
 | **oci-config** | config | OCI authentication for REST API nodes. Supports Config File, Instance Principal, Resource Principal, and API Key. |
-| **iot-config** | config | MQTT connection to the OCI IoT Platform. Supports Basic and Certificate auth. Manages persistent sessions, auto-reconnect, and command subscriptions. |
+| **iot-config** | config | MQTT connection to the OCI IoT Platform. Supports Basic and Certificate auth, persistent sessions, command subscriptions, and advanced connection tuning (clean session, keepalive, reconnect period, connect timeout). MQTTS on port 8883 only. |
 
 ### OCI Services
 
@@ -32,6 +32,7 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | Node | Category | Description |
 |------|----------|-------------|
 | **iot-send-command** | oci | Sends commands to devices via the OCI REST API. |
+| **iot-update-relationship** | oci | Updates digital twin relationship content via the OCI REST API. |
 
 ## Installation
 
@@ -54,7 +55,7 @@ npm install mqtt       # IoT Telemetry, IoT Command
 
 ### oci-config (OCI REST API Authentication)
 
-Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`
+Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-update-relationship`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
@@ -73,6 +74,8 @@ Used by: `iot-telemetry`, `iot-command`
 |-----------|-------------|-----------------|
 | **Basic** | Most common for testing and development | Username (external-key), Password (Vault secret) |
 | **Certificate (mTLS)** | Production devices with X.509 certificates | Client cert path, Client key path |
+
+`iot-config` also provides advanced MQTT connection settings: `clean` session mode (default `false`), `keepalive` (default `60s`), `reconnectPeriod` (default `5000ms`), and `connectTimeout` (default `30000ms`).
 
 ## IoT Platform Setup
 
@@ -94,6 +97,9 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 
 **Send a command to a device:**
 `inject` (JSON payload) → `iot send command` → `debug`
+
+**Update relationship content:**
+`inject` (relationshipKey + content) → `iot update relationship` → `debug` (success/failure)
 
 **Alert on threshold breach:**
 `dequeue` → `switch` (condition) → `oci notification`

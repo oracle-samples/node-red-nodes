@@ -55,15 +55,66 @@ RED.nodes.registerType("scm-lookup", {
         return labels[this.lookupType] || "scm lookup";
     },
     oneditprepare: function () {
+        var endpointMap = {
+            installedBaseAsset: "installedBaseAssets",
+            meterReading: "meterReadings",
+            organizationId: "inventoryOrganizations"
+        };
+        var queryParamMap = {
+            installedBaseAsset: "SerialNumber",
+            meterReading: "AssetNumber",
+            organizationId: "OrganizationName"
+        };
+
+        function updateEndpointPreview() {
+            var lookupType = $("#node-input-lookupType").val();
+            var $endpoint = $("#lookup-endpoint-display");
+            var queryValue = $("#node-input-queryValue").val().trim();
+
+            if (lookupType === "custom") {
+                var customUrl = $("#node-input-customUrl").val().trim();
+                if (!customUrl) {
+                    $endpoint.text("Enter Custom URL to preview endpoint");
+                    return;
+                }
+                var customQueryParam = $("#node-input-customQueryParam").val().trim();
+                if (customQueryParam && queryValue) {
+                    var sep = customUrl.indexOf("?") !== -1 ? "&" : "?";
+                    $endpoint.text(customUrl + sep + "q=" + customQueryParam + "=" + queryValue);
+                } else {
+                    $endpoint.text(customUrl);
+                }
+                return;
+            }
+
+            var serverNodeId = $("#node-input-server").val();
+            var serverNode = RED.nodes.node(serverNodeId);
+            if (!serverNode || !serverNode.hostname || !serverNode.version) {
+                $endpoint.text("Select SCM Server to preview endpoint");
+                return;
+            }
+
+            var endpoint = endpointMap[lookupType];
+            var queryParam = queryParamMap[lookupType] || "q";
+            var base = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint;
+            $endpoint.text(queryValue ? base + "?q=" + queryParam + "=" + queryValue : base);
+        }
+
         function updateSections() {
             var type = $("#node-input-lookupType").val();
             var isCustom = (type === "custom");
             $(".custom-section").toggle(isCustom);
             var labelMap = { installedBaseAsset:"Serial Number", meterReading:"Asset Number", organizationId:"Organization Name", custom:"Query Value" };
             $("#query-value-label").text(labelMap[type] || "Query Value");
+            updateEndpointPreview();
         }
         updateSections();
         $("#node-input-lookupType").on("change", updateSections);
+        $("#node-input-server").on("change", updateEndpointPreview);
+        $("#node-input-customUrl").on("input", updateEndpointPreview);
+        $("#node-input-queryValue").on("input", updateEndpointPreview);
+        $("#node-input-customQueryParam").on("input", updateEndpointPreview);
+        updateEndpointPreview();
     }
 });
 </script>
@@ -87,21 +138,28 @@ RED.nodes.registerType("scm-lookup", {
             <option value="custom">Custom</option>
         </select>
     </div>
+    <hr/>
     <div class="form-row">
-        <label for="node-input-queryValue"><i class="fa fa-hashtag"></i> <span id="query-value-label">Serial Number</span></label>
-        <input type="text" id="node-input-queryValue">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.queryValue</code>.</div>
+        <label><i class="fa fa-link"></i> Endpoint</label>
+        <span id="lookup-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
     </div>
     <div class="custom-section" style="display:none;">
         <div class="form-row">
             <label for="node-input-customUrl"><i class="fa fa-link"></i> Custom URL</label>
             <input type="text" id="node-input-customUrl" style="width:100%;">
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Enter the base endpoint only (no query string).</div>
         </div>
         <div class="form-row">
             <label for="node-input-customQueryParam"><i class="fa fa-filter"></i> Query Param</label>
             <input type="text" id="node-input-customQueryParam" style="width:200px;">
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">The query parameter name (e.g. <code>ItemNumber</code>).</div>
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">The Oracle REST field name to filter by (e.g. <code>ItemNumber</code>). Required — must be paired with a Query Value.</div>
         </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-queryValue"><i class="fa fa-hashtag"></i> <span id="query-value-label">Serial Number</span></label>
+        <input type="text" id="node-input-queryValue">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.queryValue</code>.</div>
     </div>
 </script>
 
@@ -116,21 +174,28 @@ RED.nodes.registerType("scm-lookup", {
             <li><b>Installed Base Asset</b> — queries by SerialNumber</li>
             <li><b>Meter Reading</b> — queries by AssetNumber</li>
             <li><b>Organization ID</b> — queries by OrganizationName</li>
-            <li><b>Custom</b> — provide your own URL and query parameter</li>
+            <li><b>Custom</b> — provide your own base URL, query parameter name, and query value (all three required). Query parameters in Custom URL are not allowed.</li>
         </ul>
     </dd>
     <dt>Query Value</dt><dd>The value to search for. If left blank, reads from <code>msg.queryValue</code>.</dd>
+    <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Lookup Type and SCM Server.</dd>
 </dl>
 
 <h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt><dd>API response body containing matching records.</dd>
     <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
-    <dt>error <span class="property-type">string</span></dt><dd>Error message (only present on failure).</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.queryValue <span class="property-type">string</span></dt><dd>Overrides the Query Value for this message.</dd>
 </dl>
 
 <h3>Details</h3>
 <p>A unified lookup node that replaces the need for separate get-ib-asset, get-meter-reading,
 and get-organization-id nodes. Select a lookup type to auto-configure the endpoint, or use
-Custom mode to query any SCM REST endpoint with your own URL and parameter.</p>
+Custom mode to query any SCM REST endpoint with your own URL and parameter. In Custom mode,
+Query Param and Query Value must both be provided — the node errors if either is missing.</p>
 </script>

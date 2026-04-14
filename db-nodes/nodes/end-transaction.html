@@ -92,8 +92,16 @@ RED.nodes.registerType("end-transaction", {
     <dd><b>Commit</b> (default): Commits all changes made during the transaction. Dequeued messages
     are permanently removed from the queue. SCM API calls and SQL DML are finalized.<br/>
     <b>Rollback</b>: Rolls back all changes. Dequeued messages return to the queue as if they
-    were never consumed. Use this on error paths to retry failed messages.</dd>
+    were never consumed. Use this on error paths to retry failed messages.<br/>
+    If an imported flow contains an unknown action value, the node logs a warning and uses commit behavior.</dd>
 </dl>
+
+<h3>Details</h3>
+<p>If the transaction already timed out in <b>begin transaction</b>, this node sets status to
+<code>timed out</code> and calls <code>done(new Error("Transaction timed out"))</code> so Catch
+nodes can handle the failure path explicitly.</p>
+<p>If the same message reaches this node more than once after a transaction has already ended, it
+sets status to <code>already ended</code> and exits without attempting a second commit/rollback.</p>
 
 <h3>Typical Flows</h3>
 <p><b>Success path commits, error path rolls back:</b></p>

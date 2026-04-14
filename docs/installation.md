@@ -67,6 +67,16 @@ sudo dnf install oracle-instantclient-sqlplus
 >
 > If all DB connections use Driver Mode `Thin`, Oracle Instant Client is not required.
 
+### Native Install Reliability (`oracledb`)
+
+`oracledb` is a native module, so build/runtime consistency matters in CI and container images.
+
+- Keep the same Node.js major/minor version between image build and runtime.
+- Install dependencies inside the final runtime image/layer (avoid copying `node_modules` across different OS images).
+- If you upgrade Node.js after installing modules, run `npm rebuild oracledb`.
+- For Thick mode, ensure Instant Client shared libraries are present at runtime (`LD_LIBRARY_PATH` or `ORACLE_CLIENT_LIB`).
+- Prefer Thin mode when Oracle Advanced Security features and wallet/TNS requirements do not require Thick mode.
+
 ## 1.3 Install from Local `.tgz` in Palette Manager
 
 When installing from a local file in **Node-RED Palette Manager**, you must use an **npm pack tarball that you generate yourself from this repo**.
@@ -94,7 +104,7 @@ From the repository root:
 npm pack
 ```
 
-This creates a file like `node-red-nodes-0.3.2.tgz`. Upload that file in Palette Manager:
+This creates a file like `node-red-nodes-0.4.0.tgz`. Upload that file in Palette Manager:
 
 1. Open Node-RED editor.
 2. Menu → **Manage palette** → **Install**.
@@ -109,8 +119,8 @@ Windows (PowerShell):
 
 ```powershell
 cd $env:TEMP
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.3.2.tgz
-cd .\node-red-nodes-0.3.2
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.4.0.tgz
+cd .\node-red-nodes-0.4.0
 npm pack
 ```
 
@@ -118,8 +128,8 @@ Windows (cmd):
 
 ```cmd
 cd /d %TEMP%
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.3.2.tgz
-cd node-red-nodes-0.3.2
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.4.0.tgz
+cd node-red-nodes-0.4.0
 npm pack
 ```
 
@@ -127,8 +137,8 @@ Linux/macOS:
 
 ```bash
 cd /tmp
-tar -xf ~/Downloads/node-red-nodes-0.3.2.tgz
-cd node-red-nodes-0.3.2
+tar -xf ~/Downloads/node-red-nodes-0.4.0.tgz
+cd node-red-nodes-0.4.0
 npm pack
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "node-red-nodes",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, OCI Notifications, OCI Logging, OCI Logging Analytics, and the OCI IoT Platform",
   "license": "UPL-1.0",
   "engines": {
@@ -8,9 +8,9 @@
   },
   "dependencies": {
     "oracledb": "^6.10.0",
-    "axios": "1.13.6",
+    "axios": "^1.15.0",
     "https-proxy-agent": "^7.0.6",
-    "oci-sdk": "^2.122.0",
+    "oci-sdk": "2.128.0",
     "mqtt": "^5.10.0"
   },
   "keywords": [
@@ -54,6 +54,7 @@
       "oci-object-storage": "oci-nodes/nodes/oci-object-storage.js",
       "iot-config": "oci-nodes/nodes/iot-config.js",
       "iot-send-command": "oci-nodes/nodes/iot-send-command.js",
+      "iot-update-relationship": "oci-nodes/nodes/iot-update-relationship.js",
       "iot-command": "oci-nodes/nodes/iot-command.js",
       "iot-telemetry": "oci-nodes/nodes/iot-telemetry.js"
     }

@@ -41,17 +41,17 @@ RED.nodes.registerType("create-asset", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
-        urlOverride: { value: "" },
-        overrideUrl: { value: false },
         mappings: { value: '[{"scmField":"AssetNumber","sourceType":"dequeued","value":""},{"scmField":"Description","sourceType":"dequeued","value":""},{"scmField":"ItemNumber","sourceType":"dequeued","value":""},{"scmField":"OperatingOrganizationCode","sourceType":"dequeued","value":""},{"scmField":"CurrentLocationContextCode","sourceType":"dequeued","value":""},{"scmField":"Quantity","sourceType":"dequeued","value":""},{"scmField":"MaintainableFlag","sourceType":"dequeued","value":""},{"scmField":"NewWoAllowedFlag","sourceType":"dequeued","value":""}]' }
     },
     inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-cube",
     label: function () { return this.name || "create asset"; },
     oneditprepare: function () {
         scmMappingEditor.init(this);
-        scmUrlOverride.init(this, "installedBaseAssets");
+        window.scmEndpointPreview.init("installedBaseAssets");
     },
-    oneditsave: function () { this.mappings = scmMappingEditor.save(); }
+    oneditsave: function () {
+        this.mappings = scmMappingEditor.save();
+    }
 });
 
 // =====================================================================
@@ -147,28 +147,24 @@ window.scmMappingEditor = (function () {
 var scmMappingEditor = window.scmMappingEditor;
 }
 
-if (!window.scmUrlOverride) {
-window.scmUrlOverride = (function () {
-    function init(node, endpoint) {
-        var $cb = $("#node-input-overrideUrl");
-        var $urlRow = $("#url-override-row");
+if (!window.scmEndpointPreview) {
+window.scmEndpointPreview = (function () {
+    function init(endpoint) {
         var $display = $("#scm-url-display");
-
         function update() {
             var serverNodeId = $("#node-input-server").val();
             var serverNode = RED.nodes.node(serverNodeId);
-            if (serverNode && $display.length) {
+            if (serverNode && serverNode.hostname && serverNode.version) {
                 $display.text("https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint);
+            } else {
+                $display.text("Select SCM Server to preview endpoint");
             }
-            $urlRow.toggle($cb.is(":checked"));
         }
         update();
-        $cb.on("change", update);
         $("#node-input-server").on("change", update);
     }
     return { init: init };
 })();
-var scmUrlOverride = window.scmUrlOverride;
 }
 
 </script>
@@ -188,19 +184,8 @@ var scmUrlOverride = window.scmUrlOverride;
     <hr/>
     <div class="form-row">
         <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="scm-url-display" style="font-size:12px;color:#555;word-break:break-all;"></span>
-    </div>
-    <div class="form-row">
-        <label for="node-input-overrideUrl" style="width:auto;">
-            <input type="checkbox" id="node-input-overrideUrl" style="width:auto;vertical-align:middle;" />
-            <span style="font-size:12px;color:#666;"> Override URL</span>
-        </label>
-    </div>
-    <div class="form-row" id="url-override-row" style="display:none;">
-        <label for="node-input-urlOverride"><i class="fa fa-pencil"></i> Custom URL</label>
-        <input type="text" id="node-input-urlOverride" style="width:100%;">
-    </div>
-    <hr/>
+        <span id="scm-url-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+    </div>    <hr/>
     <div class="form-row">
         <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
@@ -220,7 +205,7 @@ var scmUrlOverride = window.scmUrlOverride;
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Endpoint</dt><dd>Auto-built from server config. Check <b>Override URL</b> to use a custom endpoint.</dd>
+    <dt>Endpoint</dt><dd>Auto-built from server config for this node type.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map SCM API fields to values. Each row specifies:
         <ul>
@@ -234,7 +219,7 @@ var scmUrlOverride = window.scmUrlOverride;
 <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt><dd>API response body on success, error details on failure.</dd>
     <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
-    <dt>error <span class="property-type">string</span></dt><dd>Error message (only on failure).</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 <h3>Details</h3>
 <p>Sends a <code>POST</code> request to the Installed Base Assets REST endpoint. The payload is built from the configured mappings. Authentication is handled automatically via the selected SCM Server's OAuth token.</p>

@@ -7,7 +7,7 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 - **db-nodes**
   - Database connection (with Test Connection)
   - SQL execution (Editor or msg.sql)
-  - AQ enqueue / dequeue (configurable dequeue mode)
+  - AQ enqueue / dequeue (configurable dequeue mode, continuous retry/reconnect controls)
   - Transactional processing (begin / end transaction with commit or rollback)
 
 - **fusion-scm-nodes**
@@ -29,6 +29,7 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
   - IoT Telemetry (publish device telemetry)
   - IoT Command (receive commands from IoT Platform)
   - IoT Send Command (send commands to devices via OCI REST API)
+  - IoT Update Relationship (update digital twin relationship content via OCI REST API)
 
 > Detailed node-level documentation is available in [Node Reference](./docs/node-reference.md).
 
@@ -96,6 +97,8 @@ sudo dnf install oracle-instantclient-sqlplus
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
 >
 > If your DB flows use `Driver Mode = Thin`, Oracle Instant Client is not required.
+>
+> `oracledb` is a native module: keep Node.js build/runtime versions aligned and run `npm rebuild oracledb` after Node.js upgrades.
 
 ### Local Install Note (Palette Manager Upload)
 
@@ -116,6 +119,7 @@ Example Node-RED flows are provided in the documentation showcasing different us
 - Enqueue → Dequeue → Create Meter Reading → If Not Found, Create Asset
 - Transactional dequeue with rollback protection
 - IoT telemetry publishing and command-response
+- IoT relationship content update via OCI control-plane
 - Threshold monitoring with OCI Notifications
 
 Examples can be imported directly into the Node-RED editor.

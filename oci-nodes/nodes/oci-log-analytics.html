@@ -287,7 +287,17 @@ RED.nodes.registerType("oci-log-analytics", {
     </dd>
 </dl>
 
-<h3>Default Mappings (Threshold Breach Example)</h3>
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>OCI API response containing <code>statusCode</code> and <code>requestId</code>.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code (200 on success).</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Details</h3>
 <p>The node ships with example mappings for a typical IoT threshold breach scenario:</p>
 <pre>
 Log Field         Source           Value
@@ -301,14 +311,6 @@ action            static value     shutdown_sent
 </pre>
 <p>These assume an upstream <b>dequeue</b> node provides <code>msg.dequeued</code> with device telemetry.
 Modify or replace these mappings to match your payload structure.</p>
-
-<h3>Output</h3>
-<dl class="message-properties">
-    <dt>payload.statusCode <span class="property-type">number</span></dt>
-    <dd>HTTP status code (200 on success).</dd>
-    <dt>payload.requestId <span class="property-type">string</span></dt>
-    <dd>OCI request ID for troubleshooting.</dd>
-</dl>
 
 <h3>Typical Flows</h3>
 <p><b>Flow 1 &mdash; Log threshold breaches:</b><br/>

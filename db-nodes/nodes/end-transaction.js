@@ -41,10 +41,28 @@ module.exports = function(RED) {
 
         // "commit" (default) or "rollback"
         node.action = config.action || "commit";
+        if (node.action !== "commit" && node.action !== "rollback") {
+            node.warn("Unknown action '" + node.action + "', defaulting to commit");
+        }
 
         node.on("input", async (msg, send, done) => {
+            if (msg.transaction && msg.transaction.timedOut) {
+                node.status({ fill: "red", shape: "ring", text: "timed out" });
+                return done(new Error("Transaction timed out"));
+            }
+
+            if (msg.transaction && msg.transaction._ended) {
+                node.status({ fill: "yellow", shape: "ring", text: "already ended" });
+                return done();
+            }
+
             if (!msg.transaction || !msg.transaction.connection) {
-                node.status({ fill: "red", shape: "ring", text: "no transaction" });
+                if (msg.transaction && !msg.transaction.connection) {
+                    node.status({ fill: "yellow", shape: "ring", text: "no transaction (timed out/closed)" });
+                    node.warn("Transaction context exists but connection is closed");
+                } else {
+                    node.status({ fill: "red", shape: "ring", text: "no transaction" });
+                }
                 send(msg);
                 return done();
             }
@@ -52,15 +70,19 @@ module.exports = function(RED) {
             // Clear the safety timeout from begin-transaction (if set)
             if (msg.transaction._timeout) {
                 clearTimeout(msg.transaction._timeout);
+                msg.transaction._timeout = null;
             }
 
             // Calculate elapsed time
             const elapsed = msg.transaction.startedAt
                 ? ((Date.now() - msg.transaction.startedAt) / 1000).toFixed(1)
                 : "?";
+            const action = node.action === "rollback" ? "rollback" : "commit";
 
             try {
-                if (node.action === "rollback") {
+                msg.transaction._ended = true;
+
+                if (action === "rollback") {
                     await msg.transaction.connection.rollback();
                     await msg.transaction.connection.close();
                     delete msg.transaction;
@@ -77,11 +99,13 @@ module.exports = function(RED) {
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: `${node.action} failed (${elapsed}s)` });
+                node.status({ fill: "red", shape: "dot", text: `${action} failed (${elapsed}s)` });
 
                 // Attempt cleanup
-                try { await msg.transaction.connection.rollback(); } catch (e) { /* ignore */ }
-                try { await msg.transaction.connection.close(); } catch (e) { /* ignore */ }
+                if (msg.transaction && msg.transaction.connection) {
+                    try { await msg.transaction.connection.rollback(); } catch (e) { /* ignore */ }
+                    try { await msg.transaction.connection.close(); } catch (e) { /* ignore */ }
+                }
                 delete msg.transaction;
 
                 node.error(err, msg);

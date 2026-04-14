@@ -54,22 +54,22 @@ RED.nodes.registerType("iot-telemetry", {
 
 <script type="text/x-red" data-template-name="iot-telemetry">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <label for="node-input-name" style="width:115px;"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
     <div class="form-row">
-        <label for="node-input-iotDevice"><i class="fa fa-microchip"></i> IoT Device</label>
+        <label for="node-input-iotDevice" style="width:115px;"><i class="fa fa-microchip"></i> IoT Device</label>
         <input type="text" id="node-input-iotDevice" />
     </div>
     <div class="form-row">
-        <label for="node-input-topic"><i class="fa fa-hashtag"></i> Topic</label>
+        <label for="node-input-topic" style="width:115px;"><i class="fa fa-hashtag"></i> Topic</label>
         <input type="text" id="node-input-topic" placeholder="e.g. factory/device1/telemetry">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            MQTT topic to publish to. Leave blank to use <code>msg.topic</code> at runtime.
+        <div style="margin-left:120px;font-size:11px;color:#888;margin-top:2px;">
+            If empty, reads from <code>msg.topic</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-qos"><i class="fa fa-signal"></i> QoS</label>
+        <label for="node-input-qos" style="width:115px;"><i class="fa fa-signal"></i> QoS</label>
         <select id="node-input-qos" style="width:auto;">
             <option value="0">0 – At most once</option>
             <option value="1">1 – At least once</option>
@@ -78,11 +78,11 @@ RED.nodes.registerType("iot-telemetry", {
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-addTimestamp"><i class="fa fa-clock-o"></i> Auto Timestamp</label>
+        <label for="node-input-addTimestamp" style="width:115px;"><i class="fa fa-clock-o"></i> Auto Timestamp</label>
         <input type="checkbox" id="node-input-addTimestamp" style="width:auto;vertical-align:middle;">
         <span style="font-size:12px;color:#666;"> Add <code>time</code> field (epoch microseconds) if not already present</span>
     </div>
-    <div class="form-tips"><b>Tip:</b> Leave topic or qos blank if you want to set them via msg properties.</div>
+    <div class="form-tips" style="margin-left:120px;"><b>Tip:</b> Leave topic or qos blank if you want to set them via msg properties.</div>
 </script>
 
 <script type="text/x-red" data-help-name="iot-telemetry">
@@ -93,33 +93,33 @@ RED.nodes.registerType("iot-telemetry", {
     <dt>IoT Device</dt>
     <dd>References an IoT Device config node for the MQTT connection.</dd>
     <dt>Topic</dt>
-    <dd>MQTT topic to publish to. Leave blank to supply the topic via <code>msg.topic</code> at runtime.
+    <dd>MQTT topic to publish to. If empty, reads from <code>msg.topic</code>.
     If both are absent, the node reports an error.</dd>
     <dt>QoS</dt>
-    <dd>MQTT QoS level for published messages. Can be overridden per message via <code>msg.qos</code>.</dd>
+    <dd>MQTT QoS level for published messages. If empty, reads from <code>msg.qos</code>.</dd>
     <dt>Auto Timestamp</dt>
     <dd>When enabled, adds a <code>time</code> field (epoch microseconds) to the payload
     if one is not already present.
     Disable this if your payload already includes a <code>time</code> field.</dd>
+    <dt>Payload</dt>
+    <dd><code>msg.payload</code> is the telemetry data to publish. Objects are JSON-stringified;
+    non-object values are wrapped as <code>{ "value": &lt;payload&gt; }</code>.</dd>
 </dl>
 
-<h3>Input</h3>
+<h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object | string | number</span></dt>
-    <dd>The telemetry data to publish. Objects are JSON-stringified. Non-object values
-    are wrapped as <code>{ "value": &lt;payload&gt; }</code>.</dd>
-    <dt>topic <span class="property-type">string</span></dt>
-    <dd>Used when the Topic editor field is blank. Must be set if no topic is configured.</dd>
-    <dt>qos <span class="property-type">number</span></dt>
-    <dd>Overrides the configured QoS level for this message (0, 1, or 2).</dd>
+    <dt>msg.topic <span class="property-type">string</span></dt><dd>Used when Topic is blank in the editor.</dd>
+    <dt>msg.qos <span class="property-type">number</span></dt><dd>Overrides configured QoS per message (0, 1, 2).</dd>
 </dl>
 
-<h3>Output</h3>
+<h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt>
     <dd>The original payload (passed through on successful publish).</dd>
     <dt>topic <span class="property-type">string</span></dt>
     <dd>The MQTT topic the message was published to.</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 
 <h3>Details</h3>

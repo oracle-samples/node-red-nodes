@@ -41,8 +41,6 @@ RED.nodes.registerType("get-meter-reading", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
-        urlOverride: { value: "" },
-        overrideUrl: { value: false },
         assetNumber: { value: "" }
     },
     inputs: 1, outputs: 1,
@@ -50,10 +48,24 @@ RED.nodes.registerType("get-meter-reading", {
     icon: "font-awesome/fa-search",
     label: function () { return this.name || "get meter reading"; },
     oneditprepare: function () {
-        var cb = $("#node-input-overrideUrl");
-        var row = $("#url-override-row");
-        function toggle() { row.toggle(cb.is(":checked")); }
-        toggle(); cb.on("change", toggle);
+        var endpoint = "meterReadings";
+        var $endpoint = $("#get-meter-endpoint-display");
+
+        function updateEndpointPreview() {
+            var serverNodeId = $("#node-input-server").val();
+            var serverNode = RED.nodes.node(serverNodeId);
+            if (!serverNode || !serverNode.hostname || !serverNode.version) {
+                $endpoint.text("Select SCM Server to preview endpoint");
+                return;
+            }
+            var base = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint;
+            var queryValue = $("#node-input-assetNumber").val().trim();
+            $endpoint.text(queryValue ? base + "?q=AssetNumber=" + queryValue : base);
+        }
+
+        updateEndpointPreview();
+        $("#node-input-server").on("change", updateEndpointPreview);
+        $("#node-input-assetNumber").on("input", updateEndpointPreview);
     }
 });
 </script>
@@ -69,20 +81,14 @@ RED.nodes.registerType("get-meter-reading", {
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-assetNumber" style="width:140px;"><i class="fa fa-hashtag"></i> Asset Number</label>
-        <input type="text" id="node-input-assetNumber">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.assetNumber</code>.</div>
+        <label><i class="fa fa-link"></i> Endpoint</label>
+        <span id="get-meter-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-overrideUrl" style="width:auto;">
-            <input type="checkbox" id="node-input-overrideUrl" style="width:auto;vertical-align:middle;" />
-            <span style="font-size:12px;color:#666;"> Override URL</span>
-        </label>
-    </div>
-    <div class="form-row" id="url-override-row" style="display:none;">
-        <label for="node-input-urlOverride"><i class="fa fa-pencil"></i> Custom URL</label>
-        <input type="text" id="node-input-urlOverride" style="width:100%;">
+        <label for="node-input-assetNumber" style="width:140px;"><i class="fa fa-hashtag"></i> Asset Number</label>
+        <input type="text" id="node-input-assetNumber">
+        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.assetNumber</code>.</div>
     </div>
 </script>
 
@@ -91,14 +97,19 @@ RED.nodes.registerType("get-meter-reading", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Asset Number</dt><dd>The value to query by. If left blank, reads from <code>msg.assetNumber</code> at runtime.</dd>
+    <dt>Asset Number</dt><dd>The value to query by. If left blank, reads from <code>msg.assetNumber</code>.</dd>
+    <dt>Endpoint</dt><dd>Read-only preview of the endpoint URL derived from the selected SCM Server.</dd>
 </dl>
 <h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt><dd>API response body containing the matching records.</dd>
     <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
-    <dt>error <span class="property-type">string</span></dt><dd>Error message (only present on failure).</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.assetNumber <span class="property-type">string</span></dt><dd>Overrides the Asset Number for this message.</dd>
 </dl>
 <h3>Details</h3>
-<p>Sends a <code>GET</code> request to the Meter Readings endpoint, filtering by <code>AssetNumber</code>. Returns the matching reading(s) in <code>msg.payload</code>.</p>
+<p>Sends a <code>GET</code> request to the Meter Readings endpoint, filtering by <code>AssetNumber</code>. Returns the matching reading(s) in <code>msg.payload</code>. To query a different endpoint or use a custom query parameter, use the <b>scm lookup</b> node in custom mode instead.</p>
 </script>

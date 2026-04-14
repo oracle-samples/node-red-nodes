@@ -6,6 +6,77 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.4.0] - 2026-04-14
+
+### Added
+- `iot-update-relationship` node for updating OCI IoT digital twin relationship content via the control-plane REST API.
+- `db-connection` NLS/session settings — `NLS_LANGUAGE`, `NLS_TERRITORY`, `TIME_ZONE`, `NLS_NUMERIC_CHARACTERS`, `NLS_DATE_FORMAT`, `NLS_TIMESTAMP_FORMAT`, `NLS_TIMESTAMP_TZ_FORMAT`, and `Advanced (restricted)` fields apply `ALTER SESSION` statements after every new connection and use a tag fingerprint on pool connections to avoid redundant re-application.
+
+### Changed
+- `delete-transaction` accepts `msg.mode` to override the Delete Mode at runtime (`"asset"`, `"meter"`, `"misc"`, `"subinventory"`, `"custom"`); unrecognised mode values now fail fast with a clear error instead of silently routing to the wrong endpoint.
+- `iot-update-relationship` now uses a single output for success and routes failures through Catch (`done(err)`), aligning error handling with the rest of the node set.
+- Dependency maintenance and packaging hardening: `fusion-scm-nodes` now uses `axios@^1.15.0`; `oci-nodes` now declares `mqtt` for standalone installs; root and `oci-nodes` now pin `oci-sdk` to `2.128.0`; `db-nodes` OCI SDK-family dependencies (`oci-common`, `oci-identitydataplane`) were upgraded to `^120.2.0`; installation docs now include explicit `oracledb` native module reliability guidance.
+- `scm-lookup`, `get-ib-asset`, `get-meter-reading`, `get-organization-id` — `msg.*` query value now takes precedence over the editor-configured value (previously config won when both were set).
+- `fusion-request` accepts `msg.method` to override the configured HTTP method at runtime (case-insensitive).
+- `scm-server` token refresh is now deduplicated — concurrent callers during expiry wait for a single in-flight fetch instead of each issuing their own request; token lifetime uses `expires_in` from the OAuth response (with a 30-second safety buffer), falling back to the configured Expiry Fallback when `expires_in` is absent; request timeout of 30 seconds added to prevent indefinite hangs.
+- `scm-server` enforces HTTPS on the Token URL at deploy time; required config fields (`Hostname`, `API Version`, `Token URL`, `Scope`) now raise a clear error on deploy if left blank.
+- SCM HTTP request nodes (`fusion-request`, `scm-lookup`, `create-asset`, `create-meter-reading`, `misc-transaction`, `subinventory-quantity-transfer`, `get-ib-asset`, `get-meter-reading`, `get-organization-id`) now set a 30-second axios timeout to avoid indefinite hangs when upstream endpoints or proxies stall.
+- `scm-lookup` query values are now encoded with `URLSearchParams` so special characters in query values cannot break the URL structure; custom URLs with existing query parameters are extended safely via `URL.searchParams`.
+- `scm-lookup` custom mode now requires both Query Param and Query Value — the node errors immediately if either is missing or if both are absent.
+- `get-organization-id`, `get-ib-asset`, `get-meter-reading` lookup queries now use `URLSearchParams` encoding so special characters in parameter values cannot break query structure.
+- `delete-transaction` now uses a generic `resourceId` field/runtime override (`msg.resourceId`) across all delete modes, adds `custom` mode with mode-driven `Custom URL`, URL-encodes resource IDs in path construction, and applies a 30-second delete request timeout.
+- SCM nodes with an `Endpoint` preview field now default to `Select SCM Server to preview endpoint` when no server is selected; delete/lookup editors keep the dedicated top-section layout and custom-mode/override paths show custom URL values.
+- `fusion-request`, `create-asset`, `create-meter-reading`, `misc-transaction`, and `subinventory-quantity-transfer` no longer support `Override URL`; typed transaction nodes now always use their canonical SCM endpoint, and custom endpoint routing is done via `fusion-request` with `Transaction Type = custom`.
+- `fusion-request` custom endpoint editor section now matches `delete-transaction`/`scm-lookup` UI patterns (Endpoint preview, `Custom URL` field styling, and `Enter Custom URL to preview endpoint` placeholder behavior).
+- SCM UI labels now consistently use `Miscellaneous Transaction` (instead of `Misc. Transaction`) across `fusion-request`, `delete-transaction`, and related docs.
+- `delete-transaction` and `scm-lookup` custom URL fields now require a base endpoint with no query string; query params must be provided through node fields (`Resource ID` / `Query Param` + `Query Value`) instead of embedded in `Custom URL`.
+- `oci-notification` — `msg.topicOcid` and `msg.title` now take precedence over the editor-configured values (previously config won when both were set).
+- SCM and OCI action nodes now emit a consistent error contract on failures: `msg.error` is an object (`{ message, code }`), with `code` set to `null` when no upstream code is available.
+- `get-ib-asset`, `get-meter-reading`, `get-organization-id` — Override URL removed; endpoint is now fixed to the SCM Server configuration. Use `scm-lookup` in custom mode to query alternative endpoints.
+- SCM node editor consistency — `delete-transaction` Delete Mode renamed to Delete Type; `fusion-request` Transaction Type select width standardised to `200px`; `get-organization-id` Organization Name label icon corrected to `fa-hashtag`; error status on write nodes changed from generic `"failed"` to action-specific text (`"create failed"`, `"transaction failed"`, `"transfer failed"`, `"request failed"`); `delete-transaction` Resource ID hint aligned to match sibling node phrasing.
+- `fusion-request` success status changed from `"success"` to `"sent"`; `misc-transaction` from `"transaction complete"` to `"submitted"`; `subinventory-quantity-transfer` from `"transfer complete"` to `"transferred"`.
+- OCI action nodes (`oci-notification`, `oci-object-storage`, `oci-logging`, `oci-log-analytics`, `iot-send-command`, `iot-update-relationship`) now use action-specific error status text (`"publish failed"`, `"operation failed"`, `"ingest failed"`, `"upload failed"`, `"send failed"`, `"update failed"`) instead of the generic `"failed"`.
+- DB action nodes (`sql`, `enqueue`) now use action-specific error status text (`"query failed"`, `"enqueue failed"`) instead of generic `"error"`.
+- `delete-transaction` endpoint preview now updates live as the Resource ID field is typed.
+- `iot-telemetry`, `iot-command` connection error status changed from generic `"error"` to `"connection error"`.
+- SCM action nodes (`create-asset`, `create-meter-reading`, `misc-transaction`, `subinventory-quantity-transfer`, `delete-transaction`, `scm-lookup`, `fusion-request`, `get-ib-asset`, `get-meter-reading`, `get-organization-id`) — config-error status text lowercased (`"No SCM server"` → `"no SCM server"`); field-missing status text lowercased and made human-readable (`"No SerialNumber"` → `"no serial number"`, `"No AssetNumber"` → `"no asset number"`, `"No Organization Name"` → `"no organization name"`, `"Missing URL"` → `"no custom URL"`).
+- `sql` — config-error and input-error status text lowercased (`"No DB connection"` → `"no DB connection"`, `"No msg.sql"` → `"no msg.sql"`, `"No SQL provided"` → `"no SQL provided"`).
+- DB status-shape consistency: `sql` now uses `ring` for pre-execution config/input validation failures and `dot` for execution states/results; `end-transaction` commit/rollback failure status now uses `dot`.
+- `smo-transformer` composite mode now re-validates required fields after fragment merge and keeps merged payloads pending until complete instead of emitting incomplete joined events.
+- `smo-transformer` composite mode now requires `entityCode` and `eventTime` for incomplete fragments and fails fast when either is missing, preventing `unknown_unknown_*` key collisions.
+- `dequeue` Continuous mode now supports optional DB reconnect/retry with fixed delay and configurable retry limit (`0` = unlimited) so transient DB failures no longer require a flow restart.
+- `enqueue` output now emits only `msg.count` (when Output is enabled); `msg.enqueued` was removed to keep the output contract minimal.
+- `enqueue` now reuses `msg.transaction.connection` when present, so begin/end transaction controls final commit/rollback instead of enqueue auto-committing on its own connection.
+- Config nodes (`db-connection`, `oci-config`, `iot-config`, `scm-server`) now support an optional `Name` field; node labels prefer `Name` when set for clearer selectors.
+- `iot-config` now preserves QoS `0` on subscribe/re-subscribe and validates MQTT subscription patterns so invalid wildcard usage is rejected early.
+- `iot-config` Use Proxy and Proxy URL fields removed — the OCI IoT Platform only supports MQTTS on port 8883 and does not support proxy connections.
+- `iot-command` and `iot-telemetry` now preserve configured QoS `0` values (no fallback coercion to `1`).
+- `iot-update-relationship` now includes optional editor fallback fields for relationship key/content and an in-editor runtime override tip for `msg.*` precedence.
+- `sql` Binds Mapping now provides a `...` JSONata editor button for JSONata source rows to improve expression authoring.
+- `iot-config` now exposes MQTT-style advanced connection settings for `clean` session mode, `keepalive`, `reconnectPeriod`, and `connectTimeout`.
+- `iot-config` now includes inline node help text covering connection/auth setup, advanced MQTT settings, and persistent-session guidance.
+- `iot-config` advanced numeric inputs now clamp in the editor to supported ranges for keepalive/reconnect/connect-timeout values.
+- `oci-config` and `scm-server` now include inline node help text describing auth/connection fields and usage guidance.
+- `enqueue` payload editor now uses a single `...` JSON editor button for JSON/ADT payload types, aligned with Node-RED editor patterns.
+- `sql` now validates SQL placeholder/bind parity before execute and reports bind mismatches with a clear node status instead of raw Oracle bind errors.
+- `sql` Editor mode now blocks semicolon-chained multi-statement SQL before execute while still allowing anonymous PL/SQL blocks.
+- `begin-transaction` now refreshes timeout windows on reuse and records timeout lifecycle markers (`timedOut`, `endedAt`) for downstream outcome handling.
+- `end-transaction` now treats timed-out transactions as explicit errors for Catch routing and ignores duplicate end attempts with status `already ended`.
+- `db-connection` editor converted from flat fieldsets to tabbed layout (Auth, Connection, Pool, NLS).
+- `db-connection` `Advanced (restricted)` now enforces allowlisted session SQL (`ALTER SESSION SET ...`) with editor/runtime fail-fast validation and explicit length/statement limits.
+
+### Fixed
+- `iot-config` subscriber callback exceptions are now contained and logged instead of escaping the MQTT message handler.
+- `iot-config` Test Connection endpoint now uses single-response guards/cleanup to avoid timeout/connect error response races.
+- `iot-config` close path now has a safety timeout so Node-RED shutdown does not hang if MQTT client end callbacks do not fire.
+- `iot-command` now rejects invalid MQTT wildcard topic patterns at startup instead of attempting a broken subscription.
+- `iot-telemetry` now validates `msg.qos` overrides and falls back to configured QoS when runtime override values are invalid.
+- `begin-transaction` now clears tracked timeout handles on node close/redeploy to prevent orphan timeout callbacks.
+- `end-transaction` no longer attempts cleanup rollback on null/closed connections after timeout-driven close paths.
+- `create-asset`, `create-meter-reading`, `misc-transaction`, and `subinventory-quantity-transfer` editor endpoint previews now repopulate correctly when an SCM Server is selected.
+
+---
+
 ## [0.3.2] - 2026-04-03
 
 ### Added

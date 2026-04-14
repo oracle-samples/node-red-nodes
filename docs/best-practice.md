@@ -13,10 +13,15 @@ begin transaction → dequeue → (processing) → end transaction (commit)
 ```
 
 Messages stay locked on the queue until end-transaction commits. If the flow fails, the catch node routes to a rollback end-transaction and messages return to the queue automatically.
+If your flow includes `enqueue`, keep it inside the same begin/end transaction path so the enqueue is only finalized on commit and is undone on rollback.
 
 **Connection timeout:** Set a timeout on begin-transaction (e.g. 300 seconds) to auto-rollback stalled flows and prevent connection leaks.
+When timeout is enabled, a reused transaction refreshes the timeout window to avoid stale-timer expiry in looping flows.
+If end-transaction receives a timed-out transaction, it raises `Transaction timed out` through Catch instead of silently passing success.
+If the same message hits end-transaction twice, the second pass is ignored with status `already ended` to prevent duplicate commit/rollback attempts.
 
 **Standalone mode:** Dequeue can run without transaction nodes for simple use cases, but messages are auto-committed on dequeue and cannot be rolled back on downstream failure.
+In Continuous mode, enable retry controls to survive transient DB outages without redeploying the flow.
 
 **Dequeue mode:** Use Remove (default) for normal message consumption. Use Browse for monitoring queue contents without consuming. Use Locked only when you need to inspect before deciding to remove.
 
@@ -30,6 +35,7 @@ Messages stay locked on the queue until end-transaction commits. If the flow fai
 **autoCommit behavior:** The SQL node uses `autoCommit: false`. SELECT queries work as expected, but DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. For DML, use a PL/SQL block with an explicit `COMMIT`, or use begin/end transaction nodes.
 
 **Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message at runtime. Validate the source of `msg.sql` to avoid executing untrusted SQL.
+**Bind parity checks:** The SQL node fails fast when SQL placeholders and bind values do not match, with status `binds mismatch` before DB execute.
 
 ## SCM Payload Mappings
 
@@ -43,9 +49,11 @@ All SCM transaction nodes use structured mapping rows with three source types:
 
 ## OCI IoT Platform
 
-**Authentication:** The IoT device nodes (iot-config, iot-telemetry, iot-command) use MQTT device credentials — username/password or certificates. The cloud-side nodes (iot-send-command) use OCI user credentials via oci-config. These are separate auth contexts.
+**Authentication:** The IoT device nodes (`iot-config`, `iot-telemetry`, `iot-command`) use MQTT device credentials — username/password or certificates. The cloud-side nodes (`iot-send-command`, `iot-update-relationship`) use OCI user credentials via `oci-config`. These are separate auth contexts.
 
-**Persistent sessions:** The iot-config node connects with `clean: false`. This ensures the IoT Platform retains messages while the device is briefly offline. Do not override this setting.
+**Persistent sessions:** `iot-config` defaults to `clean: false` so the IoT Platform retains messages while the device is briefly offline. Keep this default for command/session reliability unless you explicitly need clean-session behavior.
+
+**Subscription patterns:** In command subscriptions, use valid MQTT wildcards only (`+` for one full segment, `#` only as the final segment). Invalid patterns are rejected.
 
 **Command responses:** The iot-command node does not auto-acknowledge. To send a response after processing a command, publish explicitly using a separate `iot-telemetry` or `mqtt out` node on whatever response topic your protocol requires.
 

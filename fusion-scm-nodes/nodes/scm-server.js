@@ -37,17 +37,18 @@
 module.exports = function (RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
+    const { ensureHttps } = require("../lib/url.js");
 
     function ScmServerNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        node.tokenUrl = config.tokenUrl;
-        node.hostname = config.hostname;
-        node.version  = config.version;
-        node.scope = config.scope;
-        node.proxyUrl = config.proxyUrl;
-        node.useProxy = !!config.useProxy;
+        node.tokenUrl  = config.tokenUrl;
+        node.hostname  = config.hostname;
+        node.version   = config.version;
+        node.scope     = config.scope;
+        node.proxyUrl  = config.proxyUrl;
+        node.useProxy  = !!config.useProxy;
         node.expiryMins = Number(config.tokenExpiryMins) || 60;
 
         node.username = this.credentials.username;
@@ -56,10 +57,34 @@ module.exports = function (RED) {
         node.accessToken = null;
         node.tokenExpiry = 0;
 
+        // Validate required fields at deploy time.
+        const missing = [];
+        if (!node.hostname)  missing.push("Hostname");
+        if (!node.version)   missing.push("API Version");
+        if (!node.tokenUrl)  missing.push("Token URL");
+        if (!node.scope)     missing.push("Scope");
+        if (missing.length > 0) {
+            node.error("SCM Server missing required config: " + missing.join(", "));
+            node.status({ fill: "red", shape: "ring", text: "misconfigured" });
+            return;
+        }
+
+        // Enforce HTTPS on the token URL — credentials must not be sent over cleartext.
+        try {
+            ensureHttps(node.tokenUrl);
+        } catch (e) {
+            node.error("Token URL must use HTTPS: " + node.tokenUrl);
+            node.status({ fill: "red", shape: "ring", text: "token URL not HTTPS" });
+            return;
+        }
+
         let proxyAgent = null;
         if (node.proxyUrl && node.useProxy) {
             proxyAgent = new HttpsProxyAgent(node.proxyUrl);
         }
+
+        // In-flight token fetch — concurrent callers await this instead of each issuing a request.
+        let _tokenPromise = null;
 
         async function fetchToken() {
             try {
@@ -73,6 +98,7 @@ module.exports = function (RED) {
                 });
 
                 const response = await axios.post(node.tokenUrl, body.toString(), {
+                    timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -83,7 +109,11 @@ module.exports = function (RED) {
 
                 const data = response.data;
                 node.accessToken = data.access_token;
-                node.tokenExpiry = Date.now() + (node.expiryMins * 60 * 1000);
+                // Use expires_in with a 30-second buffer; fall back to tokenExpiryMins if absent.
+                const expiresInMs = data.expires_in
+                    ? (data.expires_in - 30) * 1000
+                    : node.expiryMins * 60 * 1000;
+                node.tokenExpiry = Date.now() + expiresInMs;
                 return node.accessToken;
             } catch (err) {
                 node.error("Token fetch failed: " + err.message);
@@ -92,10 +122,17 @@ module.exports = function (RED) {
         }
 
         node.getToken = async function () {
-            if (!node.accessToken || Date.now() >= node.tokenExpiry) {
-                return await fetchToken();
+            if (node.accessToken && Date.now() < node.tokenExpiry) {
+                return node.accessToken;
             }
-            return node.accessToken;
+            // Deduplicate concurrent refreshes — wait for the in-flight fetch.
+            if (_tokenPromise) {
+                return await _tokenPromise;
+            }
+            _tokenPromise = fetchToken().finally(() => {
+                _tokenPromise = null;
+            });
+            return await _tokenPromise;
         };
 
         /**
@@ -103,7 +140,18 @@ module.exports = function (RED) {
          * e.g. buildUrl("installedBaseAssets") => "https://hostname/fscmRestApi/resources/version/installedBaseAssets"
          */
         node.buildUrl = function (endpoint) {
-            return `https://${node.hostname}/fscmRestApi/resources/${node.version}/${endpoint}`;
+            const baseUrl = new URL("https://" + String(node.hostname || "").trim());
+            const encodedVersion = encodeURIComponent(String(node.version || "").trim());
+            const endpointParts = String(endpoint || "")
+                .split("/")
+                .map((part) => part.trim())
+                .filter(Boolean)
+                .map((part) => encodeURIComponent(part));
+            baseUrl.pathname = "/fscmRestApi/resources/" + encodedVersion + "/";
+            if (endpointParts.length > 0) {
+                baseUrl.pathname += endpointParts.join("/");
+            }
+            return baseUrl.toString();
         };
     }
 

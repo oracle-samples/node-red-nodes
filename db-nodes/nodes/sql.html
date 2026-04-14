@@ -35,6 +35,19 @@
 -->
 
 <script type="text/javascript">
+var sqlBindsMappingEditorStyles = '<style id="sql-binds-mapping-editor-styles">' +
+    '.bind-value-editor-wrap{display:flex;align-items:stretch;}' +
+    '.bind-value-editor-wrap .bind-value{border-top-right-radius:0;border-bottom-right-radius:0;}' +
+    '.bind-value-editor-wrap .bind-jsonata-edit{' +
+        'width:30px;min-width:30px;padding:0;margin-left:-1px;border-top-left-radius:0;border-bottom-left-radius:0;' +
+        'display:inline-flex;align-items:center;justify-content:center;' +
+    '}' +
+    '.bind-value-editor-wrap .bind-jsonata-edit i{font-size:11px;}' +
+'</style>';
+if (!document.getElementById("sql-binds-mapping-editor-styles")) {
+    $("head").append(sqlBindsMappingEditorStyles);
+}
+
 RED.nodes.registerType("sql", {
     category: "oracle db",
     paletteLabel: "sql",
@@ -112,6 +125,25 @@ var sqlBindsMappingEditor = (function () {
         return value;
     }
 
+    function openJsonataEditor(valueInput) {
+        if (!(RED.editor && RED.editor.editExpression)) {
+            RED.notify("JSONata editor is not available in this Node-RED version.", { type: "warning" });
+            return;
+        }
+        RED.editor.editExpression({
+            value: valueInput.val() || "",
+            mode: "jsonata",
+            type: "jsonata",
+            complete: function (value) {
+                var next = value;
+                if (value && typeof value === "object" && value.value !== undefined) {
+                    next = value.value;
+                }
+                valueInput.val(next || "");
+            }
+        });
+    }
+
     function addRow(m) {
         var sourceType = m.sourceType || "static";
         var initialValue = normalizeRowValue(sourceType, m.value);
@@ -131,17 +163,27 @@ var sqlBindsMappingEditor = (function () {
                     '<option value="jsonata"' + (sourceType === "jsonata" ? " selected" : "") + '>JSONata (J:)</option>' +
                   '</select></div>' +
                 '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="bind-value-label">' + (sourceLabelMap[sourceType] || "Value") + '</label>' +
-                  '<input type="text" class="bind-value" value="' + escapeHtml(initialValue) + '" placeholder="' + (sourcePlaceholderMap[sourceType] || "") + '" style="width:100%;" /></div>' +
+                  '<div class="bind-value-editor-wrap">' +
+                    '<input type="text" class="bind-value" value="' + escapeHtml(initialValue) + '" placeholder="' + (sourcePlaceholderMap[sourceType] || "") + '" style="width:100%;" />' +
+                    '<button type="button" class="red-ui-button bind-jsonata-edit" title="Open JSONata expression editor" style="' + (sourceType === "jsonata" ? "" : "display:none;") + '">' +
+                      '<i class="fa fa-ellipsis-h"></i>' +
+                    '</button>' +
+                  '</div></div>' +
                 '<div style="padding-top:14px;"><button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.binds-mapping-row\').remove();">&times;</button></div>' +
               '</div>' +
             '</div>'
         );
+
+        row.find(".bind-jsonata-edit").on("click", function () {
+            openJsonataEditor(row.find(".bind-value"));
+        });
 
         row.find(".bind-source-type").on("change", function () {
             var type = $(this).val();
             var valueInput = row.find(".bind-value");
             row.find(".bind-value-label").text(sourceLabelMap[type] || "Value");
             valueInput.attr("placeholder", sourcePlaceholderMap[type] || "");
+            row.find(".bind-jsonata-edit").toggle(type === "jsonata");
             if (type === "date" && !String(valueInput.val() || "").trim()) {
                 valueInput.val("SYSDATE");
             }
@@ -245,13 +287,13 @@ var sqlBindsMappingEditor = (function () {
     <dt>SQL Source</dt>
     <dd><code>Editor</code> — uses the SQL written in the textarea below.
     <code>msg.sql</code> — reads the SQL statement from <code>msg.sql</code> at runtime,
-    allowing dynamic queries from upstream nodes.</dd>
+    allowing dynamic queries from upstream nodes. Editor mode blocks semicolon-chained multi-statement SQL and accepts a single statement (anonymous PL/SQL blocks are allowed).</dd>
     <dt>SQL</dt><dd>The SQL statement (when SQL Source is Editor).</dd>
     <dt>Binds Source</dt>
     <dd><code>Editor</code> — uses the Binds Mapping rows below.
     <code>msg.binds</code> — reads bind values from <code>msg.binds</code> at runtime.</dd>
     <dt>Binds Mapping</dt><dd>Define named bind variables row-by-row. Each row sets a bind variable name and a source type:
-    static text, number, boolean, date, msg property path, or JSONata expression. Date rows default to <code>SYSDATE</code> (current runtime time) and can be overridden with an explicit datetime string.</dd>
+    static text, number, boolean, date, msg property path, or JSONata expression. For JSONata rows, use the <code>...</code> button to open the JSONata editor. Date rows default to <code>SYSDATE</code> (current runtime time) and can be overridden with an explicit datetime string.</dd>
     <dt>Max Rows</dt><dd>Maximum rows returned for SELECT queries (default: 1000, max: 10000).</dd>
 </dl>
 
@@ -260,7 +302,7 @@ var sqlBindsMappingEditor = (function () {
     <dt>payload <span class="property-type">array</span></dt>
     <dd>Array of row objects for SELECT queries.</dd>
     <dt>error <span class="property-type">object</span></dt>
-    <dd>Error details on failure (message, code).</dd>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 
 <h3>Details</h3>

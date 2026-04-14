@@ -66,7 +66,7 @@ RED.nodes.registerType("oci-notification", {
         <label for="node-input-topicOcid"><i class="fa fa-bullhorn"></i> Topic OCID</label>
         <input type="text" id="node-input-topicOcid">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            If empty, reads from <code>msg.topicOcid</code> at runtime.
+            Overridden by <code>msg.topicOcid</code> when set.
         </div>
     </div>
     <hr/>
@@ -74,14 +74,14 @@ RED.nodes.registerType("oci-notification", {
         <label for="node-input-msgTitle"><i class="fa fa-heading"></i> Title</label>
         <input type="text" id="node-input-msgTitle" placeholder="Notification title (optional)">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            If empty, reads from <code>msg.title</code> at runtime.
+            Overridden by <code>msg.title</code> when set.
         </div>
     </div>
     <div class="form-row">
         <label for="node-input-msgBody"><i class="fa fa-align-left"></i> Body</label>
         <textarea id="node-input-msgBody" rows="4" style="width:100%;" placeholder="Notification body (optional)"></textarea>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            If empty, uses <code>msg.payload</code> at runtime. Objects are JSON-stringified.
+            If empty, reads from <code>msg.payload</code>. Objects are JSON-stringified.
         </div>
     </div>
 </script>
@@ -94,9 +94,9 @@ RED.nodes.registerType("oci-notification", {
     <dt>OCI Config</dt><dd>References an OCI Config node for authentication and region.</dd>
     <dt>Topic OCID</dt>
     <dd>The OCID of the OCI Notifications topic to publish to.
-    If empty, reads from <code>msg.topicOcid</code> at runtime.</dd>
+    Overridden by <code>msg.topicOcid</code> when set.</dd>
     <dt>Title</dt>
-    <dd>Optional message title. If empty, reads from <code>msg.title</code>.
+    <dd>Optional message title. Overridden by <code>msg.title</code> when set.
     The title appears as the subject line for email subscriptions.</dd>
     <dt>Body</dt>
     <dd>The message body. If empty, uses <code>msg.payload</code> (objects are JSON-stringified).
@@ -109,8 +109,15 @@ RED.nodes.registerType("oci-notification", {
     <dd>The OCI publish result containing the <code>messageId</code> and <code>timeStamp</code>.</dd>
     <dt>statusCode <span class="property-type">number</span></dt>
     <dd>HTTP status code (200 on success).</dd>
-    <dt>error <span class="property-type">string</span></dt>
-    <dd>Error message (only on failure).</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.topicOcid <span class="property-type">string</span></dt><dd>Overrides the editor-configured Topic OCID.</dd>
+    <dt>msg.title <span class="property-type">string</span></dt><dd>Overrides the editor-configured Title.</dd>
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Used as message body when Body is empty in the editor.</dd>
 </dl>
 
 <h3>Details</h3>
