@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "oracledb": "^6.10.0",
-    "axios": "1.13.6",
+    "axios": "1.15.0",
     "https-proxy-agent": "^7.0.6",
     "oci-sdk": "^2.122.0",
     "mqtt": "^5.10.0"
