@@ -1,6 +1,6 @@
 {
   "name": "db-nodes",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Node-RED nodes for Oracle Database Functionality",
   "license": "UPL-1.0",
   "engines": {

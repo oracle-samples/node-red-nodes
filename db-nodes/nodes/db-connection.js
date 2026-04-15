@@ -39,6 +39,8 @@ module.exports = function (RED) {
     const common = require("oci-common");
     const identitydataplane = require("oci-identitydataplane");
     const { generateKeyPair } = require("crypto");
+    const os = require("os");
+    const path = require("path");
     const TOKEN_AUTH_TYPES = new Set([
         "config",
         "instancePrincipal",
@@ -52,6 +54,7 @@ module.exports = function (RED) {
     const MAX_ADVANCED_INIT_SQL_LENGTH = 1000;
     const MAX_ADVANCED_INIT_SQL_STATEMENTS = 10;
     const FORBIDDEN_ADVANCED_INIT_TOKENS_RE = /\b(BEGIN|DECLARE|EXECUTE|IMMEDIATE|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|DROP|CREATE|GRANT|REVOKE|COMMIT|ROLLBACK|CALL|DBMS_[A-Z0-9_]+)\b/i;
+    const DEFAULT_OCI_CONFIG_PATH = path.join(os.homedir(), ".oci", "config");
 
     function parseTokenExpiry(token) {
         const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -118,6 +121,12 @@ module.exports = function (RED) {
         }
     }
 
+    function parseOptionalNumber(value) {
+        if (value === "" || value === null || value === undefined) return undefined;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
     function DbConnectionNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -140,10 +149,10 @@ module.exports = function (RED) {
         node.tenancyOCID = config.tenancyOCID || "";
         node.userOCID = config.userOCID || "";
         node.proxyUser = config.proxyUser || "";
-        node.poolMin = Number(config.poolMin);
-        node.poolMax = Number(config.poolMax);
-        node.poolIncrement = Number(config.poolIncrement);
-        node.queueTimeout = Number(config.queueTimeout);
+        node.poolMin = parseOptionalNumber(config.poolMin);
+        node.poolMax = parseOptionalNumber(config.poolMax);
+        node.poolIncrement = parseOptionalNumber(config.poolIncrement);
+        node.queueTimeout = parseOptionalNumber(config.queueTimeout);
         node.nlsLanguage = config.nlsLanguage || "";
         node.nlsTerritory = config.nlsTerritory || "";
         node.timeZone = config.timeZone || "";
@@ -160,6 +169,7 @@ module.exports = function (RED) {
         node._extraInitStmts = [];
 
         let pool = null;
+        let poolPromise = null;
         node.tokenCache = null;
         node.debug(`DB driver mode requested: ${node.driverMode}`);
 
@@ -288,7 +298,7 @@ module.exports = function (RED) {
                     options.tokenAuthConfigOci = {
                         authType: "configFileBasedAuthentication",
                         profile: node.profile || "DEFAULT",
-                        configFileLocation: node.configFileLocation || "/home/opc/.oci/config",
+                        configFileLocation: node.configFileLocation || DEFAULT_OCI_CONFIG_PATH,
                         scope: node.scope || undefined,
                     };
                     options.externalAuth = node.externalAuth;
@@ -324,7 +334,7 @@ module.exports = function (RED) {
                         );
                     };
                     options.accessTokenConfig = {
-                        configFileLocation: node.configFileLocation || "/home/opc/.oci/config",
+                        configFileLocation: node.configFileLocation || DEFAULT_OCI_CONFIG_PATH,
                         profile: node.profile || "DEFAULT",
                         scope: node.scope || undefined,
                     };
@@ -357,7 +367,16 @@ module.exports = function (RED) {
                 validateModeSpecificAuth(node, effectiveMode);
                 const options = buildAuthTypes();
                 const conn = await oracledb.getConnection(options);
-                await _applyNlsToConnection(conn);
+                try {
+                    await _applyNlsToConnection(conn);
+                } catch (initErr) {
+                    try {
+                        await conn.close();
+                    } catch (closeErr) {
+                        node.warn("Error closing standalone connection after init failure: " + closeErr.message);
+                    }
+                    throw initErr;
+                }
                 return conn;
             } catch (err) {
                 node.error("DB Standalone Connection Failed: " + err.message);
@@ -368,15 +387,14 @@ module.exports = function (RED) {
         async function initPool() {
             if (!node.usePool) return;
             if (pool) return pool;
+            if (poolPromise) return poolPromise;
             const effectiveMode = ensureDriverMode(node);
             validateModeSpecificAuth(node, effectiveMode);
             const options = buildAuthTypes();
-            Object.assign(options, {
-                poolMin: node.poolMin,
-                poolMax: node.poolMax,
-                poolIncrement: node.poolIncrement,
-                queueTimeout: node.queueTimeout,
-            });
+            if (node.poolMin !== undefined) options.poolMin = node.poolMin;
+            if (node.poolMax !== undefined) options.poolMax = node.poolMax;
+            if (node.poolIncrement !== undefined) options.poolIncrement = node.poolIncrement;
+            if (node.queueTimeout !== undefined) options.queueTimeout = node.queueTimeout;
             if (node._nlsTag === null) { _computeNlsInit(); }
             // Only register sessionCallback when NLS settings are active; otherwise
             // pool connections are reused without any session init overhead.
@@ -387,8 +405,16 @@ module.exports = function (RED) {
                     connection.tag = node._nlsTag;
                 };
             }
-            pool = await oracledb.createPool(options);
-            return pool;
+            poolPromise = (async function () {
+                const createdPool = await oracledb.createPool(options);
+                pool = createdPool;
+                return createdPool;
+            })();
+            try {
+                return await poolPromise;
+            } finally {
+                poolPromise = null;
+            }
         }
 
         node.getPoolConnection = async function () {
@@ -405,10 +431,19 @@ module.exports = function (RED) {
         };
 
         node.on("close", async (done) => {
-            if (!pool) return done();
             try {
-                await pool.close(10);
-                node.debug("Connection pool closed");
+                if (poolPromise) {
+                    try {
+                        await poolPromise;
+                    } catch (err) {
+                        node.warn(`Pool creation did not complete before close: ${err.message}`);
+                    }
+                }
+
+                if (pool) {
+                    await pool.close(10);
+                    node.debug("Connection pool closed");
+                }
             } catch (err) {
                 node.warn(`Error closing pool: ${err.message}`);
             }

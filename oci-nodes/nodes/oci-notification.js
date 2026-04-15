@@ -53,18 +53,28 @@ module.exports = function (RED) {
         node.msgBody = config.msgBody || "";
 
         let client = null;
+        let clientPromise = null;
 
         async function getClient() {
             if (client) return client;
-            const provider = await node.ociConfig.getAuthProvider();
-            client = new ons.NotificationDataPlaneClient({
-                authenticationDetailsProvider: provider
-            });
-            const region = node.ociConfig.getRegion();
-            if (region) {
-                client.regionId = region;
+            if (clientPromise) return clientPromise;
+            clientPromise = (async function () {
+                const provider = await node.ociConfig.getAuthProvider();
+                const createdClient = new ons.NotificationDataPlaneClient({
+                    authenticationDetailsProvider: provider
+                });
+                const region = node.ociConfig.getRegion();
+                if (region) {
+                    createdClient.regionId = region;
+                }
+                client = createdClient;
+                return createdClient;
+            })();
+            try {
+                return await clientPromise;
+            } finally {
+                clientPromise = null;
             }
-            return client;
         }
 
         node.on("input", async (msg, send, done) => {

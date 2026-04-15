@@ -37,86 +37,122 @@
 module.exports = function (RED) {
     const oracledb = require("oracledb");
 
+    function getQQuoteCloseDelimiter(openDelimiter) {
+        switch (openDelimiter) {
+            case "[":
+                return "]";
+            case "(":
+                return ")";
+            case "{":
+                return "}";
+            case "<":
+                return ">";
+            default:
+                return openDelimiter;
+        }
+    }
+
     // Blank string literals, quoted identifiers, and comments in sql so the
     // placeholder regex cannot match ':' inside literal values like 'call :id'.
     // Spaces replace content character-for-character to keep indices aligned.
     function stripSqlForBindScan(sql) {
         var out = "";
         var state = "normal";
+        var qCloseDelimiter = "";
 
         for (var i = 0; i < sql.length; i++) {
             var ch = sql[i];
             var next = i + 1 < sql.length ? sql[i + 1] : "";
+            var next2 = i + 2 < sql.length ? sql[i + 2] : "";
 
-            if (state === "normal") {
-                if (ch === "'" && state === "normal") {
-                    state = "single_quote";
-                    out += " ";
-                    continue;
-                }
-                if (ch === "\"") {
-                    state = "double_quote";
-                    out += " ";
-                    continue;
-                }
-                if (ch === "-" && next === "-") {
-                    state = "line_comment";
-                    out += "  ";
-                    i++;
-                    continue;
-                }
-                if (ch === "/" && next === "*") {
-                    state = "block_comment";
-                    out += "  ";
-                    i++;
-                    continue;
-                }
-                out += ch;
-                continue;
-            }
-
-            if (state === "single_quote") {
-                if (ch === "'" && next === "'") {
-                    // '' is Oracle's escaped single-quote — consume both characters together.
-                    out += "  ";
-                    i++;
-                    continue;
-                }
-                if (ch === "'") {
-                    state = "normal";
-                }
-                out += " ";
-                continue;
-            }
-
-            if (state === "double_quote") {
-                if (ch === "\"") {
-                    state = "normal";
-                }
-                out += " ";
-                continue;
-            }
-
-            if (state === "line_comment") {
-                if (ch === "\n" || ch === "\r") {
-                    state = "normal";
+            switch (state) {
+                case "normal":
+                    // Oracle q-quoting: q'X ... X' (and Q'X ... X').
+                    if ((ch === "q" || ch === "Q") && next === "'" && next2) {
+                        qCloseDelimiter = getQQuoteCloseDelimiter(next2);
+                        state = "q_quote";
+                        out += "   ";
+                        i += 2;
+                        continue;
+                    }
+                    if (ch === "'") {
+                        state = "single_quote";
+                        out += " ";
+                        continue;
+                    }
+                    if (ch === "\"") {
+                        state = "double_quote";
+                        out += " ";
+                        continue;
+                    }
+                    if (ch === "-" && next === "-") {
+                        state = "line_comment";
+                        out += "  ";
+                        i++;
+                        continue;
+                    }
+                    if (ch === "/" && next === "*") {
+                        state = "block_comment";
+                        out += "  ";
+                        i++;
+                        continue;
+                    }
                     out += ch;
-                } else {
+                    continue;
+                case "single_quote":
+                    if (ch === "'" && next === "'") {
+                        // '' is Oracle's escaped single-quote — consume both chars
+                        // so the second ' does not flip state back to normal.
+                        out += "  ";
+                        i++;
+                        continue;
+                    }
+                    if (ch === "'") {
+                        state = "normal";
+                    }
                     out += " ";
-                }
-                continue;
-            }
-
-            if (state === "block_comment") {
-                if (ch === "*" && next === "/") {
-                    state = "normal";
-                    out += "  ";
-                    i++;
-                } else if (ch === "\n" || ch === "\r") {
+                    continue;
+                case "double_quote":
+                    if (ch === "\"") {
+                        state = "normal";
+                    }
+                    out += " ";
+                    continue;
+                case "line_comment":
+                    if (ch === "\n" || ch === "\r") {
+                        state = "normal";
+                        out += ch;
+                    } else {
+                        out += " ";
+                    }
+                    continue;
+                case "block_comment":
+                    if (ch === "*" && next === "/") {
+                        state = "normal";
+                        out += "  ";
+                        i++;
+                    } else if (ch === "\n" || ch === "\r") {
+                        out += ch;
+                    } else {
+                        out += " ";
+                    }
+                    continue;
+                case "q_quote":
+                    // q-quoted literal closes at <delimiter>' (for example ]' or |').
+                    if (ch === qCloseDelimiter && next === "'") {
+                        state = "normal";
+                        qCloseDelimiter = "";
+                        out += "  ";
+                        i++;
+                    } else if (ch === "\n" || ch === "\r") {
+                        out += ch;
+                    } else {
+                        out += " ";
+                    }
+                    continue;
+                default:
                     out += ch;
-                } else {
-                    out += " ";
-                }
+                    continue;
             }
         }
 
@@ -364,6 +400,7 @@ module.exports = function (RED) {
 
         node.on("input", async (msg, send, done) => {
             let connection;
+            let ownConnection = false;
 
             try {
                 let sql;
@@ -440,7 +477,12 @@ module.exports = function (RED) {
                 };
 
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
-                connection = await node.connection.getConnection();
+                if (msg.transaction && msg.transaction.connection) {
+                    connection = msg.transaction.connection;
+                } else {
+                    connection = await node.connection.getConnection();
+                    ownConnection = true;
+                }
 
                 node.status({ fill: "yellow", shape: "dot", text: "executing..." });
                 const res = await connection.execute(sql, binds, options);
@@ -450,6 +492,14 @@ module.exports = function (RED) {
                 var outMsg = Object.assign({}, msg, {
                     payload: rows
                 });
+                if (msg.transaction) {
+                    Object.defineProperty(outMsg, "transaction", {
+                        value: msg.transaction,
+                        enumerable: false,
+                        writable: true,
+                        configurable: true
+                    });
+                }
                 send(outMsg);
                 done();
             } catch (err) {
@@ -458,7 +508,7 @@ module.exports = function (RED) {
                 node.error(err.message, msg);
                 done(err);
             } finally {
-                if (connection) {
+                if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {
                         node.warn("Error closing connection: " + e.message);
                     }

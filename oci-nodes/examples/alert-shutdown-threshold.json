@@ -219,7 +219,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.4.0"
+            "node-red-nodes": "0.4.1"
         }
     }
 ]

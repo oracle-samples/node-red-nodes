@@ -294,9 +294,9 @@ module.exports = function(RED) {
                     retryTimer = null;
                 }
                 if (retrySleepResolve) {
-                    const done = retrySleepResolve;
+                    const wakeResolve = retrySleepResolve;
                     retrySleepResolve = null;
-                    done(false);
+                    wakeResolve(false);
                 }
                 // break() interrupts the in-flight deqMany(AQ_DEQ_WAIT_FOREVER) at the Oracle level.
                 if (connection) {

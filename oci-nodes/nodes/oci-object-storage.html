@@ -133,14 +133,14 @@ RED.nodes.registerType("oci-object-storage", {
         </div>
     </div>
     <hr/>
-    <div class="form-row">
-        <label for="node-input-filePath"><i class="fa fa-hdd-o"></i> File Path</label>
-        <input type="text" id="node-input-filePath" placeholder="/tmp/example.bin">
-        <div id="file-path-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;"></div>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Use a full absolute path (for example <code>/home/opc/tmp/example.bin</code>). Do not use shorthand or relative paths.
+        <div class="form-row">
+            <label for="node-input-filePath"><i class="fa fa-hdd-o"></i> File Path</label>
+            <input type="text" id="node-input-filePath" placeholder="/tmp/example.bin">
+            <div id="file-path-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;"></div>
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+                Use a full absolute path (for example <code>/path/to/example.bin</code>). Do not use shorthand or relative paths.
+            </div>
         </div>
-    </div>
     <div class="form-row" id="row-content-type">
         <label for="node-input-contentType"><i class="fa fa-file-code-o"></i> Content Type</label>
         <input type="text" id="node-input-contentType" placeholder="application/octet-stream">
@@ -187,7 +187,7 @@ RED.nodes.registerType("oci-object-storage", {
         Optional local path.
         For upload, used only when <code>msg.payload</code> is empty.
         For download, writes the downloaded object to this path (while still returning it in <code>msg.payload</code>).
-        Provide the full absolute path, for example <code>/home/opc/tmp/nodered-downloaded.txt</code>.
+        Provide the full absolute path, for example <code>/path/to/nodered-downloaded.txt</code>.
     </dd>
     <dt>Content Type</dt>
     <dd>Upload-only optional MIME type. Can be overridden by <code>msg.contentType</code>.</dd>

@@ -57,6 +57,7 @@ module.exports = function (RED) {
         node.passphrase = (this.credentials && this.credentials.passphrase) || null;
 
         let _authProvider = null;
+        let _authProviderPromise = null;
 
         /**
          * Returns an OCI AuthenticationDetailsProvider based on the selected auth type.
@@ -64,39 +65,48 @@ module.exports = function (RED) {
          */
         node.getAuthProvider = async function () {
             if (_authProvider) return _authProvider;
+            if (_authProviderPromise) return _authProviderPromise;
 
-            switch (node.authType) {
-                case "config":
-                    _authProvider = new common.ConfigFileAuthenticationDetailsProvider(
-                        node.configFilePath,
-                        node.profile
-                    );
-                    break;
+            _authProviderPromise = (async function () {
+                switch (node.authType) {
+                    case "config":
+                        _authProvider = new common.ConfigFileAuthenticationDetailsProvider(
+                            node.configFilePath,
+                            node.profile
+                        );
+                        break;
 
-                case "instancePrincipal":
-                    _authProvider = await new common.InstancePrincipalsAuthenticationDetailsProviderBuilder().build();
-                    break;
+                    case "instancePrincipal":
+                        _authProvider = await new common.InstancePrincipalsAuthenticationDetailsProviderBuilder().build();
+                        break;
 
-                case "resourcePrincipal":
-                    _authProvider = await common.ResourcePrincipalAuthenticationDetailsProvider.builder();
-                    break;
+                    case "resourcePrincipal":
+                        _authProvider = await common.ResourcePrincipalAuthenticationDetailsProvider.builder();
+                        break;
 
-                case "simple":
-                    _authProvider = new common.SimpleAuthenticationDetailsProvider(
-                        node.tenancyOcid,
-                        node.userOcid,
-                        node.fingerprint,
-                        node.privateKeyPath,
-                        node.passphrase,
-                        common.Region.fromRegionId(node.region)
-                    );
-                    break;
+                    case "simple":
+                        _authProvider = new common.SimpleAuthenticationDetailsProvider(
+                            node.tenancyOcid,
+                            node.userOcid,
+                            node.fingerprint,
+                            node.privateKeyPath,
+                            node.passphrase,
+                            common.Region.fromRegionId(node.region)
+                        );
+                        break;
 
-                default:
-                    throw new Error("Unsupported OCI auth type: " + node.authType);
+                    default:
+                        throw new Error("Unsupported OCI auth type: " + node.authType);
+                }
+
+                return _authProvider;
+            })();
+
+            try {
+                return await _authProviderPromise;
+            } finally {
+                _authProviderPromise = null;
             }
-
-            return _authProvider;
         };
 
         /**

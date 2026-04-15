@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.4.1] - 2026-04-15
+
+### Changed
+- `sql` now participates in begin/end transaction flows — reuses `msg.transaction.connection` when wired inside a `begin-transaction`/`end-transaction` block.
+- `sql` handles Oracle `q'...'` alternative-quoting literals in the bind pre-scan (all delimiter styles: `[]`, `{}`, `<>`, `()`, same-character) so quoted content is not mistaken for bind variables.
+- Dependencies updated: `oci-sdk` bumped to `^2.129.0` (root, oci-nodes).
+
+### Fixed
+- `db-connection` pool initialization race — in-flight promise guard prevents parallel pool creation under concurrent startup.
+- `db-connection` close path now waits for in-flight pool creation before shutdown so redeploy/stop cannot leave a newly created pool unclosed.
+- `db-connection` standalone connection leak — connection now closed if NLS/session init fails after connect.
+- `db-connection` pool fields now preserve driver defaults when left blank (blanks were coerced to `0`).
+- `db-connection` config-file auth path now resolves from runtime user home (`~/.oci/config`) instead of hardcoded `/home/opc`.
+- `create-asset`, `create-meter-reading`, `misc-transaction`, `subinventory-quantity-transfer` — error handler now calls `done(err)` correctly, fixing Catch node routing on failures.
+- `oci-config`, `oci-notification`, `oci-object-storage` — concurrent async client/provider initialization deduplicated with in-flight promise guards.
+- `scm-server` token cache no longer immediately invalidates when `expires_in` is under 30 seconds.
+- `dequeue` continuous mode retry close handler no longer shadows the Node-RED `done` callback.
+- `iot-command` now debounces temporary command status reset timers to avoid unbounded timer buildup under high command throughput.
+
+---
+
 ## [0.4.0] - 2026-04-14
 
 ### Added
@@ -76,6 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `create-asset`, `create-meter-reading`, `misc-transaction`, and `subinventory-quantity-transfer` editor endpoint previews now repopulate correctly when an SCM Server is selected.
 
 ---
+
 
 ## [0.3.2] - 2026-04-03
 
