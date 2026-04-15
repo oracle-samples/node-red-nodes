@@ -32,7 +32,7 @@ In Continuous mode, enable retry controls to survive transient DB outages withou
 3. Encrypt sensitive data
 4. Validate inputs before executing
 
-**autoCommit behavior:** The SQL node uses `autoCommit: false`. SELECT queries work as expected, but DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. For DML, use a PL/SQL block with an explicit `COMMIT`, or use begin/end transaction nodes.
+**autoCommit behavior:** The SQL node uses `autoCommit: false`. In standalone mode, DML statements (INSERT, UPDATE, DELETE) are not committed and roll back when the SQL node closes its own connection. Inside a begin/end transaction flow, SQL reuses `msg.transaction.connection` and DML is committed or rolled back by end-transaction.
 
 **Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message at runtime. Validate the source of `msg.sql` to avoid executing untrusted SQL.
 **Bind parity checks:** The SQL node fails fast when SQL placeholders and bind values do not match, with status `binds mismatch` before DB execute.

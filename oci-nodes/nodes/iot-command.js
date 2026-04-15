@@ -81,6 +81,7 @@ module.exports = function (RED) {
             return;
         }
         node.qos = normalizeQos(config.qos, 1);
+        var statusResetTimer = null;
 
         function onConnection(state) {
             switch (state) {
@@ -144,7 +145,11 @@ module.exports = function (RED) {
             node.send(msg);
 
             // Restore listening status after a brief visual cue.
-            setTimeout(function () {
+            if (statusResetTimer) {
+                clearTimeout(statusResetTimer);
+            }
+            statusResetTimer = setTimeout(function () {
+                statusResetTimer = null;
                 if (node.iotDevice.isConnected()) {
                     node.status({ fill: "green", shape: "dot", text: "listening" });
                 }
@@ -158,6 +163,10 @@ module.exports = function (RED) {
             function finish() {
                 if (finished) return;
                 finished = true;
+                if (statusResetTimer) {
+                    clearTimeout(statusResetTimer);
+                    statusResetTimer = null;
+                }
                 node.iotDevice.offConnection(onConnection);
                 done();
             }

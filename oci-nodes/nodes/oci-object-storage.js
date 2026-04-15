@@ -99,18 +99,28 @@ module.exports = function (RED) {
         node.encoding = config.encoding || "utf8";
 
         let client = null;
+        let clientPromise = null;
 
         async function getClient() {
             if (client) return client;
-            const provider = await node.ociConfig.getAuthProvider();
-            client = new objectstorage.ObjectStorageClient({
-                authenticationDetailsProvider: provider
-            });
-            const region = node.ociConfig.getRegion();
-            if (region) {
-                client.regionId = region;
+            if (clientPromise) return clientPromise;
+            clientPromise = (async function () {
+                const provider = await node.ociConfig.getAuthProvider();
+                const createdClient = new objectstorage.ObjectStorageClient({
+                    authenticationDetailsProvider: provider
+                });
+                const region = node.ociConfig.getRegion();
+                if (region) {
+                    createdClient.regionId = region;
+                }
+                client = createdClient;
+                return createdClient;
+            })();
+            try {
+                return await clientPromise;
+            } finally {
+                clientPromise = null;
             }
-            return client;
         }
 
         function resolveValue(configValue, msgValue) {

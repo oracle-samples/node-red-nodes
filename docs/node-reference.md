@@ -18,7 +18,7 @@ Defines how Node-RED connects to the Oracle Database. All other DB nodes referen
 | Password | Basic only | Database password |
 | TNS String | Yes | Connect descriptor or TNS alias |
 | Wallet Path | No | Wallet and network config directory. Required for ADB (mTLS) and TCPS connections. Applies to all auth types. Passed as `configDir` and `walletLocation`. |
-| Config File Location | Config File / Session Token | Path to OCI config file (default: `/home/opc/.oci/config`) |
+| Config File Location | Config File / Session Token | Path to OCI config file (default: `~/.oci/config`) |
 | Profile | Config File / Session Token | Profile name in config file (default: `DEFAULT`) |
 | Fingerprint | Simple only | API key fingerprint |
 | Private Key Location | Simple only | Path to private key file |
@@ -163,8 +163,9 @@ Executes SQL statements against the Oracle Database.
 Before opening a DB connection, SQL placeholder parity is validated: named placeholders require object binds, positional placeholders require array binds, and missing bind values fail fast with status "binds mismatch".
 The SQL node logs redacted error objects (`name`, `message`, `errorNum`, `offset`) instead of raw Oracle error objects.
 In SQL Source `Editor` mode, semicolon-chained multi-statement SQL is blocked before execute; a single statement is required (anonymous PL/SQL blocks remain allowed).
+Precheck scanning masks standard quoted/comment regions plus Oracle `q'...'` literals, so `:` and `;` inside those literal bodies are not treated as bind or statement-chain tokens.
 
-> **Important:** This node uses `autoCommit: false`. DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. Use a PL/SQL block with explicit `COMMIT` for DML, or use begin/end transaction nodes.
+> **Important:** This node uses `autoCommit: false`. In standalone mode, DML statements (INSERT, UPDATE, DELETE) are not committed and roll back when this node closes its connection. When run inside a begin/end transaction path, SQL reuses `msg.transaction.connection` and DML is finalized by end-transaction commit/rollback.
 
 ## SCM Nodes
 

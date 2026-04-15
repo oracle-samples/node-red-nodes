@@ -80,7 +80,7 @@ module.exports = function(RED) {
                 send(msg);
                 done();
             } catch (err) {
-                handleError(node, msg, err, send, done);
+                handleError(node, msg, err, done);
             }
         });
     }
