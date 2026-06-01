@@ -37,6 +37,7 @@
 module.exports = function (RED) {
     const loggingingestion = require("oci-loggingingestion");
     const { randomUUID } = require("crypto");
+    const ociError = require("../lib/oci-error.js");
     const MAX_LOG_ENTRY_BYTES = (1024 * 1024) - 1; // LogEntry.data should be < 1 MB
 
     function OciLoggingNode(config) {
@@ -187,15 +188,7 @@ module.exports = function (RED) {
                 }, 3000);
 
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "ingest failed" });
-                msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-                msg.statusCode = err.statusCode || 0;
-                msg.payload = err.message;
-                node.error(msg.error.message, msg);
-                done(err);
+                ociError.handleNodeError(node, msg, err, done, { statusText: "ingest failed" });
             }
         });
     }

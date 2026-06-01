@@ -36,6 +36,7 @@
 
 module.exports = function(RED) {
     const oracledb = require("oracledb");
+    const dbError = require("../lib/db-error.js");
     const RETRY_WARN_THROTTLE_MS = 30000;
     const DEFAULT_RETRY_DELAY_MS = 5000;
 
@@ -160,7 +161,7 @@ module.exports = function(RED) {
                     if (connection && ownConnection) {
                         try { await connection.close(); } catch (e) {}
                     }
-                    done(err);
+                    dbError.handleNodeError(node, msg, err, done, { statusText: "dequeue failed" });
                 }
             });
         }

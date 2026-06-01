@@ -36,6 +36,7 @@
 
 module.exports = function (RED) {
     const oracledb = require("oracledb");
+    const dbError = require("../lib/db-error.js");
 
     // Blank string literals, quoted identifiers, and comments in sql so the
     // placeholder regex cannot match ':' inside literal values like 'call :id'.
@@ -49,7 +50,7 @@ module.exports = function (RED) {
             var next = i + 1 < sql.length ? sql[i + 1] : "";
 
             if (state === "normal") {
-                if (ch === "'" && state === "normal") {
+                if (ch === "'") {
                     state = "single_quote";
                     out += " ";
                     continue;
@@ -364,33 +365,37 @@ module.exports = function (RED) {
 
         node.on("input", async (msg, send, done) => {
             let connection;
+            let ownConnection = false;
 
             try {
                 let sql;
                 if (node.sqlSource === "msg") {
                     sql = msg.sql;
                     if (!sql || typeof sql !== "string") {
-                        node.status({ fill: "red", shape: "ring", text: "no msg.sql" });
                         const err = new Error("SQL Source is set to msg.sql but msg.sql is empty or not a string");
-                        node.error(err.message, msg);
-                        return done(err);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "no msg.sql",
+                            statusShape: "ring"
+                        });
                     }
                 } else {
                     sql = node.sqlcmd;
                     if (!sql) {
-                        node.status({ fill: "red", shape: "ring", text: "no SQL provided" });
                         const err = new Error("No SQL statement provided");
-                        node.error(err.message, msg);
-                        return done(err);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "no SQL provided",
+                            statusShape: "ring"
+                        });
                     }
                 }
                 sql = sql.trim();
 
                 if (node.sqlSource === "editor" && hasEditorStatementChain(sql)) {
                     const err = new Error("Editor SQL must contain exactly one statement (semicolon statement chains are not allowed)");
-                    node.status({ fill: "red", shape: "ring", text: "invalid sql" });
-                    node.error(err.message, msg);
-                    return done(err);
+                    return dbError.handleNodeError(node, msg, err, done, {
+                        statusText: "invalid sql",
+                        statusShape: "ring"
+                    });
                 }
 
                 let binds = [];
@@ -398,9 +403,11 @@ module.exports = function (RED) {
                     try {
                         binds = validateBindsValue(msg.binds);
                     } catch (bindErr) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid binds" });
-                        node.error("Invalid msg.binds: " + bindErr.message, msg);
-                        return done(bindErr);
+                        const err = new Error("Invalid msg.binds: " + bindErr.message);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "invalid binds",
+                            statusShape: "ring"
+                        });
                     }
                 } else if (node.bindsMappings.length > 0) {
                     binds = await resolveBindsFromMappings(msg);
@@ -413,26 +420,28 @@ module.exports = function (RED) {
                             binds = validateBindsValue(JSON.parse(node.binds));
                         }
                     } catch (parseErr) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid binds" });
-                        node.error("Invalid binds: " + parseErr.message, msg);
-                        return done(parseErr);
+                        const err = new Error("Invalid binds: " + parseErr.message);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "invalid binds",
+                            statusShape: "ring"
+                        });
                     }
                 }
 
                 try {
                     verifyBindParity(sql, binds);
                 } catch (bindParityErr) {
-                    node.status({ fill: "red", shape: "ring", text: "binds mismatch" });
-                    node.error(bindParityErr.message, msg);
-                    return done(bindParityErr);
+                    return dbError.handleNodeError(node, msg, bindParityErr, done, {
+                        statusText: "binds mismatch",
+                        statusShape: "ring"
+                    });
                 }
 
                 let maxRows = node.maxrows;
                 if (maxRows > 10000) maxRows = 10000;
 
-                // autoCommit:false — SELECTs work fine; DML silently rolls back on
-                // connection close. Callers that need to commit must use an explicit
-                // COMMIT in a PL/SQL block or route through the transaction nodes.
+                // autoCommit:false keeps standalone DML from being committed by accident.
+                // When msg.transaction is present, end-transaction owns the commit/rollback.
                 const options = {
                     autoCommit: false,
                     outFormat: oracledb.OUT_FORMAT_OBJECT,
@@ -440,7 +449,12 @@ module.exports = function (RED) {
                 };
 
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
-                connection = await node.connection.getConnection();
+                if (msg.transaction && msg.transaction.connection) {
+                    connection = msg.transaction.connection;
+                } else {
+                    connection = await node.connection.getConnection();
+                    ownConnection = true;
+                }
 
                 node.status({ fill: "yellow", shape: "dot", text: "executing..." });
                 const res = await connection.execute(sql, binds, options);
@@ -450,15 +464,20 @@ module.exports = function (RED) {
                 var outMsg = Object.assign({}, msg, {
                     payload: rows
                 });
+                if (msg.transaction) {
+                    Object.defineProperty(outMsg, "transaction", {
+                        value: msg.transaction,
+                        enumerable: false,
+                        writable: true,
+                        configurable: true
+                    });
+                }
                 send(outMsg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "query failed" });
-                msg.error = { message: err.message, code: err.errorNum || null };
-                node.error(err.message, msg);
-                done(err);
+                dbError.handleNodeError(node, msg, err, done, { statusText: "query failed" });
             } finally {
-                if (connection) {
+                if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {
                         node.warn("Error closing connection: " + e.message);
                     }

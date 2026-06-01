@@ -28,3 +28,6 @@ pnpm-debug.log*
 .vscode/
 .idea/
 node_modules
+
+# Tests (internal development only — excluded from releases)
+*/test/

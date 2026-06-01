@@ -1,0 +1,120 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("iot-get-content", {
+    category: "oci",
+    paletteLabel: "get content",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        digitalTwinOcid: { value: "" },
+        shouldIncludeMetadata: { value: false }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-search",
+    label: function () {
+        return this.name || "get content";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="iot-get-content">
+    <div class="form-row">
+        <label for="node-input-name" style="width:170px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig" style="width:170px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig">
+    </div>
+    <div class="form-row">
+        <label for="node-input-digitalTwinOcid" style="width:170px;"><i class="fa fa-microchip"></i> Digital Twin OCID</label>
+        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
+        <div style="margin-left:175px;font-size:11px;color:#888;margin-top:2px;">
+            If empty, reads from <code>msg.digitalTwinOcid</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-shouldIncludeMetadata" style="width:170px;"><i class="fa fa-info-circle"></i> Include Metadata</label>
+        <input type="checkbox" id="node-input-shouldIncludeMetadata" style="width:auto;vertical-align:middle;">
+        <span style="font-size:12px;color:#666;"> Include model metadata in the content response</span>
+    </div>
+    <div class="form-tips" style="margin-left:175px;">
+        <b>Tip:</b> Runtime overrides are supported via <code>msg.digitalTwinOcid</code> and <code>msg.shouldIncludeMetadata</code>.
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="iot-get-content">
+<p>Retrieves current digital twin content for a digital twin instance via the OCI IoT REST API.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt>
+    <dd>References an <code>oci-config</code> node for authentication and region.</dd>
+    <dt>Digital Twin OCID</dt>
+    <dd>Digital twin instance OCID. If empty, reads from <code>msg.digitalTwinOcid</code>.</dd>
+    <dt>Include Metadata</dt>
+    <dd>When enabled, requests metadata in addition to content values.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>The digital twin instance content returned by OCI.</dd>
+    <dt>etag <span class="property-type">string</span></dt>
+    <dd>Response ETag for concurrency/caching use cases.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code from the OCI response.</dd>
+    <dt>opcRequestId <span class="property-type">string</span></dt>
+    <dd>Oracle request identifier for support/debug correlation.</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt>
+    <dd>Overrides the configured Digital Twin OCID.</dd>
+    <dt>msg.shouldIncludeMetadata <span class="property-type">boolean|string</span></dt>
+    <dd>Overrides Include Metadata. Accepts booleans or true/false-like strings.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Equivalent to <code>oci iot digital-twin-instance get-content</code>. The target instance must have an associated digital twin model for content retrieval to return data.</p>
+</script>

@@ -36,6 +36,7 @@
 
 module.exports = function (RED) {
     const iot = require("oci-iot");
+    const ociError = require("../lib/oci-error.js");
 
     function isObject(value) {
         return value && typeof value === "object" && !Array.isArray(value);
@@ -187,15 +188,7 @@ module.exports = function (RED) {
                     node.status({});
                 }, 3000);
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "update failed" });
-                msg.error = {
-                    message: err.message || String(err),
-                    code: (err.statusCode || err.__httpStatusCode || null) ? String(err.statusCode || err.__httpStatusCode) : null
-                };
-                msg.statusCode = err.statusCode || err.__httpStatusCode || 0;
-                msg.payload = err.message || String(err);
-                node.error(msg.error.message, msg);
-                done(err);
+                ociError.handleNodeError(node, msg, err, done, { statusText: "update failed" });
             }
         });
     }

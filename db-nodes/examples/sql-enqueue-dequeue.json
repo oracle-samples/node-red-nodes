@@ -17,7 +17,7 @@
         "sqlcmd": "SELECT *\nFROM ALL_QUEUE_SUBSCRIBERS\nWHERE QUEUE_NAME = 'JSON_QUEUE'\nAND CONSUMER_NAME = 'MY_DEVICE';",
         "maxrows": 1000,
         "bindsSource": "editor",
-        "bindsMapping": [],
+        "bindsMappings": "[]",
         "x": 270,
         "y": 100,
         "wires": [
@@ -36,7 +36,7 @@
         "sqlcmd": "BEGIN \nDBMS_AQADM.ADD_SUBSCRIBER( queue_name => 'JSON_QUEUE', \nsubscriber => SYS.AQ$_AGENT('MY_DEVICE', NULL, NULL), \nrule => q'[ JSON_VALUE(tab.user_data, '$.endpoint') = 'iot/v1/device/credentials/request/MY-DEVICE' ]' ); \nEND; ",
         "maxrows": 1000,
         "bindsSource": "editor",
-        "bindsMapping": [],
+        "bindsMappings": "[]",
         "x": 630,
         "y": 60,
         "wires": [
@@ -185,7 +185,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.4.0"
+            "node-red-nodes": "0.5.0"
         }
     }
 ]

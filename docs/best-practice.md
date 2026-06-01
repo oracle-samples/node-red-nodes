@@ -32,32 +32,48 @@ In Continuous mode, enable retry controls to survive transient DB outages withou
 3. Encrypt sensitive data
 4. Validate inputs before executing
 
-**autoCommit behavior:** The SQL node uses `autoCommit: false`. SELECT queries work as expected, but DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the connection closes. For DML, use a PL/SQL block with an explicit `COMMIT`, or use begin/end transaction nodes.
+**autoCommit behavior:** The SQL node uses `autoCommit: false`. SELECT queries work as expected. Standalone DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the standalone connection closes; for standalone DML, use a PL/SQL block with an explicit `COMMIT`. When the flow is inside begin/end transaction nodes, SQL uses `msg.transaction.connection` and the end-transaction node commits or rolls back the work.
 
 **Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message at runtime. Validate the source of `msg.sql` to avoid executing untrusted SQL.
 **Bind parity checks:** The SQL node fails fast when SQL placeholders and bind values do not match, with status `binds mismatch` before DB execute.
 
 ## SCM Payload Mappings
 
-All SCM transaction nodes use structured mapping rows with three source types:
+All SCM nodes that use payload mappings support structured mapping rows with typed source options:
 
 | Source | Reads from | Value example |
 |--------|-----------|---------------|
 | **dequeued data** | `msg.dequeued.<value>` | `AssetNumber` (prefix added automatically) |
 | **msg property** | `msg.<value>` | `payload.someField` |
-| **static value** | Literal string | `100100100` |
+| **static text** | Literal string | `NODE_RED` |
+| **static number** | Numeric literal | `1` |
+| **static boolean** | Boolean literal | Dropdown value: `true` or `false` |
+| **static JSON** | Parsed JSON literal | `["SN1","SN2"]` — array/object for nested fields such as `serials` |
+| **current timestamp** | Runtime clock | Generated ISO timestamp |
 
 ## OCI IoT Platform
 
-**Authentication:** The IoT device nodes (`iot-config`, `iot-telemetry`, `iot-command`) use MQTT device credentials — username/password or certificates. The cloud-side nodes (`iot-send-command`, `iot-update-relationship`) use OCI user credentials via `oci-config`. These are separate auth contexts.
+**Authentication:** The IoT device nodes (`iot-config`, `iot-telemetry`, `iot-subscribe`) use MQTT device credentials — username/password or certificates. The cloud-side nodes (`iot-send-command`, `iot-get-content`, `iot-update-relationship`) use OCI user credentials via `oci-config`. These are separate auth contexts.
 
 **Persistent sessions:** `iot-config` defaults to `clean: false` so the IoT Platform retains messages while the device is briefly offline. Keep this default for command/session reliability unless you explicitly need clean-session behavior.
 
 **Subscription patterns:** In command subscriptions, use valid MQTT wildcards only (`+` for one full segment, `#` only as the final segment). Invalid patterns are rejected.
 
-**Command responses:** The iot-command node does not auto-acknowledge. To send a response after processing a command, publish explicitly using a separate `iot-telemetry` or `mqtt out` node on whatever response topic your protocol requires.
+**Command responses:** The `iot-subscribe` node does not auto-acknowledge. To send a response after processing a command-topic message, publish explicitly using a separate `iot-telemetry` or `mqtt out` node on whatever response topic your protocol requires.
 
 **Client ID uniqueness:** Only one MQTT connection per Client ID is allowed. If you use both iot-config and built-in MQTT nodes with the same Client ID, they will disconnect each other. Use different Client IDs or use one or the other.
+
+## ORDS / IoT Data API
+
+**Authentication:** ORDS nodes use OAuth client credentials through `ords-config`. This is separate from `oci-config` OCI signing and `db-connection` direct database login.
+
+**Base URL ownership:** Keep the ORDS host/base path in `ords-config`. Request and polling nodes accept relative paths only so flows do not accidentally mix environments.
+
+**Request defaults:** `oci-ords-request` defaults to Custom, so use it as a general ORDS request node. Select the IoT Data API presets only when those shortcuts match the endpoint you need.
+
+**Polling volume:** Use `oci-ords-poll` for command status/response checks. When it follows `iot-send-command`, leave Record ID empty so the poll node reads `msg.recordId` from the command response. `Max Concurrent Polls` and `Max Queued Polls` live on `ords-config` as shared safety limits for all poll nodes using that profile; regular ORDS request nodes ignore them. Tune interval and timeout on each poll node for the workflow. Prefer shorter timeouts and bounded queues when many commands can be sent in bursts.
+
+**Retries:** Treat `oci-ords-request` as a one-shot HTTP request. Use polling only when the workflow is genuinely asynchronous, such as waiting for command delivery status or response data.
 
 ## OCI Notifications
 

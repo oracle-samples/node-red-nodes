@@ -65,7 +65,7 @@ window.logMappingEditor = (function () {
                 '<div style="flex:1;"><label style="font-size:11px;color:#666;">Log Field</label>' +
                   '<input type="text" class="log-field" value="' + _escapeHtml(m.logField || "") + '" style="width:100%;" /></div>' +
                 '<div style="width:140px;"><label style="font-size:11px;color:#666;">Source</label>' +
-                  '<select class="log-source-type" style="width:100%;">' +
+                  '<select class="log-source-type" style="width:140px;">' +
                     '<option value="dequeued"' + (srcType === "dequeued" ? ' selected' : '') + '>dequeued data</option>' +
                     '<option value="msg"' + (srcType === "msg" ? ' selected' : '') + '>msg property</option>' +
                     '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static value</option>' +
@@ -219,7 +219,7 @@ RED.nodes.registerType("oci-log-analytics", {
             <option value="DEBUG">DEBUG</option>
         </select>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Used as the <code>level</code> field if not already in payload. Overridden by <code>msg.severity</code> if set.
+            Used as the <code>level</code> field if not already in payload. <code>msg.severity</code> can override this value.
         </div>
     </div>
     <hr/>
@@ -272,7 +272,7 @@ RED.nodes.registerType("oci-log-analytics", {
     <dt>Entity OCID</dt>
     <dd>Optional. Associates logs with a Logging Analytics entity.</dd>
     <dt>Default Severity</dt>
-    <dd>Used as the <code>level</code> field if not already set. Overridden by <code>msg.severity</code>.</dd>
+    <dd>Used as the <code>level</code> field if not already set. <code>msg.severity</code> can override this value.</dd>
     <dt>Payload Source</dt>
     <dd>
         <b>Payload Mappings</b> &mdash; build the log entry using the mapping rows. Each row specifies:

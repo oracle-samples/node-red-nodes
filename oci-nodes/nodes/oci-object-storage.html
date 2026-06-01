@@ -162,7 +162,7 @@ RED.nodes.registerType("oci-object-storage", {
         <label for="node-input-encoding"><i class="fa fa-font"></i> Text Encoding</label>
         <input type="text" id="node-input-encoding" placeholder="utf8">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Used only when Download Output is <b>Text</b>. Can be overridden by <code>msg.encoding</code>.
+            Used only when Download Output is <b>Text</b>. <code>msg.encoding</code> can override this value.
         </div>
     </div>
 </script>
@@ -175,7 +175,7 @@ RED.nodes.registerType("oci-object-storage", {
     <dt>OCI Config</dt>
     <dd>References an OCI Config node for authentication and region.</dd>
     <dt>Operation</dt>
-    <dd><code>upload</code> or <code>download</code>. Can be overridden with <code>msg.operation</code>.</dd>
+    <dd><code>upload</code> or <code>download</code>. <code>msg.operation</code> can override this value.</dd>
     <dt>Namespace</dt>
     <dd>Required at runtime. Set in node config or provide <code>msg.namespace</code>.</dd>
     <dt>Bucket</dt>
@@ -190,29 +190,16 @@ RED.nodes.registerType("oci-object-storage", {
         Provide the full absolute path, for example <code>/home/opc/tmp/nodered-downloaded.txt</code>.
     </dd>
     <dt>Content Type</dt>
-    <dd>Upload-only optional MIME type. Can be overridden by <code>msg.contentType</code>.</dd>
+    <dd>Upload-only optional MIME type. <code>msg.contentType</code> can override this value.</dd>
     <dt>Download Output</dt>
     <dd>
         Download-only output mode.
         <code>buffer</code> (default) keeps <code>msg.payload</code> as a Buffer.
         <code>text</code> converts payload bytes to a string using the selected encoding.
-        Can be overridden by <code>msg.downloadOutput</code>.
+        <code>msg.downloadOutput</code> can override this value.
     </dd>
     <dt>Text Encoding</dt>
-    <dd>Download-only when output is <code>text</code>. Default <code>utf8</code>. Can be overridden by <code>msg.encoding</code>.</dd>
-</dl>
-
-<h3>Runtime overrides</h3>
-<dl class="message-properties">
-    <dt>msg.operation <span class="property-type">string</span></dt><dd>Overrides the Operation field: <code>upload</code> or <code>download</code>.</dd>
-    <dt>msg.namespace <span class="property-type">string</span></dt><dd>Overrides the Namespace field.</dd>
-    <dt>msg.bucketName <span class="property-type">string</span></dt><dd>Overrides the Bucket field.</dd>
-    <dt>msg.objectName <span class="property-type">string</span></dt><dd>Overrides the Object Name field.</dd>
-    <dt>msg.filePath <span class="property-type">string</span></dt><dd>Overrides the File Path field.</dd>
-    <dt>msg.contentType <span class="property-type">string</span></dt><dd>Overrides Content Type (upload only).</dd>
-    <dt>msg.downloadOutput <span class="property-type">string</span></dt><dd>Overrides Download Output: <code>buffer</code> or <code>text</code> (download only).</dd>
-    <dt>msg.encoding <span class="property-type">string</span></dt><dd>Overrides Text Encoding for text downloads (e.g. <code>utf8</code>, <code>ascii</code>).</dd>
-    <dt>msg.payload <span class="property-type">any</span></dt><dd>Upload body when operation is <code>upload</code>. If absent and File Path is set, the file is uploaded instead.</dd>
+    <dd>Download-only when output is <code>text</code>. Default <code>utf8</code>. <code>msg.encoding</code> can override this value.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -232,6 +219,22 @@ RED.nodes.registerType("oci-object-storage", {
     <dt>error <span class="property-type">object</span></dt>
     <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.operation <span class="property-type">string</span></dt><dd>Overrides the Operation field: <code>upload</code> or <code>download</code>.</dd>
+    <dt>msg.namespace <span class="property-type">string</span></dt><dd>Overrides the Namespace field.</dd>
+    <dt>msg.bucketName <span class="property-type">string</span></dt><dd>Overrides the Bucket field.</dd>
+    <dt>msg.objectName <span class="property-type">string</span></dt><dd>Overrides the Object Name field.</dd>
+    <dt>msg.filePath <span class="property-type">string</span></dt><dd>Overrides the File Path field.</dd>
+    <dt>msg.contentType <span class="property-type">string</span></dt><dd>Overrides Content Type (upload only).</dd>
+    <dt>msg.downloadOutput <span class="property-type">string</span></dt><dd>Overrides Download Output: <code>buffer</code> or <code>text</code> (download only).</dd>
+    <dt>msg.encoding <span class="property-type">string</span></dt><dd>Overrides Text Encoding for text downloads (e.g. <code>utf8</code>, <code>ascii</code>).</dd>
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Upload body when operation is <code>upload</code>. If absent and File Path is set, the file is uploaded instead.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>For uploads, the node sends <code>msg.payload</code> unless the payload is absent and File Path points to a local file. For downloads, <code>msg.payload</code> receives the object content even when a File Path is also used to save a copy locally.</p>
 
 <h3>Typical Flows</h3>
 <p><b>Upload JSON payload:</b><br/>

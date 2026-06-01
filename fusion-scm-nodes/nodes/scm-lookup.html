@@ -41,8 +41,9 @@ RED.nodes.registerType("scm-lookup", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
-        lookupType: { value: "installedBaseAsset" },
+        lookupType: { value: "custom" },
         queryValue: { value: "" },
+        queryFilters: { value: "" },
         customUrl: { value: "" },
         customQueryParam: { value: "" }
     },
@@ -51,25 +52,75 @@ RED.nodes.registerType("scm-lookup", {
     icon: "font-awesome/fa-search",
     label: function () {
         if (this.name) return this.name;
-        var labels = { installedBaseAsset:"lookup asset", meterReading:"lookup meter", organizationId:"lookup org id", custom:"scm lookup" };
+        var labels = {
+            installedBaseAsset: "lookup asset",
+            meterReading: "lookup meter",
+            organizationId: "lookup org id",
+            item: "lookup item",
+            subinventory: "lookup subinventory",
+            onHandQuantity: "lookup on-hand",
+            workDefinition: "lookup work def",
+            manufacturingWorkOrder: "lookup mfg WO",
+            maintenanceWorkOrder: "lookup maint WO",
+            custom: "scm lookup"
+        };
         return labels[this.lookupType] || "scm lookup";
     },
     oneditprepare: function () {
         var endpointMap = {
             installedBaseAsset: "installedBaseAssets",
             meterReading: "meterReadings",
-            organizationId: "inventoryOrganizations"
+            organizationId: "inventoryOrganizations",
+            item: "itemsV2",
+            subinventory: "subinventories",
+            onHandQuantity: "inventoryOnhandBalances",
+            workDefinition: "workDefinitions",
+            manufacturingWorkOrder: "workOrders",
+            maintenanceWorkOrder: "maintenanceWorkOrders"
         };
         var queryParamMap = {
             installedBaseAsset: "SerialNumber",
             meterReading: "AssetNumber",
-            organizationId: "OrganizationName"
+            organizationId: "OrganizationName",
+            item: "ItemNumber",
+            subinventory: "SecondaryInventoryName",
+            onHandQuantity: "ItemNumber",
+            workDefinition: "WorkDefinitionName",
+            manufacturingWorkOrder: "WorkOrderNumber",
+            maintenanceWorkOrder: "WorkOrderNumber"
         };
+
+        function buildFilterSuffix() {
+            var raw = $("#node-input-queryFilters").val().trim();
+            if (!raw) return "";
+            var filters;
+            try {
+                filters = JSON.parse(raw);
+            } catch (e) {
+                return null;
+            }
+            if (!filters || typeof filters !== "object" || Array.isArray(filters)) {
+                return null;
+            }
+            var parts = [];
+            Object.keys(filters).forEach(function (key) {
+                var value = filters[key];
+                if (value !== undefined && value !== null && value !== "") {
+                    parts.push(key + "=" + value);
+                }
+            });
+            return parts.length > 0 ? ";" + parts.join(";") : "";
+        }
 
         function updateEndpointPreview() {
             var lookupType = $("#node-input-lookupType").val();
             var $endpoint = $("#lookup-endpoint-display");
             var queryValue = $("#node-input-queryValue").val().trim();
+            var filterSuffix = buildFilterSuffix();
+            if (filterSuffix === null) {
+                $endpoint.text("Additional Filters JSON is invalid");
+                return;
+            }
 
             if (lookupType === "custom") {
                 var customUrl = $("#node-input-customUrl").val().trim();
@@ -80,7 +131,7 @@ RED.nodes.registerType("scm-lookup", {
                 var customQueryParam = $("#node-input-customQueryParam").val().trim();
                 if (customQueryParam && queryValue) {
                     var sep = customUrl.indexOf("?") !== -1 ? "&" : "?";
-                    $endpoint.text(customUrl + sep + "q=" + customQueryParam + "=" + queryValue);
+                    $endpoint.text(customUrl + sep + "q=" + customQueryParam + "=" + queryValue + filterSuffix);
                 } else {
                     $endpoint.text(customUrl);
                 }
@@ -97,14 +148,25 @@ RED.nodes.registerType("scm-lookup", {
             var endpoint = endpointMap[lookupType];
             var queryParam = queryParamMap[lookupType] || "q";
             var base = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint;
-            $endpoint.text(queryValue ? base + "?q=" + queryParam + "=" + queryValue : base);
+            $endpoint.text(queryValue ? base + "?q=" + queryParam + "=" + queryValue + filterSuffix : base);
         }
 
         function updateSections() {
             var type = $("#node-input-lookupType").val();
             var isCustom = (type === "custom");
             $(".custom-section").toggle(isCustom);
-            var labelMap = { installedBaseAsset:"Serial Number", meterReading:"Asset Number", organizationId:"Organization Name", custom:"Query Value" };
+            var labelMap = {
+                installedBaseAsset: "Serial Number",
+                meterReading: "Asset Number",
+                organizationId: "Organization Name",
+                item: "Item Number",
+                subinventory: "Subinventory Name",
+                onHandQuantity: "Item Number",
+                workDefinition: "Work Definition Name",
+                manufacturingWorkOrder: "Work Order Number",
+                maintenanceWorkOrder: "Work Order Number",
+                custom: "Query Value"
+            };
             $("#query-value-label").text(labelMap[type] || "Query Value");
             updateEndpointPreview();
         }
@@ -113,6 +175,7 @@ RED.nodes.registerType("scm-lookup", {
         $("#node-input-server").on("change", updateEndpointPreview);
         $("#node-input-customUrl").on("input", updateEndpointPreview);
         $("#node-input-queryValue").on("input", updateEndpointPreview);
+        $("#node-input-queryFilters").on("input", updateEndpointPreview);
         $("#node-input-customQueryParam").on("input", updateEndpointPreview);
         updateEndpointPreview();
     }
@@ -132,21 +195,23 @@ RED.nodes.registerType("scm-lookup", {
     <div class="form-row">
         <label for="node-input-lookupType"><i class="fa fa-list"></i> Lookup Type</label>
         <select id="node-input-lookupType" style="width:200px;">
+            <option value="custom">Custom</option>
             <option value="installedBaseAsset">Installed Base Asset</option>
             <option value="meterReading">Meter Reading</option>
             <option value="organizationId">Organization ID</option>
-            <option value="custom">Custom</option>
+            <option value="item">Item</option>
+            <option value="subinventory">Subinventory</option>
+            <option value="onHandQuantity">On-Hand Quantity</option>
+            <option value="workDefinition">Work Definition</option>
+            <option value="manufacturingWorkOrder">Manufacturing Work Order</option>
+            <option value="maintenanceWorkOrder">Maintenance Work Order</option>
         </select>
     </div>
     <hr/>
-    <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="lookup-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
-    </div>
-    <div class="custom-section" style="display:none;">
+    <div class="custom-section scm-custom-endpoint-section" style="display:none;">
         <div class="form-row">
-            <label for="node-input-customUrl"><i class="fa fa-link"></i> Custom URL</label>
-            <input type="text" id="node-input-customUrl" style="width:100%;">
+            <label for="node-input-customUrl" style="vertical-align:top;margin-top:2px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
+            <textarea id="node-input-customUrl" rows="3" style="width:calc(100% - 107px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
             <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Enter the base endpoint only (no query string).</div>
         </div>
         <div class="form-row">
@@ -155,11 +220,20 @@ RED.nodes.registerType("scm-lookup", {
             <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">The Oracle REST field name to filter by (e.g. <code>ItemNumber</code>). Required — must be paired with a Query Value.</div>
         </div>
     </div>
+    <div class="form-row">
+        <label><i class="fa fa-link"></i> Endpoint</label>
+        <span id="lookup-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+    </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-queryValue"><i class="fa fa-hashtag"></i> <span id="query-value-label">Serial Number</span></label>
-        <input type="text" id="node-input-queryValue">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.queryValue</code>.</div>
+        <label for="node-input-queryValue" style="width:160px;"><i class="fa fa-hashtag"></i> <span id="query-value-label">Serial Number</span></label>
+        <input type="text" id="node-input-queryValue" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.queryValue</code>.</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-queryFilters" style="width:160px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Additional Filters</label>
+        <textarea id="node-input-queryFilters" rows="4" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional JSON object appended to the REST <code>q</code> expression, for example <code>{"OrganizationCode":"M1"}</code>. Can be overridden by <code>msg.queryFilters</code>.</div>
     </div>
 </script>
 
@@ -174,10 +248,17 @@ RED.nodes.registerType("scm-lookup", {
             <li><b>Installed Base Asset</b> — queries by SerialNumber</li>
             <li><b>Meter Reading</b> — queries by AssetNumber</li>
             <li><b>Organization ID</b> — queries by OrganizationName</li>
+            <li><b>Item</b> — queries itemsV2 by ItemNumber</li>
+            <li><b>Subinventory</b> — queries subinventories by SecondaryInventoryName</li>
+            <li><b>On-Hand Quantity</b> — queries inventoryOnhandBalances by ItemNumber</li>
+            <li><b>Work Definition</b> — queries workDefinitions by WorkDefinitionName</li>
+            <li><b>Manufacturing Work Order</b> — queries workOrders by WorkOrderNumber</li>
+            <li><b>Maintenance Work Order</b> — queries maintenanceWorkOrders by WorkOrderNumber</li>
             <li><b>Custom</b> — provide your own base URL, query parameter name, and query value (all three required). Query parameters in Custom URL are not allowed.</li>
         </ul>
     </dd>
     <dt>Query Value</dt><dd>The value to search for. If left blank, reads from <code>msg.queryValue</code>.</dd>
+    <dt>Additional Filters</dt><dd>Optional JSON object appended to the REST <code>q</code> expression. Use it to narrow lookups by fields such as <code>OrganizationCode</code> or <code>ItemNumber</code>.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Lookup Type and SCM Server.</dd>
 </dl>
 
@@ -191,6 +272,7 @@ RED.nodes.registerType("scm-lookup", {
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
     <dt>msg.queryValue <span class="property-type">string</span></dt><dd>Overrides the Query Value for this message.</dd>
+    <dt>msg.queryFilters <span class="property-type">object|string</span></dt><dd>Overrides Additional Filters for this message. Provide an object or a JSON object string.</dd>
 </dl>
 
 <h3>Details</h3>
@@ -198,4 +280,7 @@ RED.nodes.registerType("scm-lookup", {
 and get-organization-id nodes. Select a lookup type to auto-configure the endpoint, or use
 Custom mode to query any SCM REST endpoint with your own URL and parameter. In Custom mode,
 Query Param and Query Value must both be provided — the node errors if either is missing.</p>
+<p>For work-order prerequisite lookups, Additional Filters are useful when the primary value is not unique.
+For example, lookup a Work Definition by <code>WorkDefinitionName</code> and add filters for
+<code>OrganizationCode</code> and <code>ItemNumber</code>.</p>
 </script>

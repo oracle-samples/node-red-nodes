@@ -9,6 +9,7 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | Node | Category | Description |
 |------|----------|-------------|
 | **oci-config** | config | OCI authentication for REST API nodes. Supports Config File, Instance Principal, Resource Principal, and API Key. |
+| **ords-config** | config | ORDS OAuth client-credentials configuration for ORDS request and polling nodes. |
 | **iot-config** | config | MQTT connection to the OCI IoT Platform. Supports Basic and Certificate auth, persistent sessions, command subscriptions, and advanced connection tuning (clean session, keepalive, reconnect period, connect timeout). MQTTS on port 8883 only. |
 
 ### OCI Services
@@ -19,19 +20,22 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | **oci-logging** | oci | Pushes log entries to OCI Logging (Custom Logs) using the Logging Ingestion API (`putLogs`). |
 | **oci-log-analytics** | oci | Uploads log events to OCI Log Analytics for search, parsing, and analytics workflows. |
 | **oci-object-storage** | oci | Uploads and downloads objects to/from OCI Object Storage using payloads or local file paths. |
+| **oci-ords-request** | oci | Sends one-shot ORDS HTTP requests using custom relative paths, with IoT Data API presets as shortcuts. |
+| **oci-ords-poll** | oci | Polls ORDS endpoints, including command delivery/response status through Raw Command Data. |
 
 ### IoT — Device Side (MQTT via iot-config)
 
 | Node | Category | Description |
 |------|----------|-------------|
 | **iot-telemetry** | oci | Publishes telemetry data to the IoT Platform. |
-| **iot-command** | oci | Receives commands from the IoT Platform and sends acknowledgments. |
+| **iot-subscribe** | oci | Subscribes to OCI IoT MQTT topics and emits incoming messages. |
 
 ### IoT — Cloud Side (REST API via oci-config)
 
 | Node | Category | Description |
 |------|----------|-------------|
 | **iot-send-command** | oci | Sends commands to devices via the OCI REST API. |
+| **iot-get-content** | oci | Reads digital twin instance content via the OCI REST API. |
 | **iot-update-relationship** | oci | Updates digital twin relationship content via the OCI REST API. |
 
 ## Installation
@@ -47,15 +51,21 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 Inside your Node-RED user directory (`~/.node-red`):
 
 ```bash
-npm install oci-sdk    # OCI Notifications, Logging, Log Analytics, Object Storage, IoT Send Command
-npm install mqtt       # IoT Telemetry, IoT Command
+npm install oci-sdk    # OCI Notifications, Logging, Log Analytics, Object Storage, IoT control-plane nodes
+npm install mqtt       # IoT Telemetry, IoT MQTT In
 ```
+
+ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
+
+## Error Handling
+
+OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when OCI SDK or ORDS responses include server-side detail text, that text is promoted into `msg.error.message`. OCI/ORDS failures preserve raw response bodies in `msg.payload` when available.
 
 ## Authentication
 
 ### oci-config (OCI REST API Authentication)
 
-Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-update-relationship`
+Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
@@ -68,7 +78,7 @@ Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-sto
 
 ### iot-config (MQTT Device Authentication)
 
-Used by: `iot-telemetry`, `iot-command`
+Used by: `iot-telemetry`, `iot-subscribe`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
@@ -76,6 +86,14 @@ Used by: `iot-telemetry`, `iot-command`
 | **Certificate (mTLS)** | Production devices with X.509 certificates | Client cert path, Client key path |
 
 `iot-config` also provides advanced MQTT connection settings: `clean` session mode (default `false`), `keepalive` (default `60s`), `reconnectPeriod` (default `5000ms`), and `connectTimeout` (default `30000ms`).
+
+### ords-config (ORDS OAuth Authentication)
+
+Used by: `oci-ords-request`, `oci-ords-poll`
+
+| Auth Type | When to Use | Fields Required |
+|-----------|-------------|-----------------|
+| **OAuth Client Credentials** | ORDS / IoT Data API HTTP access | Base URL, Token URL, Client ID, Client Secret; Scope is optional when required by the ORDS resource |
 
 ## IoT Platform Setup
 
@@ -92,11 +110,17 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 **Publish telemetry every 10 seconds:**
 `inject` (with JSON payload or use function node to build payload) → `iot telemetry`
 
-**Receive and log all commands:**
-`iot command` → `debug`
+**Receive and log MQTT messages:**
+`subscribe` → `debug`
 
 **Send a command to a device:**
 `inject` (JSON payload) → `iot send command` → `debug`
+
+**Read twin content:**
+`inject` (optional runtime overrides) → `iot get content` → `debug`
+
+**Check command status through ORDS:**
+`iot send command` (outputs `msg.recordId`) → `oci ords poll` (Command Status) → `debug`
 
 **Update relationship content:**
 `inject` (relationshipKey + content) → `iot update relationship` → `debug` (success/failure)
@@ -118,7 +142,10 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 
 **Full command round-trip:**
 `inject` → `iot send command` → `debug` (command sent)
-`iot command` → `debug` (command received on device)
+`subscribe` → `debug` (message received on device-side subscription)
+
+**Closed-loop IoT to Fusion SCM:**
+`subscribe` / `inject` → `smo transformer` → `smo event`; fault branch → `maintenance work order` and `iot send command`
 
 ## Contributing
 

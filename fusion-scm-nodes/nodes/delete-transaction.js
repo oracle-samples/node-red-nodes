@@ -38,6 +38,7 @@ module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
+    const scmError = require("../lib/scm-error.js");
 
     function DeleteTransactionNode(config) {
         RED.nodes.createNode(this, config);
@@ -78,7 +79,7 @@ module.exports = function(RED) {
                 const token = await node.server.getToken();
 
                 // Build URL from mode or use override
-                const mode = msg.mode || config.mode || "asset";
+                const mode = msg.mode || config.mode || "custom";
                 const isCustomMode = mode === "custom";
                 const endpoint = endpointMap[mode];
                 if (!isCustomMode && !endpoint) {
@@ -125,15 +126,7 @@ module.exports = function(RED) {
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "delete failed" });
-                msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-                msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error.message;
-                node.error(msg.error.message, msg);
-                done(err);
+                scmError.handleNodeError(node, msg, err, done, { statusText: "delete failed" });
             }
         });
     }

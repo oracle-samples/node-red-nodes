@@ -1,6 +1,6 @@
 # Import Examples into Node-RED
 
-This guide explains how to import the repository examples, including [db-nodes](../db-nodes/examples/sql-enqueue-dequeue.json) and [fusion-scm-nodes](../fusion-scm-nodes/examples/scm-meter-reading-asset-fallback.json), using the Node-RED editor.
+This guide explains how to import the repository examples, including [db-nodes](../db-nodes/examples/sql-enqueue-dequeue.json), [fusion-scm-nodes](../fusion-scm-nodes/examples/scm-meter-reading-asset-fallback.json), and the closed-loop [OCI IoT to Fusion SCM example](../oci-nodes/examples/iot-fusion-scm-closed-loop.json), using the Node-RED editor.
 
 ## Import a JSON flow using the Node-RED editor
 
@@ -23,6 +23,11 @@ This guide explains how to import the repository examples, including [db-nodes](
 - Open any SCM node (Fusion Request/Create Asset/Create Meter Reading/SCM Lookup)
 - Click the **SCM Server** dropdown
 - Either select an existing SCM Server config or create one by clicking the pencil icon
+
+### 3. OCI IoT / OCI Config nodes
+- Open any OCI IoT node in the imported flow
+- Configure **IoT Device** for MQTT subscriptions and **OCI Config** for control-plane REST calls such as raw command delivery
+- Replace placeholder request/response endpoint topics and digital twin OCIDs with values from your OCI IoT environment
 
 ## Deploy the workflow and changes
 

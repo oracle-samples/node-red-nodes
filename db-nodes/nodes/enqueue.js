@@ -36,6 +36,7 @@
 
 module.exports = function(RED) {
     const oracledb = require("oracledb");
+    const dbError = require("../lib/db-error.js");
 
     const DELIVERY_MODES = {
         persistent: oracledb.AQ_MSG_DELIV_MODE_PERSISTENT,
@@ -86,10 +87,10 @@ module.exports = function(RED) {
                             : msg.payload;
                         arr = Array.isArray(raw) ? raw : [raw];
                     } catch (parseErr) {
-                        node.status({ fill: "red", shape: "dot", text: "invalid payload" });
-                        msg.error = { message: parseErr.message, code: null };
-                        node.error(parseErr.message, msg);
-                        return done(parseErr);
+                        return dbError.handleNodeError(node, msg, parseErr, done, {
+                            statusText: "invalid payload",
+                            statusShape: "ring"
+                        });
                     }
                 }
 
@@ -145,10 +146,7 @@ module.exports = function(RED) {
                 }
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "enqueue failed" });
-                msg.error = { message: err.message, code: err.errorNum || null };
-                node.error(err.message, msg);
-                done(err);
+                dbError.handleNodeError(node, msg, err, done, { statusText: "enqueue failed" });
             } finally {
                 if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {

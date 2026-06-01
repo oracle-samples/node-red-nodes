@@ -38,6 +38,8 @@ module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
+    const scmMapping = require("../lib/scm-mapping.js");
+    const scmError = require("../lib/scm-error.js");
 
     function CreateMeterReading(config) {
         RED.nodes.createNode(this, config);
@@ -50,7 +52,7 @@ module.exports = function(RED) {
             return;
         }
 
-        const mappings = parseMappings(config.mappings);
+        const mappings = scmMapping.parseMappings(config.mappings);
         const proxyAgent = buildProxyAgent(node.server);
 
         node.on("input", async (msg, send, done) => {
@@ -61,7 +63,7 @@ module.exports = function(RED) {
                 const url = node.server.buildUrl("meterReadings");
                 ensureHttps(url);
 
-                const payload = resolvePayload(mappings, msg, RED);
+                const payload = scmMapping.resolvePayload(mappings, msg, RED);
 
                 node.status({ fill: "yellow", shape: "dot", text: "creating..." });
                 const response = await axios.post(url, payload, {
@@ -80,29 +82,9 @@ module.exports = function(RED) {
                 send(msg);
                 done();
             } catch (err) {
-                handleError(node, msg, err, send, done);
+                handleError(node, msg, err, done);
             }
         });
-    }
-
-    function parseMappings(raw) {
-        if (Array.isArray(raw)) return raw;
-        try { return JSON.parse(raw); } catch(e) { return []; }
-    }
-
-    function resolvePayload(mappings, msg, RED) {
-        const payload = {};
-        for (const m of mappings) {
-            if (!m.scmField) continue;
-            if (m.sourceType === "dequeued") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, "dequeued." + (m.value || ""));
-            } else if (m.sourceType === "msg") {
-                payload[m.scmField] = RED.util.getMessageProperty(msg, m.value || "");
-            } else {
-                payload[m.scmField] = m.value || "";
-            }
-        }
-        return payload;
     }
 
     function buildProxyAgent(server) {
@@ -113,15 +95,7 @@ module.exports = function(RED) {
     }
 
     function handleError(node, msg, err, done) {
-        node.status({ fill: "red", shape: "dot", text: "create failed" });
-        msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-        msg.statusCode = err.response?.status || 0;
-        msg.payload = err.response?.data || msg.error.message;
-        node.error(msg.error.message, msg);
-        done(err);
+        scmError.handleNodeError(node, msg, err, done, { statusText: "create failed" });
     }
 
     RED.nodes.registerType("create-meter-reading", CreateMeterReading);

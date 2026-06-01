@@ -36,15 +36,11 @@
 
 module.exports = function (RED) {
     const iot = require("oci-iot");
+    const ociError = require("../lib/oci-error.js");
     const ISO_8601_DURATION_REGEX = /^P(?=\d|T\d)(?:\d+Y)?(?:\d+M)?(?:\d+W)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/;
 
-    function normalizeBaseEndpoint(value) {
-        const cleaned = String(value || "iot/v1").trim().replace(/^\/+|\/+$/g, "");
-        return cleaned || "iot/v1";
-    }
-
-    function normalizeCommandKey(value) {
-        return String(value || "").trim().replace(/^\/+|\/+$/g, "");
+    function normalizeEndpoint(value) {
+        return String(value || "").trim();
     }
 
     function normalizeDuration(value, fieldName) {
@@ -53,6 +49,32 @@ module.exports = function (RED) {
             throw new Error(fieldName + " must be a valid ISO 8601 duration (e.g. PT10M, PT1H, P1D)");
         }
         return normalized;
+    }
+
+    function parseRecordIdFromLocation(value) {
+        const location = String(value || "").trim();
+        if (!location) {
+            return "";
+        }
+
+        let pathname;
+        try {
+            pathname = new URL(location, "https://example.invalid").pathname;
+        } catch (err) {
+            pathname = location.split("?")[0];
+        }
+
+        const pathParts = String(pathname || "").split("/").filter(Boolean);
+        const encodedRecordId = pathParts[pathParts.length - 1] || "";
+        if (!encodedRecordId) {
+            return "";
+        }
+
+        try {
+            return decodeURIComponent(encodedRecordId);
+        } catch (err) {
+            return encodedRecordId;
+        }
     }
 
     function IotSendCommandNode(config) {
@@ -67,8 +89,8 @@ module.exports = function (RED) {
         }
 
         node.digitalTwinOcid = config.digitalTwinOcid || "";
-        node.baseEndpoint = normalizeBaseEndpoint(config.baseEndpoint);
-        node.commandKey = config.commandKey || "";
+        node.requestEndpoint = normalizeEndpoint(config.requestEndpoint);
+        node.responseEndpoint = normalizeEndpoint(config.responseEndpoint);
         node.requestDuration = config.requestDuration || "PT10M";
         node.responseDuration = config.responseDuration || "PT10M";
         node.waitForResponse = config.waitForResponse !== false;
@@ -96,16 +118,26 @@ module.exports = function (RED) {
                 if (!digitalTwinId) {
                     const err = new Error("No Digital Twin Instance OCID configured or provided in msg.digitalTwinOcid");
                     node.status({ fill: "red", shape: "ring", text: "no twin OCID" });
+                    msg.error = { message: err.message, code: null };
+                    msg.statusCode = 0;
+                    msg.payload = err.message;
                     node.error(err.message, msg);
                     return done(err);
                 }
 
-                const rawCommandKey = node.commandKey || msg.commandKey || "default";
-                const cmdKey = normalizeCommandKey(rawCommandKey) || "default";
-                const requestEndpoint = node.baseEndpoint + "/cmd/" + cmdKey;
-                const responseEndpoint = node.baseEndpoint + "/rsp/" + cmdKey;
+                const requestEndpoint = normalizeEndpoint(resolveMessageOverride(msg, "requestEndpoint", node.requestEndpoint));
+                if (!requestEndpoint) {
+                    const err = new Error("Request Endpoint is required");
+                    node.status({ fill: "red", shape: "ring", text: "no request endpoint" });
+                    msg.error = { message: err.message, code: null };
+                    msg.statusCode = 0;
+                    msg.payload = err.message;
+                    node.error(err.message, msg);
+                    return done(err);
+                }
                 const requestDuration = normalizeDuration(node.requestDuration, "Request Duration");
                 let responseDuration;
+                let responseEndpoint = "";
 
                 var requestData = msg.payload;
                 if (typeof requestData !== "object" || requestData === null) {
@@ -123,6 +155,16 @@ module.exports = function (RED) {
                 };
 
                 if (node.waitForResponse) {
+                    responseEndpoint = normalizeEndpoint(resolveMessageOverride(msg, "responseEndpoint", node.responseEndpoint));
+                    if (!responseEndpoint) {
+                        const err = new Error("Response Endpoint is required when Wait for Response is enabled");
+                        node.status({ fill: "red", shape: "ring", text: "no response endpoint" });
+                        msg.error = { message: err.message, code: null };
+                        msg.statusCode = 0;
+                        msg.payload = err.message;
+                        node.error(err.message, msg);
+                        return done(err);
+                    }
                     responseDuration = normalizeDuration(node.responseDuration, "Response Duration");
                     invokeRawCommandDetails.responseEndpoint = responseEndpoint;
                     invokeRawCommandDetails.responseDuration = responseDuration;
@@ -135,15 +177,25 @@ module.exports = function (RED) {
 
                 msg.payload = response.rawCommandResponse || response;
                 msg.statusCode = response.__httpStatusCode || 200;
-                msg.commandKey = cmdKey;
                 msg.requestEndpoint = requestEndpoint;
+                if (response.location) {
+                    msg.commandStatusLocation = response.location;
+                    var recordId = parseRecordIdFromLocation(response.location);
+                    if (recordId) {
+                        msg.recordId = recordId;
+                        msg.rawCommandDataRecordId = recordId;
+                    }
+                }
+                if (response.opcRequestId) {
+                    msg.opcRequestId = response.opcRequestId;
+                }
                 if (node.waitForResponse) {
                     msg.responseEndpoint = responseEndpoint;
                 } else {
                     delete msg.responseEndpoint;
                 }
 
-                node.status({ fill: "green", shape: "dot", text: "sent: " + cmdKey });
+                node.status({ fill: "green", shape: "dot", text: "sent" });
                 send(msg);
                 done();
 
@@ -152,17 +204,16 @@ module.exports = function (RED) {
                 }, 3000);
 
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "send failed" });
-                msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-                msg.statusCode = err.statusCode || 0;
-                msg.payload = err.message;
-                node.error(msg.error.message, msg);
-                done(err);
+                ociError.handleNodeError(node, msg, err, done, { statusText: "send failed" });
             }
         });
+    }
+
+    function resolveMessageOverride(msg, propertyName, configuredValue) {
+        if (Object.prototype.hasOwnProperty.call(msg, propertyName)) {
+            return msg[propertyName];
+        }
+        return configuredValue;
     }
 
     RED.nodes.registerType("iot-send-command", IotSendCommandNode);

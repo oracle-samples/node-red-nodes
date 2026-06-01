@@ -153,6 +153,20 @@ module.exports = function (RED) {
             }
             return baseUrl.toString();
         };
+
+        node.buildSmartOperationsUrl = function (endpoint) {
+            const baseUrl = new URL("https://" + String(node.hostname || "").trim());
+            const endpointParts = String(endpoint || "")
+                .split("/")
+                .map((part) => part.trim())
+                .filter(Boolean)
+                .map((part) => encodeURIComponent(part));
+            baseUrl.pathname = "/api/scm-core/operational-data/v1/";
+            if (endpointParts.length > 0) {
+                baseUrl.pathname += endpointParts.join("/");
+            }
+            return baseUrl.toString();
+        };
     }
 
     RED.nodes.registerType("scm-server", ScmServerNode, {

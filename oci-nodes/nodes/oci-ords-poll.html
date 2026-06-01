@@ -1,0 +1,210 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-ords-poll", {
+    category: "oci",
+    paletteLabel: "ords poll",
+    defaults: {
+        name: { value: "" },
+        ordsConfig: { type: "ords-config", required: true },
+        pollType: { value: "commandStatus" },
+        recordId: { value: "" },
+        intervalMs: { value: 2000 },
+        timeoutMs: { value: 60000 },
+        waitFor: { value: "terminal" },
+        customPath: { value: "" },
+        query: { value: "" },
+        successProperty: { value: "items" },
+        successMode: { value: "notEmpty" },
+        successValue: { value: "" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-clock-o",
+    label: function () {
+        if (this.name) return this.name;
+        return this.pollType === "custom" ? "ords poll" : "command status";
+    },
+    oneditprepare: function () {
+        function updateSections() {
+            var type = $("#node-input-pollType").val();
+            var custom = type === "custom";
+            $(".ords-command-section").toggle(!custom);
+            $(".ords-custom-section").toggle(custom);
+            $("#ords-poll-endpoint-display").text(custom ? ($("#node-input-customPath").val().trim() || "Enter relative ORDS path") : "/20250531/rawCommandData/<recordId>");
+        }
+
+        updateSections();
+        $("#node-input-pollType").on("change", updateSections);
+        $("#node-input-customPath").on("input", updateSections);
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-ords-poll">
+    <div class="form-row">
+        <label for="node-input-name" style="width:150px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ordsConfig" style="width:150px;"><i class="fa fa-cloud"></i> ORDS Config</label>
+        <input type="text" id="node-input-ordsConfig">
+    </div>
+    <div class="form-row">
+        <label for="node-input-pollType" style="width:150px;"><i class="fa fa-list"></i> Poll Type</label>
+        <select id="node-input-pollType" style="width:200px;">
+            <option value="commandStatus">Command Status</option>
+            <option value="custom">Custom</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label style="width:150px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="ords-poll-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">/20250531/rawCommandData/&lt;recordId&gt;</span>
+    </div>
+
+    <div class="ords-command-section">
+        <div class="form-row">
+            <label for="node-input-recordId" style="width:150px;"><i class="fa fa-hashtag"></i> Record ID</label>
+            <input type="text" id="node-input-recordId">
+            <div style="margin-left:155px;font-size:11px;color:#888;margin-top:2px;">
+                Raw Command Data record ID. If empty, reads from <code>msg.recordId</code>.
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="node-input-waitFor" style="width:150px;"><i class="fa fa-check-circle"></i> Wait For</label>
+            <select id="node-input-waitFor" style="width:200px;">
+                <option value="terminal">Terminal Status</option>
+                <option value="completed">COMPLETED Status</option>
+                <option value="response">Response Data</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="ords-custom-section">
+        <div class="form-row">
+            <label for="node-input-customPath" style="width:150px;"><i class="fa fa-link"></i> Custom Path</label>
+            <input type="text" id="node-input-customPath" placeholder="/20250531/snapshotData">
+            <div style="margin-left:155px;font-size:11px;color:#888;margin-top:2px;">
+                Relative ORDS path only. The host/base path comes from <code>ords-config</code>.
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="node-input-successProperty" style="width:150px;"><i class="fa fa-dot-circle-o"></i> Success Property</label>
+            <input type="text" id="node-input-successProperty" placeholder="items">
+        </div>
+        <div class="form-row">
+            <label for="node-input-successMode" style="width:150px;"><i class="fa fa-check"></i> Success Mode</label>
+            <select id="node-input-successMode" style="width:160px;">
+                <option value="notEmpty">Not Empty</option>
+                <option value="exists">Exists</option>
+                <option value="equals">Equals</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="node-input-successValue" style="width:150px;"><i class="fa fa-equals"></i> Success Value</label>
+            <input type="text" id="node-input-successValue">
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-query" style="width:150px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Query JSON</label>
+        <textarea id="node-input-query" rows="4" style="width:calc(100% - 157px);font-family:monospace;font-size:12px;" placeholder='{"delivery_status":"PENDING"}'></textarea>
+        <div style="margin-left:155px;font-size:11px;color:#888;margin-top:2px;">
+            Optional ORDS <code>q</code> filter. Runtime <code>msg.query</code> and <code>msg.queryParams</code> take precedence/extend it.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-intervalMs" style="width:150px;"><i class="fa fa-refresh"></i> Interval (ms)</label>
+        <input type="number" id="node-input-intervalMs" min="100" max="300000" style="width:100px;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-timeoutMs" style="width:150px;"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
+        <input type="number" id="node-input-timeoutMs" min="100" max="3600000" style="width:100px;">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-ords-poll">
+<p>Polls an ORDS endpoint until a command status or custom stop condition is reached.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>ORDS Config</dt>
+    <dd>References shared ORDS OAuth/base URL settings.</dd>
+    <dt>Poll Type</dt>
+    <dd><b>Command Status</b> polls <code>/20250531/rawCommandData/&lt;recordId&gt;</code>. <b>Custom</b> polls a relative path until the configured condition matches.</dd>
+    <dt>Wait For</dt>
+    <dd>Command Status mode can wait for any terminal status, only <code>COMPLETED</code>, or response data. Delivery fields can be returned as a direct row or as the first item in an ORDS collection response.</dd>
+    <dt>Success Property / Mode / Value</dt>
+    <dd>Custom mode stop condition. Property paths use dot notation.</dd>
+    <dt>Interval / Timeout</dt>
+    <dd>Polling interval and maximum wait time in milliseconds. In-progress waits are canceled when the node closes or redeploys.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object|string</span></dt>
+    <dd>Last ORDS response body.</dd>
+    <dt>pollComplete <span class="property-type">boolean</span></dt>
+    <dd><code>true</code> when the stop condition matched.</dd>
+    <dt>pollTimedOut <span class="property-type">boolean</span></dt>
+    <dd><code>true</code> when timeout expired before completion.</dd>
+    <dt>pollAttempts <span class="property-type">number</span></dt>
+    <dd>Number of ORDS requests made.</dd>
+    <dt>deliveryStatus <span class="property-type">string</span></dt>
+    <dd>Command delivery status when available.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code from the last ORDS response.</dd>
+    <dt>ordsUrl <span class="property-type">string</span></dt>
+    <dd>Last request URL.</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.recordId <span class="property-type">string</span></dt><dd>Overrides Record ID.</dd>
+    <dt>msg.customPath <span class="property-type">string</span></dt><dd>Overrides Custom Path.</dd>
+    <dt>msg.query <span class="property-type">object|string</span></dt><dd>Overrides Query JSON.</dd>
+    <dt>msg.queryParams <span class="property-type">object</span></dt><dd>Additional query parameters.</dd>
+    <dt>msg.intervalMs <span class="property-type">number</span></dt><dd>Overrides Interval.</dd>
+    <dt>msg.timeoutMs <span class="property-type">number</span></dt><dd>Overrides Timeout.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Command Status mode waits on a Raw Command Data record, commonly the <code>msg.recordId</code> emitted by <b>iot send command</b>. Custom mode repeatedly requests the configured relative ORDS path until its stop condition matches or timeout expires.</p>
+</script>

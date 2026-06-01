@@ -35,9 +35,9 @@
 -->
 
 <script type="text/javascript">
-RED.nodes.registerType("iot-command", {
+RED.nodes.registerType("iot-subscribe", {
     category: "oci",
-    paletteLabel: "command",
+    paletteLabel: "subscribe",
     defaults: {
         name: { value: "" },
         iotDevice: { type: "iot-config", required: true },
@@ -47,11 +47,11 @@ RED.nodes.registerType("iot-command", {
     inputs: 0, outputs: 1,
     color: "#F0CC72",
     icon: "font-awesome/fa-terminal",
-    label: function () { return this.name || "command"; }
+    label: function () { return this.name || "subscribe"; }
 });
 </script>
 
-<script type="text/x-red" data-template-name="iot-command">
+<script type="text/x-red" data-template-name="iot-subscribe">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
@@ -69,16 +69,16 @@ RED.nodes.registerType("iot-command", {
     </div>
     <div class="form-row">
         <label for="node-input-qos"><i class="fa fa-signal"></i> QoS</label>
-        <select id="node-input-qos" style="width:auto;">
-            <option value="0">0 – At most once</option>
-            <option value="1">1 – At least once</option>
-            <option value="2">2 – Exactly once</option>
+        <select id="node-input-qos" style="width:200px;">
+    <option value="0">0 - At most once</option>
+    <option value="1">1 - At least once</option>
+    <option value="2">2 - Exactly once</option>
         </select>
     </div>
 </script>
 
-<script type="text/x-red" data-help-name="iot-command">
-<p>Subscribes to an MQTT topic and outputs a message whenever a command arrives from the IoT Platform. This node has no input port — commands arrive from the broker, not from upstream nodes.</p>
+<script type="text/x-red" data-help-name="iot-subscribe">
+<p>Subscribes to an OCI IoT MQTT topic and outputs a message whenever a matching MQTT message arrives. This node has no input port; messages arrive from the broker, not from upstream nodes.</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
@@ -88,9 +88,9 @@ RED.nodes.registerType("iot-command", {
     <dd>The MQTT topic to subscribe to. Required. Supports <code>#</code> (multi-level wildcard)
     and <code>+</code> (single-level wildcard). Examples:
     <ul>
-        <li><code>iot/v1/cmd/#</code> — all commands under that prefix; <code>msg.commandKey</code> is the suffix (e.g. <code>shutdown</code>)</li>
-        <li><code>iot/v1/cmd/reset</code> — fixed topic; only that command is received</li>
-        <li><code>sensors/+/data</code> — any device's data topic</li>
+        <li><code>iot/v1/cmd/#</code> - all messages under that prefix; <code>msg.topicSuffix</code> is the suffix (e.g. <code>shutdown</code>)</li>
+        <li><code>iot/v1/cmd/reset</code> - fixed topic; only that topic is received</li>
+        <li><code>sensors/+/data</code> - any device's data topic</li>
     </ul></dd>
     <dt>QoS</dt>
     <dd>MQTT QoS level for the subscription (0, 1, or 2).</dd>
@@ -99,8 +99,8 @@ RED.nodes.registerType("iot-command", {
 <h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object | string</span></dt>
-    <dd>The command payload. JSON payloads are parsed automatically; other messages are passed as strings.</dd>
-    <dt>commandKey <span class="property-type">string</span></dt>
+    <dd>The incoming MQTT payload. JSON payloads are parsed automatically; other messages are passed as strings.</dd>
+    <dt>topicSuffix <span class="property-type">string</span></dt>
     <dd>For wildcard topics ending in <code>/#</code>, this is the portion that matched <code>#</code>
     (e.g. <code>"shutdown"</code> from <code>iot/v1/cmd/shutdown</code>).
     For fixed topics, this is the last segment of the received topic.</dd>
@@ -112,10 +112,10 @@ RED.nodes.registerType("iot-command", {
 <p>Subscribes to the configured MQTT topic on deploy using the IoT Device connection. The subscription is maintained for the lifetime of the node. On each incoming MQTT message, the node parses the payload as JSON (if possible) and emits an output message. Status shows <code>listening</code> while connected and updates on connection state changes.</p>
 
 <h3>Typical Flows</h3>
-<p><b>Receive all commands:</b><br/>
-<code>iot command</code> (topic: <code>iot/v1/cmd/#</code>) → <code>debug</code></p>
-<p><b>Handle a specific command:</b><br/>
-<code>iot command</code> (topic: <code>iot/v1/cmd/reset</code>) → <code>function</code> (reset logic)</p>
+<p><b>Receive all command-topic messages:</b><br/>
+<code>subscribe</code> (topic: <code>iot/v1/cmd/#</code>) -&gt; <code>debug</code></p>
+<p><b>Receive telemetry messages:</b><br/>
+<code>subscribe</code> (topic: <code>sensors/+/data</code>) -&gt; <code>function</code> (normalize telemetry)</p>
 <p><b>Send a response after processing:</b><br/>
-<code>iot command</code> → <code>function</code> (process) → <code>mqtt out</code> (publish response)</p>
+<code>subscribe</code> -&gt; <code>function</code> (process) -&gt; <code>mqtt out</code> (publish response)</p>
 </script>

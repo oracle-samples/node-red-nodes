@@ -35,6 +35,8 @@
  */
 
 module.exports = function (RED) {
+    const ociError = require("../lib/oci-error.js");
+
     function normalizeQos(value, fallbackQos) {
         var parsed = Number(value);
         if (parsed === 0 || parsed === 1 || parsed === 2) return parsed;
@@ -52,7 +54,7 @@ module.exports = function (RED) {
             return;
         }
 
-        node.addTimestamp = config.addTimestamp !== false;  // Default true
+        node.addTimestamp = config.addTimestamp === true;
         node.topic = (config.topic || "").trim();
         node.qos = normalizeQos(config.qos, 1);
 
@@ -104,7 +106,7 @@ module.exports = function (RED) {
             var msgTopic = (msg.topic !== undefined && msg.topic !== null) ? String(msg.topic).trim() : "";
             var topic = node.topic || (msgTopic !== "" ? msgTopic : null);
             if (!topic) {
-                node.status({ fill: "red", shape: "dot", text: "no topic" });
+                node.status({ fill: "red", shape: "ring", text: "no topic" });
                 node.error("No topic configured and msg.topic not set", msg);
                 return done(new Error("No topic"));
             }
@@ -122,13 +124,10 @@ module.exports = function (RED) {
 
             node.iotDevice.publish(topic, payloadStr, opts, function (err) {
                 if (err) {
-                    node.status({ fill: "red", shape: "dot", text: "publish failed" });
-                    msg.error = {
-                        message: err.message || String(err),
-                        code: (err.code || null) ? String(err.code) : null
-                    };
-                    node.error("Publish failed: " + err.message, msg);
-                    return done(err);
+                    return ociError.handleNodeError(node, msg, err, done, {
+                        statusText: "publish failed",
+                        setPayload: false
+                    });
                 }
 
                 node.status({ fill: "green", shape: "dot", text: "published" });

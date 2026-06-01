@@ -38,6 +38,7 @@ module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
+    const scmError = require("../lib/scm-error.js");
 
     function GetOrganizationId(config) {
         RED.nodes.createNode(this, config);
@@ -85,22 +86,22 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "found" });
+                if (isEmptyCollection(response.data)) {
+                    node.status({ fill: "yellow", shape: "ring", text: "not found" });
+                } else {
+                    node.status({ fill: "green", shape: "dot", text: "found" });
+                }
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "read failed" });
-                msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-                msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error.message;
-                node.error(msg.error.message, msg);
-                done(err);
+                scmError.handleNodeError(node, msg, err, done, { statusText: "read failed" });
             }
         });
     }
 
     RED.nodes.registerType("get-organization-id", GetOrganizationId);
+
+    function isEmptyCollection(data) {
+        return data && Array.isArray(data.items) && data.items.length === 0;
+    }
 };

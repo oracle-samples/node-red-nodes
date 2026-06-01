@@ -1,0 +1,210 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("ords-config", {
+    category: "config",
+    color: "#F0CC72",
+    defaults: {
+        name: { value: "" },
+        baseUrl: { value: "", required: true },
+        tokenUrl: { value: "", required: true },
+        scope: { value: "" },
+        requestTimeoutMs: { value: 30000 },
+        tokenExpiryFallbackMins: { value: 60 },
+        maxConcurrentPolls: { value: 5 },
+        maxQueuedPolls: { value: 100 }
+    },
+    credentials: {
+        clientId: { type: "text" },
+        clientSecret: { type: "password" }
+    },
+    label: function () {
+        if (this.name) return this.name;
+        return this.baseUrl || "ORDS Config";
+    },
+    oneditprepare: function () {
+        var nodeId = this.id;
+
+        setTimeout(function () {
+            $("[id^='node-config-input-']").on("change input", function () {
+                $("#ords-deploy-warning")
+                    .css({ background: "#fff3cd", "border-color": "#ffc107", color: "#856404" })
+                    .html('<i class="fa fa-exclamation-triangle"></i> <strong>Changes detected</strong> - click <strong>Update</strong> then <strong>Deploy</strong> before testing.');
+            });
+        }, 0);
+
+        $("#btn-test-ords").on("click", function () {
+            var btn = $(this);
+            var resultEl = $("#test-ords-result");
+            btn.prop("disabled", true);
+            resultEl.text("Testing...").css("color", "#888");
+            $.ajax({
+                url: "ords-config/" + nodeId + "/test",
+                type: "POST",
+                success: function (data) {
+                    if (data.success) {
+                        resultEl.text("OK " + data.message).css("color", "#2ca02c");
+                    } else {
+                        resultEl.text("Error " + data.message).css("color", "#d62728");
+                    }
+                },
+                error: function (err) {
+                    var msg = "Test failed";
+                    if (err.status === 404) msg = "Deploy the flow first, then test";
+                    resultEl.text("Error " + msg).css("color", "#d62728");
+                },
+                complete: function () {
+                    btn.prop("disabled", false);
+                }
+            });
+        });
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="ords-config">
+    <div class="form-row">
+        <label for="node-config-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Optional display name">
+    </div>
+
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
+    <div class="form-row">
+        <label for="node-config-input-baseUrl" style="width:160px;"><i class="fa fa-link"></i> Base URL</label>
+        <input type="text" id="node-config-input-baseUrl" placeholder="https://host.example.com/base-path">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
+            ORDS/Data API base URL. Request nodes append relative paths such as <code>/20250531/rawCommandData</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-requestTimeoutMs" style="width:160px;"><i class="fa fa-clock-o"></i> Request Timeout (ms)</label>
+        <input type="number" id="node-config-input-requestTimeoutMs" min="1000" max="300000" style="width:100px;">
+    </div>
+    </fieldset>
+
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
+    <div class="form-row">
+        <label for="node-config-input-clientId" style="width:160px;"><i class="fa fa-user"></i> Client ID</label>
+        <input type="text" id="node-config-input-clientId">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-clientSecret" style="width:160px;"><i class="fa fa-key"></i> Client Secret</label>
+        <input type="password" id="node-config-input-clientSecret">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-tokenUrl" style="width:160px;"><i class="fa fa-link"></i> Token URL</label>
+        <input type="text" id="node-config-input-tokenUrl" placeholder="https://.../oauth2/v1/token">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-scope" style="width:160px;"><i class="fa fa-shield"></i> Scope</label>
+        <input type="text" id="node-config-input-scope">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-tokenExpiryFallbackMins" style="width:160px;"><i class="fa fa-clock-o"></i> Fallback Expiry (min)</label>
+        <input type="number" id="node-config-input-tokenExpiryFallbackMins" min="1" max="1440" style="width:80px;">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
+            Used only when the token response does not include <code>expires_in</code>.
+        </div>
+    </div>
+    <div class="form-row" style="text-align:center;">
+        <button type="button" class="red-ui-button" id="btn-test-ords">
+            <i class="fa fa-plug"></i> Test Token
+        </button>
+        <span id="test-ords-result" style="margin-left:10px;font-size:12px;"></span>
+    </div>
+    <div class="form-row" style="text-align:center;margin-top:2px;">
+        <div id="ords-deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+            <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+        </div>
+    </div>
+    </fieldset>
+
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Polling Safety Limits</legend>
+    <div class="form-row">
+        <label for="node-config-input-maxConcurrentPolls" style="width:160px;"><i class="fa fa-tasks"></i> Max Concurrent Polls</label>
+        <input type="number" id="node-config-input-maxConcurrentPolls" min="1" max="100" style="width:80px;">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-maxQueuedPolls" style="width:160px;"><i class="fa fa-list-ol"></i> Max Queued Polls</label>
+        <input type="number" id="node-config-input-maxQueuedPolls" min="0" max="10000" style="width:80px;">
+    </div>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
+        Only used by <code>oci-ords-poll</code> nodes that share this ORDS Config. Regular ORDS request nodes ignore these settings.
+    </div>
+    </fieldset>
+</script>
+
+<script type="text/x-red" data-help-name="ords-config">
+<p>Provides shared ORDS OAuth token settings, base URL, request timeout, and polling limits for ORDS request nodes.</p>
+
+<h3>Connection</h3>
+<dl class="message-properties">
+    <dt>Base URL</dt>
+    <dd>ORDS/Data API base URL. Child nodes append relative paths such as <code>/20250531/rawCommandData</code>.</dd>
+    <dt>Request Timeout</dt>
+    <dd>Maximum time for token and ORDS HTTP requests before failure.</dd>
+</dl>
+
+<h3>Authentication</h3>
+<dl class="message-properties">
+    <dt>Client ID / Client Secret</dt>
+    <dd>OAuth client credentials for ORDS access.</dd>
+    <dt>Token URL</dt>
+    <dd>OAuth token endpoint URL. Must use HTTPS.</dd>
+    <dt>Scope</dt>
+    <dd>Optional OAuth scope. Leave blank for ORDS token endpoints that only require <code>grant_type=client_credentials</code>.</dd>
+    <dt>Fallback Expiry</dt>
+    <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer.</dd>
+</dl>
+
+<h3>Polling Safety Limits</h3>
+<dl class="message-properties">
+    <dt>Max Concurrent Polls</dt>
+    <dd>Maximum number of active <code>oci-ords-poll</code> jobs that can run through this config node at the same time. Regular ORDS request nodes ignore this setting.</dd>
+    <dt>Max Queued Polls</dt>
+    <dd>Maximum number of waiting <code>oci-ords-poll</code> jobs for this ORDS profile. New polling jobs fail fast when the queue is full.</dd>
+</dl>
+
+<h3>Notes</h3>
+<ul>
+    <li>Base URL and Token URL must use HTTPS.</li>
+    <li>Child request nodes use relative paths only; the config node owns the ORDS host/base path.</li>
+    <li>ORDS requests retry once with a refreshed token after a 401 response.</li>
+    <li>Active ORDS fetches are aborted and queued poll jobs are rejected when the config node closes.</li>
+    <li>Test Token validates OAuth credentials after deploy.</li>
+</ul>
+</script>

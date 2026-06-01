@@ -1,0 +1,143 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("smo-event", {
+    category: "oracle fusion scm",
+    paletteLabel: "smo event",
+    defaults: {
+        name: { value: "" },
+        server: { type: "scm-server", required: true },
+        entityCode: { value: "" },
+        eventTypeCode: { value: "" },
+        defaultEventTime: { value: true }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#4F7D7B",
+    icon: "font-awesome/fa-bolt",
+    label: function () {
+        return this.name || "smo event";
+    },
+    oneditprepare: function () {
+        function updateEndpoint() {
+            var serverNodeId = $("#node-input-server").val();
+            var serverNode = RED.nodes.node(serverNodeId);
+            if (serverNode && serverNode.hostname) {
+                $("#smo-event-endpoint-display").text("https://" + serverNode.hostname + "/api/scm-core/operational-data/v1/events");
+            } else {
+                $("#smo-event-endpoint-display").text("Select SCM Server to preview endpoint");
+            }
+        }
+
+        updateEndpoint();
+        $("#node-input-server").on("change", updateEndpoint);
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="smo-event">
+    <div class="form-row">
+        <label for="node-input-name" style="width:130px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 137px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server" style="width:130px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 137px);" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label style="width:130px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="smo-event-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+    </div>
+    <div class="form-row">
+        <label for="node-input-entityCode" style="width:130px;"><i class="fa fa-id-card"></i> Entity Code</label>
+        <input type="text" id="node-input-entityCode" style="width:calc(100% - 137px);" placeholder="Optional fallback, e.g. TORQUE-STATION-01">
+    </div>
+    <div class="form-row">
+        <label for="node-input-eventTypeCode" style="width:130px;"><i class="fa fa-bolt"></i> Event Type Code</label>
+        <input type="text" id="node-input-eventTypeCode" style="width:calc(100% - 137px);" placeholder="Optional fallback, e.g. CA_STATUS">
+    </div>
+    <div class="form-row">
+        <label for="node-input-defaultEventTime" style="width:130px;"><i class="fa fa-clock-o"></i> Default Time</label>
+        <input type="checkbox" id="node-input-defaultEventTime" style="width:auto;">
+        <span style="font-size:12px;color:#555;">Use current time when eventTime is missing</span>
+    </div>
+    <div class="form-tips" style="margin-left:135px;">
+        Expects a Smart Operations event in <code>msg.payload</code> or <code>msg.smoEvent</code>. Configure fallbacks only for values that are constant for this node.
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="smo-event">
+<p>Sends a Smart Operations operational event to Oracle Fusion Cloud SCM.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>SCM Server</dt><dd>Server configuration for authentication, hostname, and proxy settings.</dd>
+    <dt>Entity Code</dt><dd>Optional fallback entity code when the incoming message does not provide one.</dd>
+    <dt>Event Type Code</dt><dd>Optional fallback event type code when the incoming message does not provide one, such as <code>CA_STATUS</code>, <code>CA_FAULT</code>, or <code>CA_QUANTITY_REPORT</code>.</dd>
+    <dt>Default Time</dt><dd>When enabled, missing <code>eventTime</code> is set to the current ISO timestamp.</dd>
+</dl>
+
+<h3>Inputs</h3>
+<p>The node reads a complete Smart Operations event from <code>msg.smoEvent</code> first, then <code>msg.payload</code>.</p>
+<pre>{
+  "entityCode": "TORQUE-STATION-01",
+  "eventTypeCode": "CA_QUANTITY_REPORT",
+  "eventTime": "2026-05-11T14:25:00Z",
+  "data": {
+    "WORK_ORDER_NUMBER": "WO-55031",
+    "QUANTITY": 120
+  }
+}</pre>
+<dl class="message-properties">
+    <dt>msg.entityCode <span class="property-type">string</span></dt><dd>Overrides the event/entity code.</dd>
+    <dt>msg.eventTypeCode <span class="property-type">string</span></dt><dd>Overrides the event type code.</dd>
+    <dt>msg.eventTime <span class="property-type">string</span></dt><dd>Overrides the event timestamp.</dd>
+    <dt>msg.data <span class="property-type">object</span></dt><dd>Overrides the event <code>data</code> object.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>API response body on success, error details on failure.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
+    <dt>smoEvent <span class="property-type">object</span></dt><dd>The Smart Operations event body submitted to Fusion.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>This node only submits Smart Operations events. Use the <b>smo-transformer</b> node upstream to map raw telemetry, camera, PLC, scanner, or MQTT data into the expected event shape.</p>
+</script>
