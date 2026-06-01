@@ -111,7 +111,7 @@ module.exports = function (RED) {
                 node.accessToken = data.access_token;
                 // Use expires_in with a 30-second buffer; fall back to tokenExpiryMins if absent.
                 const expiresInMs = data.expires_in
-                    ? (data.expires_in - 30) * 1000
+                    ? Math.max(0, data.expires_in - 30) * 1000
                     : node.expiryMins * 60 * 1000;
                 node.tokenExpiry = Date.now() + expiresInMs;
                 return node.accessToken;

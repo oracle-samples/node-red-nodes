@@ -39,6 +39,8 @@ module.exports = function (RED) {
     const common = require("oci-common");
     const identitydataplane = require("oci-identitydataplane");
     const { generateKeyPair } = require("crypto");
+    const os = require("os");
+    const path = require("path");
     const TOKEN_AUTH_TYPES = new Set([
         "config",
         "instancePrincipal",
@@ -52,6 +54,7 @@ module.exports = function (RED) {
     const MAX_ADVANCED_INIT_SQL_LENGTH = 1000;
     const MAX_ADVANCED_INIT_SQL_STATEMENTS = 10;
     const FORBIDDEN_ADVANCED_INIT_TOKENS_RE = /\b(BEGIN|DECLARE|EXECUTE|IMMEDIATE|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|DROP|CREATE|GRANT|REVOKE|COMMIT|ROLLBACK|CALL|DBMS_[A-Z0-9_]+)\b/i;
+    const DEFAULT_OCI_CONFIG_PATH = path.join(os.homedir(), ".oci", "config");
 
     function parseTokenExpiry(token) {
         const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -295,7 +298,7 @@ module.exports = function (RED) {
                     options.tokenAuthConfigOci = {
                         authType: "configFileBasedAuthentication",
                         profile: node.profile || "DEFAULT",
-                        configFileLocation: node.configFileLocation || "/home/opc/.oci/config",
+                        configFileLocation: node.configFileLocation || DEFAULT_OCI_CONFIG_PATH,
                         scope: node.scope || undefined,
                     };
                     options.externalAuth = node.externalAuth;
@@ -331,7 +334,7 @@ module.exports = function (RED) {
                         );
                     };
                     options.accessTokenConfig = {
-                        configFileLocation: node.configFileLocation || "/home/opc/.oci/config",
+                        configFileLocation: node.configFileLocation || DEFAULT_OCI_CONFIG_PATH,
                         profile: node.profile || "DEFAULT",
                         scope: node.scope || undefined,
                     };
