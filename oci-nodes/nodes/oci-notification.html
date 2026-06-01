@@ -66,7 +66,7 @@ RED.nodes.registerType("oci-notification", {
         <label for="node-input-topicOcid"><i class="fa fa-bullhorn"></i> Topic OCID</label>
         <input type="text" id="node-input-topicOcid">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Overridden by <code>msg.topicOcid</code> when set.
+            If empty, reads from <code>msg.topicOcid</code>.
         </div>
     </div>
     <hr/>
@@ -74,12 +74,12 @@ RED.nodes.registerType("oci-notification", {
         <label for="node-input-msgTitle"><i class="fa fa-heading"></i> Title</label>
         <input type="text" id="node-input-msgTitle" placeholder="Notification title (optional)">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Overridden by <code>msg.title</code> when set.
+            If empty, reads from <code>msg.title</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-msgBody"><i class="fa fa-align-left"></i> Body</label>
-        <textarea id="node-input-msgBody" rows="4" style="width:100%;" placeholder="Notification body (optional)"></textarea>
+        <label for="node-input-msgBody" style="vertical-align:top;margin-top:2px;"><i class="fa fa-align-left"></i> Body</label>
+        <textarea id="node-input-msgBody" rows="4" style="width:calc(100% - 107px);" placeholder="Notification body (optional)"></textarea>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.payload</code>. Objects are JSON-stringified.
         </div>
@@ -94,9 +94,9 @@ RED.nodes.registerType("oci-notification", {
     <dt>OCI Config</dt><dd>References an OCI Config node for authentication and region.</dd>
     <dt>Topic OCID</dt>
     <dd>The OCID of the OCI Notifications topic to publish to.
-    Overridden by <code>msg.topicOcid</code> when set.</dd>
+    If empty, reads from <code>msg.topicOcid</code>.</dd>
     <dt>Title</dt>
-    <dd>Optional message title. Overridden by <code>msg.title</code> when set.
+    <dd>Optional message title. If empty, reads from <code>msg.title</code>.
     The title appears as the subject line for email subscriptions.</dd>
     <dt>Body</dt>
     <dd>The message body. If empty, uses <code>msg.payload</code> (objects are JSON-stringified).

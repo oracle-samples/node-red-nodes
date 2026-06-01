@@ -1,6 +1,6 @@
 {
   "name": "oci-nodes",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Oracle Cloud Infrastructure (OCI) nodes for Node-RED",
   "keywords": [
     "node-red",
@@ -21,10 +21,14 @@
       "oci-log-analytics": "nodes/oci-log-analytics.js",
       "oci-logging": "nodes/oci-logging.js",
       "oci-object-storage": "nodes/oci-object-storage.js",
+      "ords-config": "nodes/ords-config.js",
+      "oci-ords-request": "nodes/oci-ords-request.js",
+      "oci-ords-poll": "nodes/oci-ords-poll.js",
       "iot-send-command": "nodes/iot-send-command.js",
+      "iot-get-content": "nodes/iot-get-content.js",
       "iot-update-relationship": "nodes/iot-update-relationship.js",
       "iot-config": "nodes/iot-config.js",
-      "iot-command": "nodes/iot-command.js",
+      "iot-subscribe": "nodes/iot-subscribe.js",
       "iot-telemetry": "nodes/iot-telemetry.js"
     }
   }

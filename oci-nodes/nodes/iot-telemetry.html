@@ -43,7 +43,7 @@ RED.nodes.registerType("iot-telemetry", {
         iotDevice: { type: "iot-config", required: true },
         topic: { value: "" },
         qos: { value: "1" },
-        addTimestamp: { value: true }
+        addTimestamp: { value: false }
     },
     inputs: 1, outputs: 1,
     color: "#F0CC72",
@@ -70,7 +70,7 @@ RED.nodes.registerType("iot-telemetry", {
     </div>
     <div class="form-row">
         <label for="node-input-qos" style="width:115px;"><i class="fa fa-signal"></i> QoS</label>
-        <select id="node-input-qos" style="width:auto;">
+        <select id="node-input-qos" style="width:200px;">
             <option value="0">0 – At most once</option>
             <option value="1">1 – At least once</option>
             <option value="2">2 – Exactly once</option>
@@ -82,7 +82,7 @@ RED.nodes.registerType("iot-telemetry", {
         <input type="checkbox" id="node-input-addTimestamp" style="width:auto;vertical-align:middle;">
         <span style="font-size:12px;color:#666;"> Add <code>time</code> field (epoch microseconds) if not already present</span>
     </div>
-    <div class="form-tips" style="margin-left:120px;"><b>Tip:</b> Leave topic or qos blank if you want to set them via msg properties.</div>
+    <div class="form-tips" style="margin-left:120px;"><b>Tip:</b> Leave Topic blank to read from <code>msg.topic</code>; <code>msg.qos</code> can override QoS per message.</div>
 </script>
 
 <script type="text/x-red" data-help-name="iot-telemetry">
@@ -98,18 +98,12 @@ RED.nodes.registerType("iot-telemetry", {
     <dt>QoS</dt>
     <dd>MQTT QoS level for published messages. If empty, reads from <code>msg.qos</code>.</dd>
     <dt>Auto Timestamp</dt>
-    <dd>When enabled, adds a <code>time</code> field (epoch microseconds) to the payload
-    if one is not already present.
-    Disable this if your payload already includes a <code>time</code> field.</dd>
+    <dd>Off by default. When enabled, adds a <code>time</code> field (epoch microseconds) to the
+    payload if one is not already present. Prefer setting <code>time</code> at the device or upstream
+    so the timestamp reflects when the reading was taken, not when Node-RED received it.</dd>
     <dt>Payload</dt>
     <dd><code>msg.payload</code> is the telemetry data to publish. Objects are JSON-stringified;
     non-object values are wrapped as <code>{ "value": &lt;payload&gt; }</code>.</dd>
-</dl>
-
-<h3>Runtime overrides</h3>
-<dl class="message-properties">
-    <dt>msg.topic <span class="property-type">string</span></dt><dd>Used when Topic is blank in the editor.</dd>
-    <dt>msg.qos <span class="property-type">number</span></dt><dd>Overrides configured QoS per message (0, 1, 2).</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -120,6 +114,12 @@ RED.nodes.registerType("iot-telemetry", {
     <dd>The MQTT topic the message was published to.</dd>
     <dt>error <span class="property-type">object</span></dt>
     <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.topic <span class="property-type">string</span></dt><dd>Used when Topic is blank in the editor.</dd>
+    <dt>msg.qos <span class="property-type">number</span></dt><dd>Overrides configured QoS per message (0, 1, 2).</dd>
 </dl>
 
 <h3>Details</h3>

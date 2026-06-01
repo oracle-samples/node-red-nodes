@@ -58,7 +58,7 @@ module.exports = function (RED) {
         return true;
     }
 
-    function IotCommandNode(config) {
+    function IotSubscribeNode(config) {
         RED.nodes.createNode(this, config);
         var node = this;
 
@@ -69,13 +69,13 @@ module.exports = function (RED) {
             return;
         }
 
-        node.commandTopic = (config.topic || "").trim();
-        if (!node.commandTopic) {
+        node.subscriptionTopic = (config.topic || "").trim();
+        if (!node.subscriptionTopic) {
             node.status({ fill: "red", shape: "ring", text: "topic required" });
             node.error("Topic is required");
             return;
         }
-        if (!isValidSubscriptionPattern(node.commandTopic)) {
+        if (!isValidSubscriptionPattern(node.subscriptionTopic)) {
             node.status({ fill: "red", shape: "ring", text: "invalid topic pattern" });
             node.error("Invalid MQTT topic pattern. Use + for full segment wildcard and # only as final segment.");
             return;
@@ -109,19 +109,19 @@ module.exports = function (RED) {
         }
 
         /**
-         * Extract a "command key" from the received topic given the subscription pattern.
-         * - Pattern ending in /#  → key is the portion that matched #
-         * - Fixed pattern (no wildcard) → key is the last topic segment
+         * Extract a topic suffix from the received topic given the subscription pattern.
+         * - Pattern ending in /# - suffix is the portion that matched #
+         * - Fixed pattern (no wildcard) - suffix is the last topic segment
          */
-        function extractCommandKey(pattern, receivedTopic) {
+        function extractTopicSuffix(pattern, receivedTopic) {
             if (pattern.endsWith("/#")) {
-                var prefix = pattern.slice(0, -2);  // strip trailing /#
+                var prefix = pattern.slice(0, -2);
                 if (receivedTopic.startsWith(prefix + "/")) {
                     return receivedTopic.slice(prefix.length + 1);
                 }
                 return receivedTopic;
             }
-            // For fixed topics, use the last segment as the key.
+            // For fixed topics, use the last segment as the suffix.
             var parts = receivedTopic.split("/");
             return parts[parts.length - 1];
         }
@@ -131,16 +131,16 @@ module.exports = function (RED) {
          * @param {string} receivedTopic - The actual MQTT topic the message arrived on
          * @param {*} payload - Parsed JSON or raw string
          */
-        function onCommand(receivedTopic, payload) {
-            var commandKey = extractCommandKey(node.commandTopic, receivedTopic);
+        function onMessage(receivedTopic, payload) {
+            var topicSuffix = extractTopicSuffix(node.subscriptionTopic, receivedTopic);
 
             var msg = {
                 payload: payload,
-                commandKey: commandKey,
+                topicSuffix: topicSuffix,
                 topic: receivedTopic
             };
 
-            node.status({ fill: "blue", shape: "dot", text: commandKey || receivedTopic });
+            node.status({ fill: "blue", shape: "dot", text: topicSuffix || receivedTopic });
 
             node.send(msg);
 
@@ -156,7 +156,7 @@ module.exports = function (RED) {
             }, 2000);
         }
 
-        node.iotDevice.subscribe(node.commandTopic, node.qos, onCommand);
+        node.iotDevice.subscribe(node.subscriptionTopic, node.qos, onMessage);
 
         node.on("close", function (done) {
             var finished = false;
@@ -171,10 +171,10 @@ module.exports = function (RED) {
                 done();
             }
 
-            // iot-config.unsubscribe has an optional callback — the timer guards close completion.
+            // iot-config.unsubscribe has an optional callback; the timer guards close completion.
             var closeTimer = setTimeout(finish, 1500);
             try {
-                node.iotDevice.unsubscribe(node.commandTopic, onCommand, function () {
+                node.iotDevice.unsubscribe(node.subscriptionTopic, onMessage, function () {
                     clearTimeout(closeTimer);
                     finish();
                 });
@@ -185,5 +185,5 @@ module.exports = function (RED) {
         });
     }
 
-    RED.nodes.registerType("iot-command", IotCommandNode);
+    RED.nodes.registerType("iot-subscribe", IotSubscribeNode);
 };

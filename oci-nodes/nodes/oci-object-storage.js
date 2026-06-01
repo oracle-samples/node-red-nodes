@@ -38,6 +38,7 @@ module.exports = function (RED) {
     const objectstorage = require("oci-objectstorage");
     const fs = require("fs");
     const stream = require("stream");
+    const ociError = require("../lib/oci-error.js");
 
     async function streamToBuffer(value) {
         if (Buffer.isBuffer(value)) {
@@ -272,15 +273,7 @@ module.exports = function (RED) {
                 }, 3000);
 
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "operation failed" });
-                msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-                msg.statusCode = err.statusCode || 0;
-                msg.payload = err.message;
-                node.error(msg.error.message, msg);
-                done(err);
+                ociError.handleNodeError(node, msg, err, done, { statusText: "operation failed" });
             }
         });
     }

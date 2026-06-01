@@ -13,6 +13,10 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 | **enqueue** | Publishes messages to Oracle AQ. Supports static payload or `msg.payload` (JSON/ADT editor includes `...` JSON editor helper). |
 | **sql** | Executes SQL statements. Supports Editor or `msg.sql` as source (Binds Mapping JSONata rows include `...` expression editor helper). |
 
+## Error Handling
+
+Message-triggered DB nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }` using Oracle/node-oracledb error text when available, and DB nodes leave the current `msg.payload` unchanged on failure.
+
 ## Installation
 
 Install the nodes from within your Node-RED environment.

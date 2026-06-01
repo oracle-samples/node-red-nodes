@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.5.0] - 2026-05-29
+
+### Added
+- `smo-event` node for submitting structured Smart Operations operational events to Fusion SCM.
+- `manufacturing-work-order` node for creating and updating Fusion SCM discrete manufacturing work order headers.
+- `manufacturing-work-order-child` node for manufacturing work order operations, components, resources, serials, and progress/quantity reporting.
+- `maintenance-work-order` node for creating and updating Fusion SCM maintenance work order headers.
+- `maintenance-work-order-child` node for maintenance work order operations, materials, resources, and cost-impacting maintenance operation transactions.
+- `smo-transformer` node for mapping sample payloads into Smart Operations events: Mapping Assistant with path detection and click-to-fill chips, nested field paths, configurable event-time source, selectable output target (default `msg.smoEvent`), and transformed-event/composite-fragment previews; routes missing or invalid input to Catch.
+- `iot-get-content` node for reading digital twin instance content via OCI IoT control-plane REST API (`GetDigitalTwinInstanceContent`), with runtime overrides for twin OCID and metadata inclusion.
+- `ords-config`, `oci-ords-request`, and `oci-ords-poll` nodes for ORDS OAuth access, including general ORDS requests, IoT Data API presets, and raw command status polling for direct-row or collection responses with bounded concurrency.
+
+### Changed
+- `iot-command` was renamed to `iot-subscribe`, with generic MQTT subscription wording and `msg.topicSuffix` output replacing command-specific `msg.commandKey`.
+- `iot-telemetry` Auto Timestamp now defaults to off; enable it to inject an epoch-microsecond `time` field when missing.
+- `scm-lookup`, `get-organization-id`, `get-ib-asset`, and `get-meter-reading` now show `not found` for successful empty Fusion collection responses instead of `found`.
+- `scm-lookup` now includes Item, Subinventory, On-Hand Quantity, Work Definition, Manufacturing Work Order, and Maintenance Work Order lookup types plus optional Additional Filters JSON for narrower REST `q` queries.
+- `fusion-request`, `scm-lookup`, and `delete-transaction` now default to `Custom` mode (generic labels until a mode is selected) and use clearer Custom Endpoint editor sections with long URL inputs, editable-endpoint icons, and endpoint previews.
+- SCM nodes with payload mappings now support typed source options for `static text`, `static number`, `static boolean`, `static JSON`, and `current timestamp`.
+- `misc-transaction` now supports Custom, Miscellaneous Receipt, and Miscellaneous Issue modes; receipt/issue modes set `TransactionTypeName` and use `OrganizationId` staged-transaction presets.
+- `subinventory-quantity-transfer` default mappings now include `TransferSubinventory` and `serials` for serialized item moves.
+- `fusion-request` presets now align inventory staged transaction and operation transaction mappings with tested Fusion payloads, including static JSON `OperationTransactionDetail` rows.
+- Fusion SCM REST nodes now promote Fusion response text into Catch-path `msg.error.message`, `node.error(...)`, and `done(err).message` while preserving the raw response body in `msg.payload`.
+- DB, OCI, IoT, and ORDS nodes now promote useful Oracle/server-side response text into Catch-path `msg.error.message`, `node.error(...)`, and `done(err).message`; OCI/ORDS failures preserve raw response bodies in `msg.payload` when available.
+- `iot-send-command` now uses explicit Request/Response Endpoint fields (with `msg.requestEndpoint`/`msg.responseEndpoint` overrides) instead of generated `/cmd/` and `/rsp/` paths, and exposes command-status metadata (`msg.commandStatusLocation`, `msg.recordId`, `msg.rawCommandDataRecordId`, `msg.opcRequestId`) when available.
+
+### Fixed
+- `oci-notification` and `iot-telemetry` editor controls now render with consistent Node-RED dialog sizing for the notification body and QoS fields.
+- `iot-telemetry` missing Topic validation now uses a ring status shape to match the project status convention.
+- `db-connection` pooled connections no longer fail with `NJS-005: invalid value for parameter 1` when no NLS/session settings are configured.
+- `sql` now executes on `msg.transaction.connection` when inside a begin/end transaction flow, preserving downstream commit/rollback behavior.
+- `sql-enqueue-dequeue` example flow now uses the current `sql` Binds Mapping schema on import.
+
+### Removed
+- `iot-command` node type and `msg.commandKey` output were removed; use `iot-subscribe` and `msg.topicSuffix`.
+- `iot-send-command` Base Endpoint and Command Key fields were removed; configure the exact Request Endpoint and Response Endpoint instead.
+
+---
+
 ## [0.4.1] - 2026-04-15
 
 ### Changed
@@ -97,7 +136,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `create-asset`, `create-meter-reading`, `misc-transaction`, and `subinventory-quantity-transfer` editor endpoint previews now repopulate correctly when an SCM Server is selected.
 
 ---
-
 
 ## [0.3.2] - 2026-04-03
 

@@ -1,0 +1,421 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("maintenance-work-order-child", {
+    category: "oracle fusion scm",
+    paletteLabel: "maintenance work order details",
+    defaults: {
+        name: { value: "" },
+        server: { type: "scm-server", required: true },
+        resource: { value: "operation" },
+        action: { value: "create" },
+        workOrderId: { value: "" },
+        operationId: { value: "" },
+        childRecordId: { value: "" },
+        mappings: { value: "[]" }
+    },
+    inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-tasks",
+    label: function () {
+        if (this.name) return this.name;
+        return "maintenance " + (this.resource || "work order detail");
+    },
+    oneditprepare: function () {
+        window.workOrderChildEditor.init({
+            apiRoot: "maintenanceWorkOrders",
+            endpointDisplayId: "maintenance-work-order-child-url-display",
+            resourceSelector: "#node-input-resource",
+            actionSelector: "#node-input-action",
+            workOrderIdSelector: "#node-input-workOrderId",
+            operationIdSelector: "#node-input-operationId",
+            childRecordIdSelector: "#node-input-childRecordId",
+            operationSection: ".maintenance-child-operation-section",
+            childRecordSection: ".maintenance-child-record-section",
+            payloadSection: ".maintenance-child-payload-section",
+            configNode: this,
+            resources: {
+                operation: {
+                    label: "Operation",
+                    childLabel: "Operation ID",
+                    actions: ["create", "list", "get", "update", "delete"],
+                    path: ["maintenanceWorkOrders", "{WorkOrderId}", "child", "WorkOrderOperation"],
+                    childPath: "{ChildRecordId}",
+                    mappings: ["OperationSequenceNumber", "OperationName", "OperationDescription", "WorkCenterCode", "CountPointOperationFlag", "AutoTransactFlag", "PlannedStartDate", "PlannedCompletionDate"]
+                },
+                material: {
+                    label: "Material",
+                    childLabel: "Material ID",
+                    actions: ["create", "list", "get", "update", "delete"],
+                    path: ["maintenanceWorkOrders", "{WorkOrderId}", "child", "WorkOrderOperation", "{OperationId}", "child", "WorkOrderOperationMaterial"],
+                    childPath: "{ChildRecordId}",
+                    requiresOperation: true,
+                    mappings: ["ItemNumber", "RequiredQuantity", "UOMCode", "SupplySubinventory", "SupplyLocator"]
+                },
+                resource: {
+                    label: "Resource",
+                    childLabel: "Resource ID",
+                    actions: ["create", "list", "get", "update", "delete"],
+                    path: ["maintenanceWorkOrders", "{WorkOrderId}", "child", "WorkOrderOperation", "{OperationId}", "child", "WorkOrderOperationResource"],
+                    childPath: "{ChildRecordId}",
+                    requiresOperation: true,
+                    mappings: ["ResourceCode", "RequiredUsage", "UsageUOMCode", "AssignedUnits"]
+                },
+                costTransaction: {
+                    label: "Cost Transaction",
+                    actions: ["create"],
+                    path: ["maintenanceOperationTransactions"],
+                    noWorkOrderId: true,
+                    mappings: [{scmField:"OperationTransactionDetail",sourceType:"staticJson",value:""}]
+                }
+            }
+        });
+    },
+    oneditsave: function () {
+        this.mappings = window.workOrderChildEditor.save();
+    }
+});
+
+if (!window.workOrderChildEditor) {
+window.workOrderChildEditor = (function () {
+    var valueLabelMap = {
+        dequeued: "Field Name",
+        msg: "Property Path",
+        static: "Text",
+        staticNumber: "Number",
+        staticBoolean: "Boolean",
+        staticJson: "JSON",
+        currentTimestamp: "Timestamp"
+    };
+    var valuePlaceholderMap = {
+        dequeued: "e.g. WorkOrderNumber",
+        msg: "e.g. payload.quantity",
+        static: "e.g. Released",
+        staticNumber: "e.g. 1",
+        staticBoolean: "true or false",
+        staticJson: "e.g. [{\"FmSerialNumber\":\"SN001\"}]",
+        currentTimestamp: "Generated at runtime"
+    };
+    var state = {};
+
+    function escapeHtml(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    function mappingRowsFor(resource) {
+        return (resource.mappings || []).map(function (field) {
+            if (typeof field === "object") {
+                return {
+                    scmField: field.scmField || "",
+                    sourceType: field.sourceType || "msg",
+                    value: field.value || ""
+                };
+            }
+            return { scmField: field, sourceType: "msg", value: "" };
+        });
+    }
+
+    function normalizeBooleanValue(value) {
+        var normalized = String(value == null ? "" : value).trim().toLowerCase();
+        return normalized === "false" ? "false" : "true";
+    }
+
+    function syncValueControl(row, type) {
+        var valueInput = row.find(".work-order-child-value");
+        var booleanInput = row.find(".work-order-child-boolean-value");
+        var jsonInput = row.find(".work-order-child-json-value");
+        row.find(".work-order-child-value-label").text(valueLabelMap[type] || "Value");
+        valueInput.attr("placeholder", valuePlaceholderMap[type] || "");
+
+        if (type === "staticBoolean") {
+            valueInput.hide().prop("disabled", true);
+            jsonInput.hide().prop("disabled", true);
+            booleanInput.show().prop("disabled", false);
+            if (booleanInput.val() !== "true" && booleanInput.val() !== "false") {
+                booleanInput.val("true");
+            }
+            return;
+        }
+
+        if (type === "staticJson") {
+            valueInput.hide().prop("disabled", true);
+            booleanInput.hide().prop("disabled", true);
+            jsonInput.show().prop("disabled", false);
+            return;
+        }
+
+        booleanInput.hide().prop("disabled", true);
+        jsonInput.hide().prop("disabled", true);
+        valueInput.show().prop("disabled", type === "currentTimestamp");
+        if (type === "currentTimestamp") valueInput.val("");
+    }
+
+    function addRow(m) {
+        var srcType = m.sourceType || "msg";
+        var row = $(
+            '<div class="work-order-child-mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<div class="work-order-child-drag-handle" style="cursor:grab;padding:4px 2px;color:#999;font-size:16px;" title="Drag to reorder">&#9776;</div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;">SCM Field</label>' +
+                  '<input type="text" class="work-order-child-field" value="' + escapeHtml(m.scmField || "") + '" style="width:100%;" /></div>' +
+                '<div style="width:135px;"><label style="font-size:11px;color:#666;">Source</label>' +
+                  '<select class="work-order-child-source-type" style="width:135px;">' +
+                    '<option value="dequeued"' + (srcType === "dequeued" ? ' selected' : '') + '>dequeued data</option>' +
+                    '<option value="msg"' + (srcType === "msg" ? ' selected' : '') + '>msg property</option>' +
+                    '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static text</option>' +
+                    '<option value="staticNumber"' + (srcType === "staticNumber" ? ' selected' : '') + '>static number</option>' +
+                    '<option value="staticBoolean"' + (srcType === "staticBoolean" ? ' selected' : '') + '>static boolean</option>' +
+                    '<option value="staticJson"' + (srcType === "staticJson" ? ' selected' : '') + '>static JSON</option>' +
+                    '<option value="currentTimestamp"' + (srcType === "currentTimestamp" ? ' selected' : '') + '>current timestamp</option>' +
+                  '</select></div>' +
+                '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="work-order-child-value-label">' + (valueLabelMap[srcType] || "Value") + '</label>' +
+                  '<input type="text" class="work-order-child-value" value="' + escapeHtml(m.value || "") + '" placeholder="' + (valuePlaceholderMap[srcType] || "") + '" style="width:100%;" />' +
+                  '<select class="work-order-child-boolean-value" style="width:100%;display:none;">' +
+                    '<option value="true">true</option>' +
+                    '<option value="false">false</option>' +
+                  '</select>' +
+                  '<textarea class="work-order-child-json-value" rows="3" style="width:100%;display:none;font-family:monospace;font-size:12px;">' + escapeHtml(m.value || "") + '</textarea></div>' +
+                '<div style="padding-top:14px;">' +
+                  '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.work-order-child-mapping-row\').remove();">&times;</button></div>' +
+              '</div>' +
+            '</div>'
+        );
+        row.find(".work-order-child-boolean-value").val(normalizeBooleanValue(m.value));
+        row.find(".work-order-child-source-type").on("change", function () {
+            var type = $(this).val();
+            if (type === "staticBoolean") {
+                row.find(".work-order-child-boolean-value").val(normalizeBooleanValue(row.find(".work-order-child-value").val()));
+            }
+            if (type === "staticJson" && !row.find(".work-order-child-json-value").val()) {
+                row.find(".work-order-child-json-value").val(row.find(".work-order-child-value").val());
+            }
+            syncValueControl(row, type);
+        });
+        syncValueControl(row, srcType);
+        $("#work-order-child-mappings-container").append(row);
+    }
+
+    function renderAll(mappings) {
+        $("#work-order-child-mappings-container").empty();
+        if (Array.isArray(mappings)) {
+            mappings.forEach(addRow);
+        }
+    }
+
+    function readMappings(raw) {
+        var mappings = [];
+        try { mappings = JSON.parse(raw || "[]"); } catch(e) {}
+        return Array.isArray(mappings) ? mappings : [];
+    }
+
+    function currentResource() {
+        return state.resources[$(state.resourceSelector).val()] || state.resources.operation;
+    }
+
+    function currentAction() {
+        return $(state.actionSelector).val() || "create";
+    }
+
+    function fillActionOptions(resource, selectedAction) {
+        var select = $(state.actionSelector);
+        select.empty();
+        resource.actions.forEach(function (action) {
+            var label = action.charAt(0).toUpperCase() + action.slice(1);
+            select.append('<option value="' + action + '">' + label + '</option>');
+        });
+        if (resource.actions.indexOf(selectedAction) === -1) {
+            selectedAction = resource.actions[0];
+        }
+        select.val(selectedAction);
+    }
+
+    function updateEndpoint() {
+        var serverNode = RED.nodes.node($("#node-input-server").val());
+        if (!serverNode || !serverNode.hostname || !serverNode.version) {
+            $("#" + state.endpointDisplayId).text("Select SCM Server to preview endpoint");
+            return;
+        }
+
+        var resource = currentResource();
+        var action = currentAction();
+        var segments = resource.path.slice();
+        if (resource.childPath && (action === "get" || action === "update" || action === "delete")) {
+            segments.push(resource.childPath);
+        }
+        var endpoint = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + segments.join("/");
+        endpoint = endpoint
+            .replace("{WorkOrderId}", $(state.workOrderIdSelector).val().trim() || "{WorkOrderId}")
+            .replace("{OperationId}", $(state.operationIdSelector).val().trim() || "{OperationId}")
+            .replace("{ChildRecordId}", $(state.childRecordIdSelector).val().trim() || "{ChildRecordId}");
+        $("#" + state.endpointDisplayId).text(endpoint);
+    }
+
+    function updateVisibility(previousResourceName) {
+        var resourceName = $(state.resourceSelector).val();
+        var resource = currentResource();
+        fillActionOptions(resource, $(state.actionSelector).val() || state.configNode.action || "create");
+        var action = currentAction();
+
+        $(".maintenance-child-work-order-section,.manufacturing-child-work-order-section").toggle(!resource.noWorkOrderId);
+        $(state.operationSection).toggle(!!resource.requiresOperation);
+        $(state.childRecordSection).toggle(!!resource.childPath && (action === "get" || action === "update" || action === "delete"));
+        $(state.payloadSection).toggle(action === "create" || action === "update");
+        $("#maintenance-child-record-label,#manufacturing-child-record-label").html('<i class="fa fa-link"></i> ' + (resource.childLabel || "Child ID"));
+
+        if (resourceName !== previousResourceName && !state.userEditedMappings) {
+            renderAll(mappingRowsFor(resource));
+        }
+        updateEndpoint();
+    }
+
+    function init(options) {
+        state = options;
+        state.userEditedMappings = false;
+        var mappings = readMappings(options.configNode.mappings);
+        if (mappings.length === 0) {
+            mappings = mappingRowsFor(currentResource());
+        }
+        renderAll(mappings);
+
+        $("#work-order-child-mappings-container").off("change input", ".work-order-child-field,.work-order-child-value,.work-order-child-boolean-value,.work-order-child-json-value,.work-order-child-source-type");
+        $("#work-order-child-mappings-container").on("change input", ".work-order-child-field,.work-order-child-value,.work-order-child-boolean-value,.work-order-child-json-value,.work-order-child-source-type", function() {
+            state.userEditedMappings = true;
+        });
+        $("#btn-add-work-order-child-mapping").off("click").on("click", function () {
+            state.userEditedMappings = true;
+            addRow({ scmField: "", sourceType: "static", value: "" });
+        });
+        $("#work-order-child-mappings-container").sortable({
+            handle: ".work-order-child-drag-handle", axis: "y", cursor: "grabbing",
+            opacity: 0.7, placeholder: "work-order-child-sortable-placeholder", tolerance: "pointer"
+        });
+
+        var previousResourceName = $(state.resourceSelector).val();
+        updateVisibility(previousResourceName);
+        $(state.resourceSelector).off("change.workOrderChild").on("change.workOrderChild", function () {
+            var oldResourceName = previousResourceName;
+            previousResourceName = $(this).val();
+            updateVisibility(oldResourceName);
+        });
+        $(state.actionSelector).off("change.workOrderChild").on("change.workOrderChild", function () {
+            updateVisibility(previousResourceName);
+        });
+        $("#node-input-server").off("change.workOrderChild").on("change.workOrderChild", updateEndpoint);
+        $(state.workOrderIdSelector + "," + state.operationIdSelector + "," + state.childRecordIdSelector)
+            .off("input.workOrderChild")
+            .on("input.workOrderChild", updateEndpoint);
+    }
+
+    function save() {
+        var mappings = [];
+        $("#work-order-child-mappings-container .work-order-child-mapping-row").each(function () {
+            var row = $(this);
+            var sourceType = row.find(".work-order-child-source-type").val();
+            var m = {
+                scmField: row.find(".work-order-child-field").val().trim(),
+                sourceType: sourceType,
+                value: sourceType === "staticJson" ? row.find(".work-order-child-json-value").val().trim() : sourceType === "staticBoolean" ? row.find(".work-order-child-boolean-value").val() : row.find(".work-order-child-value").val().trim()
+            };
+            if (m.scmField) mappings.push(m);
+        });
+        var savedMappings = JSON.stringify(mappings);
+        $("#node-input-mappings").val(savedMappings);
+        return savedMappings;
+    }
+
+    return { init: init, save: save };
+})();
+}
+</script>
+
+<script type="text/x-red" data-template-name="maintenance-work-order-child">
+    <div class="form-row">
+        <label for="node-input-name" style="width:135px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server" style="width:135px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" />
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-resource" style="width:135px;"><i class="fa fa-sitemap"></i> Resource</label>
+        <select id="node-input-resource" style="width:220px;">
+            <option value="operation">Operation</option>
+            <option value="material">Material</option>
+            <option value="resource">Resource</option>
+            <option value="costTransaction">Cost Transaction</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-action" style="width:135px;"><i class="fa fa-list"></i> Action</label>
+        <select id="node-input-action" style="width:160px;"></select>
+    </div>
+    <div class="form-row maintenance-child-work-order-section">
+        <label for="node-input-workOrderId" style="width:135px;"><i class="fa fa-key"></i> Work Order ID</label>
+        <input type="text" id="node-input-workOrderId" placeholder="Leave empty to read msg.workOrderId">
+        <div style="margin-left:140px;font-size:11px;color:#888;margin-top:4px;">
+            Fusion maintenance work order resource ID. Runtime value can be supplied by <code>msg.workOrderId</code>.
+        </div>
+    </div>
+    <div class="form-row maintenance-child-operation-section">
+        <label for="node-input-operationId" style="width:135px;"><i class="fa fa-cog"></i> Operation ID</label>
+        <input type="text" id="node-input-operationId" placeholder="Leave empty to read msg.operationId">
+    </div>
+    <div class="form-row maintenance-child-record-section">
+        <label for="node-input-childRecordId" id="maintenance-child-record-label" style="width:135px;"><i class="fa fa-link"></i> Child ID</label>
+        <input type="text" id="node-input-childRecordId" placeholder="Leave empty to read msg.childRecordId">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label style="width:135px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="maintenance-work-order-child-url-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+    </div>
+    <hr/>
+    <div class="maintenance-child-payload-section">
+        <div class="form-row">
+            <label style="width:135px;"><i class="fa fa-list-ul"></i> Payload Mappings</label>
+            <div style="margin-left:140px;font-size:11px;color:#888;margin-bottom:4px;">
+                Map Fusion child-resource fields to message properties, dequeued data, typed static values including static JSON, or the current timestamp. GET, list, and delete ignore this table.
+            </div>
+        </div>
+        <div id="work-order-child-mappings-container" style="margin-left:140px;"></div>
+        <div class="form-row" style="margin-left:140px;margin-top:6px;">
+            <button type="button" id="btn-add-work-order-child-mapping" class="red-ui-button red-ui-button-small">
+                <i class="fa fa-plus"></i> Add field
+            </button>
+        </div>
+    </div>
+    <input type="hidden" id="node-input-mappings">
+</script>
+
+<script type="text/x-red" data-help-name="maintenance-work-order-child">
+<p>Creates, reads, updates, or deletes maintenance work order child records such as operations, operation materials, and operation resources. Cost Transaction mode posts maintenance operation transactions for cost-impacting execution activity.</p>
+<p>For Cost Transaction mode, map <code>OperationTransactionDetail</code> to a JSON array value. Do not wrap the static JSON value in another <code>OperationTransactionDetail</code> object.</p>
+
+<h3>Inputs</h3>
+<dl class="message-properties">
+    <dt>workOrderId <span class="property-type">string</span></dt>
+    <dd>Maintenance work order resource ID when the editor field is blank.</dd>
+    <dt>operationId <span class="property-type">string</span></dt>
+    <dd>Operation resource ID for Material and Resource modes when the editor field is blank.</dd>
+    <dt>childRecordId <span class="property-type">string</span></dt>
+    <dd>Operation, material, or resource child record ID for get, update, and delete actions.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>Fusion REST response body.</dd>
+    <dt>maintenanceWorkOrderChild <span class="property-type">object</span></dt>
+    <dd>Same response body, preserved separately for downstream flows.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code from Fusion.</dd>
+</dl>
+</script>
+
+<style>
+    .work-order-child-sortable-placeholder { border:2px dashed #4F7D7B; border-radius:4px; background:#eef5f4; height:50px; margin-bottom:6px; }
+    .work-order-child-drag-handle:hover { color:#555 !important; }
+</style>

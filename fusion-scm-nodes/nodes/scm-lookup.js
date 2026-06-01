@@ -38,11 +38,18 @@ module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
+    const scmError = require("../lib/scm-error.js");
 
     const LOOKUP_TYPES = {
         installedBaseAsset: { endpoint: "installedBaseAssets",      queryParam: "SerialNumber",       configField: "queryValue" },
         meterReading:       { endpoint: "meterReadings",            queryParam: "AssetNumber",        configField: "queryValue" },
         organizationId:     { endpoint: "inventoryOrganizations",   queryParam: "OrganizationName",   configField: "queryValue" },
+        item:               { endpoint: "itemsV2",                  queryParam: "ItemNumber",         configField: "queryValue" },
+        subinventory:       { endpoint: "subinventories",           queryParam: "SecondaryInventoryName", configField: "queryValue" },
+        onHandQuantity:     { endpoint: "inventoryOnhandBalances",  queryParam: "ItemNumber",         configField: "queryValue" },
+        workDefinition:     { endpoint: "workDefinitions",          queryParam: "WorkDefinitionName", configField: "queryValue" },
+        manufacturingWorkOrder: { endpoint: "workOrders",           queryParam: "WorkOrderNumber",    configField: "queryValue" },
+        maintenanceWorkOrder:   { endpoint: "maintenanceWorkOrders", queryParam: "WorkOrderNumber",   configField: "queryValue" },
         custom:             { endpoint: "",                         queryParam: "",                   configField: "queryValue" }
     };
 
@@ -62,11 +69,20 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             try {
-                const lookupType = config.lookupType || "installedBaseAsset";
+                const lookupType = config.lookupType || "custom";
                 const lookup = LOOKUP_TYPES[lookupType] || LOOKUP_TYPES.custom;
 
-                const queryValue = msg.queryValue || config.queryValue;
-                if (!queryValue && lookupType !== "custom") {
+                const queryValue = hasValue(msg.queryValue) ? msg.queryValue : config.queryValue;
+                let queryFilters;
+                try {
+                    queryFilters = parseQueryFilters(msg.queryFilters !== undefined ? msg.queryFilters : config.queryFilters);
+                } catch (filterErr) {
+                    node.status({ fill: "red", shape: "ring", text: "invalid filters" });
+                    node.error(filterErr.message, msg);
+                    return done(filterErr);
+                }
+
+                if (!hasValue(queryValue) && lookupType !== "custom") {
                     node.status({ fill: "red", shape: "ring", text: "No query value" });
                     const err = new Error("No query value provided");
                     node.error(err.message, msg);
@@ -79,7 +95,7 @@ module.exports = function(RED) {
                 let finalUrl;
                 if (lookupType === "custom") {
                     const base = config.customUrl || "";
-                    if (queryValue && config.customQueryParam) {
+                    if (hasValue(queryValue) && config.customQueryParam) {
                         const parsed = new URL(base);
                         if (parsed.search) {
                             const err = new Error("Custom URL must not include query parameters in custom lookup mode");
@@ -87,7 +103,7 @@ module.exports = function(RED) {
                             node.error(err.message, msg);
                             return done(err);
                         }
-                        parsed.searchParams.set("q", `${config.customQueryParam}=${queryValue}`);
+                        parsed.searchParams.set("q", buildQueryExpression(config.customQueryParam, queryValue, queryFilters));
                         finalUrl = parsed.toString();
                     } else {
                         const err = new Error("Custom lookup requires both Query Param and Query Value");
@@ -99,7 +115,7 @@ module.exports = function(RED) {
                     const baseUrl = node.server.buildUrl(lookup.endpoint);
                     // URLSearchParams encodes special characters in queryValue.
                     const params = new URLSearchParams();
-                    params.set("q", `${lookup.queryParam}=${queryValue}`);
+                    params.set("q", buildQueryExpression(lookup.queryParam, queryValue, queryFilters));
                     finalUrl = `${baseUrl}?${params.toString()}`;
                 }
 
@@ -118,22 +134,68 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "found" });
+                if (isEmptyCollection(response.data)) {
+                    node.status({ fill: "yellow", shape: "ring", text: "not found" });
+                } else {
+                    node.status({ fill: "green", shape: "dot", text: "found" });
+                }
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "lookup failed" });
-                msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-                msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error.message;
-                node.error(msg.error.message, msg);
-                done(err);
+                scmError.handleNodeError(node, msg, err, done, { statusText: "lookup failed" });
             }
         });
     }
 
     RED.nodes.registerType("scm-lookup", ScmLookupNode);
+
+    function hasValue(value) {
+        return value !== undefined && value !== null && value !== "";
+    }
+
+    function parseQueryFilters(value) {
+        if (!hasValue(value)) {
+            return {};
+        }
+
+        let filters = value;
+        if (typeof value === "string") {
+            try {
+                filters = JSON.parse(value);
+            } catch (e) {
+                throw new Error("Additional Filters JSON is invalid: " + e.message);
+            }
+        }
+
+        if (!filters || typeof filters !== "object" || Array.isArray(filters)) {
+            throw new Error("Additional Filters JSON must be an object");
+        }
+
+        const parsed = {};
+        Object.keys(filters).forEach((key) => {
+            if (key === "__proto__" || key === "constructor" || key === "prototype") {
+                throw new Error("Additional Filters JSON contains a reserved key: " + key);
+            }
+            const value = filters[key];
+            if (hasValue(value)) {
+                parsed[key] = value;
+            }
+        });
+        return parsed;
+    }
+
+    function buildQueryExpression(primaryParam, primaryValue, queryFilters) {
+        const parts = [];
+        if (hasValue(primaryParam) && hasValue(primaryValue)) {
+            parts.push(`${primaryParam}=${primaryValue}`);
+        }
+        Object.keys(queryFilters || {}).forEach((key) => {
+            parts.push(`${key}=${queryFilters[key]}`);
+        });
+        return parts.join(";");
+    }
+
+    function isEmptyCollection(data) {
+        return data && Array.isArray(data.items) && data.items.length === 0;
+    }
 };

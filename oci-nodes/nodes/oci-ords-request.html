@@ -1,0 +1,238 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the
+     lrgrwrks.txt file if one is included with the Software (each a "Larger
+     Work" to which the Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-ords-request", {
+    category: "oci",
+    paletteLabel: "ords request",
+    defaults: {
+        name: { value: "" },
+        ordsConfig: { type: "ords-config", required: true },
+        operation: { value: "custom" },
+        method: { value: "GET" },
+        recordId: { value: "" },
+        query: { value: "" },
+        headers: { value: "" },
+        body: { value: "" },
+        customPath: { value: "" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-exchange",
+    label: function () {
+        if (this.name) return this.name;
+        var labels = {
+            rawData: "raw data",
+            rejectedData: "rejected data",
+            snapshotData: "snapshot data",
+            historizedData: "historized data",
+            rawCommandData: "raw command data",
+            custom: "ords request"
+        };
+        return labels[this.operation] || "ords request";
+    },
+    oneditprepare: function () {
+        var endpointMap = {
+            rawData: "/20250531/rawData",
+            rejectedData: "/20250531/rejectedData",
+            snapshotData: "/20250531/snapshotData",
+            historizedData: "/20250531/historizedData",
+            rawCommandData: "/20250531/rawCommandData"
+        };
+
+        function methodAllowsBody(method) {
+            var normalizedMethod = String(method || "GET").trim().toUpperCase();
+            return normalizedMethod !== "GET" && normalizedMethod !== "HEAD";
+        }
+
+        function updateEndpoint() {
+            var operation = $("#node-input-operation").val();
+            var custom = operation === "custom";
+            $(".ords-custom-section").toggle(custom);
+            var path = custom ? $("#node-input-customPath").val().trim() : endpointMap[operation];
+            $("#ords-endpoint-display").text(path || "Enter relative ORDS path to preview endpoint");
+        }
+
+        function updateBodyEditor() {
+            var bodyAllowed = methodAllowsBody($("#node-input-method").val());
+            $("#ords-body-row").toggle(bodyAllowed);
+            $("#ords-body-disabled-hint").toggle(!bodyAllowed);
+            $("#node-input-body").prop("disabled", !bodyAllowed);
+        }
+
+        function updateEditorState() {
+            updateEndpoint();
+            updateBodyEditor();
+        }
+
+        updateEditorState();
+        $("#node-input-operation").on("change", updateEndpoint);
+        $("#node-input-customPath").on("input", updateEndpoint);
+        $("#node-input-method").on("change", updateBodyEditor);
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-ords-request">
+    <div class="form-row">
+        <label for="node-input-name" style="width:145px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ordsConfig" style="width:145px;"><i class="fa fa-cloud"></i> ORDS Config</label>
+        <input type="text" id="node-input-ordsConfig">
+    </div>
+    <div class="form-row">
+        <label for="node-input-operation" style="width:145px;"><i class="fa fa-list"></i> Operation</label>
+        <select id="node-input-operation" style="width:200px;">
+            <option value="custom">Custom</option>
+            <option value="rawCommandData">Raw Command Data</option>
+            <option value="rawData">Raw Data</option>
+            <option value="rejectedData">Rejected Data</option>
+            <option value="snapshotData">Snapshot Data</option>
+            <option value="historizedData">Historized Data</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-method" style="width:145px;"><i class="fa fa-arrow-right"></i> Method</label>
+        <select id="node-input-method" style="width:120px;">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="PATCH">PATCH</option>
+            <option value="DELETE">DELETE</option>
+            <option value="HEAD">HEAD</option>
+            <option value="OPTIONS">OPTIONS</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label style="width:145px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="ords-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Enter relative ORDS path to preview endpoint</span>
+    </div>
+    <div class="ords-custom-section">
+        <div class="form-row">
+            <label for="node-input-customPath" style="width:145px;"><i class="fa fa-link"></i> Custom Path</label>
+            <input type="text" id="node-input-customPath" placeholder="/20250531/rawData">
+            <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+                Relative ORDS path only. The host/base path comes from <code>ords-config</code>.
+            </div>
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-recordId" style="width:145px;"><i class="fa fa-hashtag"></i> Record ID</label>
+        <input type="text" id="node-input-recordId">
+        <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+            Optional. If empty, reads from <code>msg.recordId</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-query" style="width:145px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Query JSON</label>
+        <textarea id="node-input-query" rows="4" style="width:calc(100% - 152px);font-family:monospace;font-size:12px;" placeholder='{"delivery_status":"COMPLETED"}'></textarea>
+        <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+            Optional ORDS <code>q</code> filter. Runtime <code>msg.query</code> and <code>msg.queryParams</code> take precedence/extend it.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-headers" style="width:145px;vertical-align:top;margin-top:2px;"><i class="fa fa-header"></i> Headers JSON</label>
+        <textarea id="node-input-headers" rows="4" style="width:calc(100% - 152px);font-family:monospace;font-size:12px;" placeholder='{"Accept":"application/json"}'></textarea>
+        <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+            Optional request headers. Runtime <code>msg.headers</code> extends or overrides these values.
+        </div>
+    </div>
+    <div class="form-row" id="ords-body-row">
+        <label for="node-input-body" style="width:145px;vertical-align:top;margin-top:2px;"><i class="fa fa-file-text-o"></i> Body JSON</label>
+        <textarea id="node-input-body" rows="4" style="width:calc(100% - 152px);font-family:monospace;font-size:12px;" placeholder='{"name":"sensor-1"}'></textarea>
+        <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+            Optional request body for configured body-capable methods. If empty, body-capable requests use <code>msg.payload</code>.
+        </div>
+    </div>
+    <div id="ords-body-disabled-hint" style="display:none;margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+        Body JSON is not used for configured <code>GET</code> or <code>HEAD</code> methods.
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-ords-request">
+<p>Sends a one-shot ORDS HTTP request using an <code>ords-config</code> OAuth token.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>ORDS Config</dt>
+    <dd>References shared ORDS OAuth/base URL settings.</dd>
+    <dt>Operation</dt>
+    <dd>Selects Custom relative path by default, or a known IoT Data API endpoint shortcut.</dd>
+    <dt>Method</dt>
+    <dd>HTTP method. IoT Data API presets are normally queried with <code>GET</code>.</dd>
+    <dt>Record ID</dt>
+    <dd>Optional path segment appended to the selected endpoint. If empty, reads from <code>msg.recordId</code>.</dd>
+    <dt>Query JSON</dt>
+    <dd>Optional ORDS <code>q</code> filter. <code>msg.query</code> can override this value.</dd>
+    <dt>Headers JSON</dt>
+    <dd>Optional request headers. <code>msg.headers</code> can extend or override these values.</dd>
+    <dt>Body JSON</dt>
+    <dd>Optional JSON request body for configured body-capable methods. Hidden for configured <code>GET</code>/<code>HEAD</code>. If a runtime <code>msg.method</code> override changes a no-body configured method to a body-capable method, the node uses <code>msg.payload</code>.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object|string</span></dt>
+    <dd>ORDS response body.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt>
+    <dd>HTTP status code.</dd>
+    <dt>ordsUrl <span class="property-type">string</span></dt>
+    <dd>Resolved request URL.</dd>
+    <dt>ordsOperation <span class="property-type">string</span></dt>
+    <dd>Operation used for the request.</dd>
+    <dt>responseHeaders <span class="property-type">object</span></dt>
+    <dd>Response headers.</dd>
+    <dt>error <span class="property-type">object</span></dt>
+    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.operation <span class="property-type">string</span></dt><dd>Overrides Operation.</dd>
+    <dt>msg.method <span class="property-type">string</span></dt><dd>Overrides Method.</dd>
+    <dt>msg.recordId <span class="property-type">string</span></dt><dd>Overrides Record ID.</dd>
+    <dt>msg.query <span class="property-type">object|string</span></dt><dd>Overrides Query JSON and is sent as the <code>q</code> query parameter.</dd>
+    <dt>msg.queryParams <span class="property-type">object</span></dt><dd>Additional query parameters.</dd>
+    <dt>msg.headers <span class="property-type">object</span></dt><dd>Additional request headers.</dd>
+    <dt>msg.customPath <span class="property-type">string</span></dt><dd>Overrides Custom Path when Operation is Custom.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Preset operations build relative IoT Data API paths from the selected endpoint and optional Record ID. Custom mode accepts a relative ORDS path; the ORDS host/base path comes from <code>ords-config</code>.</p>
+</script>

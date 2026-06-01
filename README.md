@@ -12,10 +12,15 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 
 - **fusion-scm-nodes**
   - General transaction node (fusion-request)
-  - General lookup node (scm-lookup)
+  - General lookup node (scm-lookup), including subinventory and on-hand quantity lookups
   - SMO Transformer
+  - SMO Event (submit Smart Operations operational events)
+  - Manufacturing work order create/update
+  - Manufacturing work order child operations, components, resources, serials, progress
+  - Maintenance work order create/update
+  - Maintenance work order child operations, materials, resources, cost transactions
   - Create Asset, Create Meter Reading
-  - Inventory transactions (misc, subinventory transfer)
+  - Inventory transactions (misc receipt/issue, subinventory transfer)
   - Delete transaction
   - Lookup nodes (asset, meter reading, organization)
 
@@ -25,10 +30,12 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
   - OCI Object Storage (upload and download objects)
   - OCI Logging (putLogs to OCI Custom Logs)
   - OCI Log Analytics (upload log events to Log Analytics)
+  - ORDS Config, ORDS Request, and ORDS Poll (OAuth-backed ORDS access with IoT Data API shortcuts)
   - IoT Device config (MQTT connection to OCI IoT Platform)
   - IoT Telemetry (publish device telemetry)
-  - IoT Command (receive commands from IoT Platform)
+  - IoT Subscribe (subscribe to OCI IoT MQTT topics)
   - IoT Send Command (send commands to devices via OCI REST API)
+  - IoT Get Content (read digital twin instance content via OCI REST API)
   - IoT Update Relationship (update digital twin relationship content via OCI REST API)
 
 > Detailed node-level documentation is available in [Node Reference](./docs/node-reference.md).
@@ -82,9 +89,11 @@ cd ~/.node-red
 npm install oracledb          # DB nodes
 npm install axios             # SCM nodes
 npm install https-proxy-agent # SCM nodes (proxy support)
-npm install oci-sdk           # OCI nodes (Notifications, Logging, Log Analytics, IoT Send Command)
+npm install oci-sdk           # OCI nodes (Notifications, Logging, Log Analytics, IoT control-plane nodes)
 npm install mqtt              # IoT nodes (Telemetry, Command)
 ```
+
+ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
 
 #### Install Oracle Instant Client (23c)
 
@@ -118,7 +127,10 @@ Example Node-RED flows are provided in the documentation showcasing different us
 - Subscriber exists? → If Not, Create New Subscriber → If It Exists, Enqueue → Dequeue Example
 - Enqueue → Dequeue → Create Meter Reading → If Not Found, Create Asset
 - Transactional dequeue with rollback protection
-- IoT telemetry publishing and command-response
+- IoT telemetry publishing and MQTT subscription
+- Closed-loop OCI IoT to Fusion SCM flow with Smart Operations events, maintenance work order creation, and raw command delivery
+- ORDS command delivery/response status polling
+- IoT digital twin content read via OCI control-plane
 - IoT relationship content update via OCI control-plane
 - Threshold monitoring with OCI Notifications
 

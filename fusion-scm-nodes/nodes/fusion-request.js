@@ -38,6 +38,8 @@ module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
+    const scmMapping = require("../lib/scm-mapping.js");
+    const scmError = require("../lib/scm-error.js");
 
     const ENDPOINT_MAP = {
         createAsset: "installedBaseAssets",
@@ -60,8 +62,7 @@ module.exports = function(RED) {
         const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
             ? new HttpsProxyAgent(node.server.proxyUrl) : null;
 
-        let mappings = [];
-        try { mappings = JSON.parse(config.mappings || "[]"); } catch(e) { mappings = []; }
+        const mappings = scmMapping.parseMappings(config.mappings);
 
         node.on("input", async (msg, send, done) => {
             try {
@@ -85,18 +86,7 @@ module.exports = function(RED) {
                 }
                 ensureHttps(url);
 
-                // Build payload from structured mappings
-                const payload = {};
-                for (const m of mappings) {
-                    if (!m.scmField) continue;
-                    if (m.sourceType === "dequeued") {
-                        payload[m.scmField] = RED.util.getMessageProperty(msg, "dequeued." + (m.value || ""));
-                    } else if (m.sourceType === "msg") {
-                        payload[m.scmField] = RED.util.getMessageProperty(msg, m.value || "");
-                    } else {
-                        payload[m.scmField] = m.value || "";
-                    }
-                }
+                const payload = scmMapping.resolvePayload(mappings, msg, RED);
 
                 node.status({ fill: "yellow", shape: "dot", text: "requesting..." });
                 const response = await axios({
@@ -119,15 +109,7 @@ module.exports = function(RED) {
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "request failed" });
-                msg.error = {
-                    message: err.message || err.toString(),
-                    code: (err.errorNum || err.statusCode || err.code || null) ? String(err.errorNum || err.statusCode || err.code) : null
-                };
-                msg.statusCode = err.response?.status || 0;
-                msg.payload = err.response?.data || msg.error.message;
-                node.error(msg.error.message, msg);
-                done(err);
+                scmError.handleNodeError(node, msg, err, done, { statusText: "request failed" });
             }
         });
     }

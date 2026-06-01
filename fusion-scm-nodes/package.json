@@ -1,6 +1,6 @@
 {
   "name": "fusion-scm-nodes",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Node-RED nodes for Oracle Fusion SCM",
   "license": "UPL-1.0",
   "engines": {
@@ -29,6 +29,11 @@
       "delete-transaction": "nodes/delete-transaction.js",
       "fusion-request": "nodes/fusion-request.js",
       "smo-transformer": "nodes/smo-transformer.js",
+      "smo-event": "nodes/smo-event.js",
+      "manufacturing-work-order": "nodes/manufacturing-work-order.js",
+      "manufacturing-work-order-child": "nodes/manufacturing-work-order-child.js",
+      "maintenance-work-order": "nodes/maintenance-work-order.js",
+      "maintenance-work-order-child": "nodes/maintenance-work-order-child.js",
       "scm-lookup": "nodes/scm-lookup.js"
     }
   }

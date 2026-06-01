@@ -35,6 +35,8 @@
  */
 
 module.exports = function(RED) {
+    const dbError = require("../lib/db-error.js");
+
     function EndTransactionNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -47,8 +49,10 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             if (msg.transaction && msg.transaction.timedOut) {
-                node.status({ fill: "red", shape: "ring", text: "timed out" });
-                return done(new Error("Transaction timed out"));
+                return dbError.handleNodeError(node, msg, new Error("Transaction timed out"), done, {
+                    statusText: "timed out",
+                    statusShape: "ring"
+                });
             }
 
             if (msg.transaction && msg.transaction._ended) {
@@ -108,8 +112,7 @@ module.exports = function(RED) {
                 }
                 delete msg.transaction;
 
-                node.error(err, msg);
-                done(err);
+                dbError.handleNodeError(node, msg, err, done, { statusText: `${action} failed (${elapsed}s)` });
             }
         });
     }

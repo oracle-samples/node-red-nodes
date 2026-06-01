@@ -306,10 +306,9 @@ var sqlBindsMappingEditor = (function () {
 </dl>
 
 <h3>Details</h3>
-<p>In standalone mode, this node opens its own connection, executes the SQL, and closes the connection.</p>
-<p>When a transaction connection is present on <code>msg.transaction.connection</code>, this node reuses that connection and does not close it. Commit/rollback is handled by <b>end-transaction</b>.</p>
+<p>When <code>msg.transaction.connection</code> exists, the SQL executes on that shared transaction connection and is finalized by <code>end-transaction</code>. Without a transaction connection, the node opens its own connection, executes the SQL, and closes it.</p>
 <p><b>Important:</b> This node uses <code>autoCommit: false</code>. SELECT queries
-work as expected. In standalone mode, DML statements (INSERT, UPDATE, DELETE) are <b>not committed</b>
-and will roll back when the connection closes. In transaction mode, DML is committed or rolled back by <b>end-transaction</b>.</p>
-<p>SQL precheck masking for bind/statement validation recognizes standard quotes/comments and Oracle <code>q'...'</code> literals, so placeholders and semicolons inside those literals are ignored by precheck scanning.</p>
+work as expected. DML statements (INSERT, UPDATE, DELETE) are <b>not committed</b>
+and will be rolled back when a standalone connection closes. To commit DML, use a PL/SQL block
+with an explicit <code>COMMIT</code>, or wire through the begin/end transaction nodes.</p>
 </script>

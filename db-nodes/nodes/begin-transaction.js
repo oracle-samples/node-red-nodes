@@ -35,6 +35,8 @@
  */
 
 module.exports = function(RED) {
+    const dbError = require("../lib/db-error.js");
+
     function BeginTransactionNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -121,9 +123,10 @@ module.exports = function(RED) {
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "ring", text: "DB connect failed" });
-                node.error(err, msg);
-                done(err);
+                dbError.handleNodeError(node, msg, err, done, {
+                    statusText: "DB connect failed",
+                    statusShape: "ring"
+                });
             }
         });
 

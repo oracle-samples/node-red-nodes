@@ -45,6 +45,9 @@ module.exports = function (RED) {
     node.eventTypeCode = config.eventTypeCode || "";
     node.entityCodeFields = parseJsonSafe(config.entityCodeFields, ["deviceId", "machineId"]);
     node.fieldMappings = parseJsonSafe(config.fieldMappings, []);
+    node.eventTimeFields = parseJsonSafe(config.eventTimeFields, ["eventTime"]);
+    node.defaultEventTime = isEnabled(config.defaultEventTime);
+    node.outputTarget = config.outputTarget || "smoEvent";
     node.enableNesting = config.enableNesting || false;
     node.nestingKey = config.nestingKey || "";
     node.enableComposite = config.enableComposite || false;
@@ -61,9 +64,12 @@ module.exports = function (RED) {
     node.on("input", function (msg, send, done) {
       try {
         var payload = msg.payload;
-        if (!payload || typeof payload !== "object") {
-          node.warn("Invalid payload: expected an object");
-          done();
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+          var payloadErr = new Error("Invalid payload: expected an object");
+          msg.error = { message: payloadErr.message, code: null };
+          node.status({ fill: "red", shape: "ring", text: "invalid payload" });
+          node.error(payloadErr, msg);
+          done(payloadErr);
           return;
         }
 
@@ -83,15 +89,23 @@ module.exports = function (RED) {
               done(err);
               return;
             }
-            msg.payload = result;
-            send(msg);
+            sendOutputMessage(msg, result, node.outputTarget, send);
             done();
           });
           return;
         }
 
+        if (!node.eventTypeCode) {
+          var eventTypeErr = new Error("Event Type is required");
+          msg.error = { message: eventTypeErr.message, code: null };
+          node.status({ fill: "red", shape: "ring", text: "no event type" });
+          node.error(eventTypeErr, msg);
+          done(eventTypeErr);
+          return;
+        }
+
         var entityCode = resolveEntityCode(payload, node.entityCodeFields);
-        var eventTime = payload.eventTime || null;
+        var eventTime = resolveEventTime(payload, node.eventTimeFields, node.defaultEventTime);
         payload = applySplitFields(payload, node.splitFields);
         var data = applyFieldMappings(payload, node.fieldMappings);
 
@@ -111,8 +125,7 @@ module.exports = function (RED) {
         if (node.enableComposite) {
           handleComposite(node, msg, outputPayload, compositeStore, staleTimers, send, done);
         } else {
-          msg.payload = outputPayload;
-          send(msg);
+          sendOutputMessage(msg, outputPayload, node.outputTarget, send);
           done();
         }
       } catch (e) {
@@ -140,28 +153,54 @@ module.exports = function (RED) {
     return defaultVal;
   }
 
+  function isEnabled(value) {
+    return value === true || value === "true";
+  }
+
+  function getByPath(source, path) {
+    if (!source || path === undefined || path === null || path === "") return undefined;
+    if (Object.prototype.hasOwnProperty.call(source, path)) return source[path];
+    var parts = String(path).split(".");
+    var value = source;
+    for (var i = 0; i < parts.length; i++) {
+      if (value === undefined || value === null) return undefined;
+      value = value[parts[i]];
+    }
+    return value;
+  }
+
   function resolveEntityCode(payload, entityCodeFields) {
     for (var i = 0; i < entityCodeFields.length; i++) {
-      if (payload[entityCodeFields[i]] != null) return payload[entityCodeFields[i]];
+      var value = getByPath(payload, entityCodeFields[i]);
+      if (value != null) return value;
     }
     return null;
   }
 
+  function resolveEventTime(payload, eventTimeFields, defaultEventTime) {
+    for (var i = 0; i < eventTimeFields.length; i++) {
+      var value = getByPath(payload, eventTimeFields[i]);
+      if (value != null && value !== "") return value;
+    }
+    return defaultEventTime ? new Date().toISOString() : null;
+  }
+
   function applySplitFields(payload, splitFields) {
+    var output = Object.assign({}, payload);
     for (var i = 0; i < splitFields.length; i++) {
       var sf = splitFields[i];
-      var value = payload[sf.incomingField];
+      var value = getByPath(payload, sf.incomingField);
       if (value != null && typeof value === "string") {
         var parts = value.split(sf.delimiter);
         if (parts.length >= 2) {
-          payload[sf.outputField1] = parts[0];
+          output[sf.outputField1] = parts[0];
           var secondPart = parts.slice(1).join(sf.delimiter);
           var asNumber = Number(secondPart);
-          payload[sf.outputField2] = isNaN(asNumber) ? secondPart : asNumber;
+          output[sf.outputField2] = isNaN(asNumber) ? secondPart : asNumber;
         }
       }
     }
-    return payload;
+    return output;
   }
 
   /**
@@ -203,8 +242,9 @@ module.exports = function (RED) {
         var collected = {};
         for (var k = 0; k < collectFields.length; k++) {
           var fieldName = collectFields[k];
-          if (payload[fieldName] !== undefined) {
-            collected[fieldName] = payload[fieldName];
+          var collectedValue = getByPath(payload, fieldName);
+          if (collectedValue !== undefined) {
+            collected[fieldName] = collectedValue;
           }
         }
         if (Object.keys(collected).length > 0) {
@@ -214,7 +254,7 @@ module.exports = function (RED) {
       }
 
       // All other transforms require an incoming field value
-      var value = payload[incomingField];
+      var value = getByPath(payload, incomingField);
       var hasValue = (value !== undefined);
 
       if (!hasValue) {
@@ -302,8 +342,7 @@ module.exports = function (RED) {
     delete compositeStore[key];
     clearCompositeTimer(staleTimers, key);
     node.warn("Composite message flushed (" + reason + "): " + key);
-    var outMsg = RED.util.cloneMessage(entry.msg || {});
-    outMsg.payload = entry.payload;
+    var outMsg = createOutputMessage(entry.msg || {}, entry.payload, node.outputTarget, entry.transaction);
     (send || node.send.bind(node))(outMsg);
   }
 
@@ -346,9 +385,8 @@ module.exports = function (RED) {
   function handleComposite(node, msg, outputPayload, compositeStore, staleTimers, send, done) {
     var requiredFields = node.requiredFields || [];
     if (isCompositeComplete(outputPayload, requiredFields)) {
-      msg.payload = outputPayload;
       node.status({});
-      send(msg);
+      sendOutputMessage(msg, outputPayload, node.outputTarget, send);
       done();
       return;
     }
@@ -370,6 +408,7 @@ module.exports = function (RED) {
       compositeStore[key] = {
         payload: outputPayload,
         msg: RED.util.cloneMessage(msg),
+        transaction: msg.transaction,
         createdAt: now,
         updatedAt: now
       };
@@ -387,20 +426,39 @@ module.exports = function (RED) {
     if (isCompositeComplete(merged, requiredFields)) {
       delete compositeStore[key];
       node.status({});
-      msg.payload = merged;
-      send(msg);
+      sendOutputMessage(msg, merged, node.outputTarget, send);
       done();
       return;
     }
 
     existing.payload = merged;
     existing.msg = RED.util.cloneMessage(msg);
+    existing.transaction = msg.transaction;
     existing.updatedAt = now;
     compositeStore[key] = existing;
     node.status({ fill: "yellow", shape: "ring", text: "waiting: " + key });
     scheduleStaleTimer(node, compositeStore, staleTimers, key, send);
     enforceCompositeLimits(node, compositeStore, staleTimers, send);
     done();
+  }
+
+  function sendOutputMessage(msg, outputPayload, outputTarget, send) {
+    send(createOutputMessage(msg, outputPayload, outputTarget, msg.transaction));
+  }
+
+  function createOutputMessage(msg, outputPayload, outputTarget, transaction) {
+    var target = outputTarget === "payload" ? "payload" : "smoEvent";
+    var outMsg = Object.assign({}, msg);
+    outMsg[target] = outputPayload;
+    if (transaction) {
+      Object.defineProperty(outMsg, "transaction", {
+        value: transaction,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      });
+    }
+    return outMsg;
   }
 
   RED.nodes.registerType("smo-transformer", SmoTransformerNode);

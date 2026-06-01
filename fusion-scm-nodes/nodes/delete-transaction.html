@@ -43,7 +43,7 @@ RED.nodes.registerType("delete-transaction", {
         server: { type: "scm-server", required: true },
         customPath: { value: "" },
         resourceId: { value: "" },
-        mode: { value: "asset" }
+        mode: { value: "custom" }
     },
     inputs: 1,
     outputs: 1,
@@ -51,7 +51,7 @@ RED.nodes.registerType("delete-transaction", {
     icon: "font-awesome/fa-trash",
     label: function () {
         if (this.name) return this.name;
-        var labels = { asset:"delete asset", meter:"delete meter reading", misc:"delete miscellaneous transaction", subinventory:"delete subinventory transfer", custom:"delete custom resource" };
+        var labels = { asset:"delete asset", meter:"delete meter reading", misc:"delete miscellaneous transaction", subinventory:"delete subinventory transfer", custom:"delete transaction" };
         return labels[this.mode] || "delete transaction";
     },
     oneditprepare: function () {
@@ -122,25 +122,25 @@ RED.nodes.registerType("delete-transaction", {
     <div class="form-row">
         <label for="node-input-mode"><i class="fa fa-list"></i> Delete Type</label>
         <select id="node-input-mode" style="width:200px;">
+            <option value="custom">Custom</option>
             <option value="asset">Installed Base Asset</option>
             <option value="meter">Meter Reading</option>
             <option value="misc">Miscellaneous Transaction</option>
             <option value="subinventory">Subinventory Transfer</option>
-            <option value="custom">Custom</option>
         </select>
     </div>
     <hr/>
-    <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="delete-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
-    </div>
-    <div class="form-row" id="custom-path-row" style="display:none;">
-        <label for="node-input-customPath"><i class="fa fa-link"></i> Custom URL</label>
-        <input type="text" id="node-input-customPath" style="width:100%;">
+    <div class="form-row scm-custom-endpoint-section" id="custom-path-row" style="display:none;">
+        <label for="node-input-customPath" style="vertical-align:top;margin-top:2px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
+        <textarea id="node-input-customPath" rows="3" style="width:calc(100% - 107px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
             Used only when Delete Type is <code>Custom</code>.
             Enter the base endpoint only (no query string).
         </div>
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-link"></i> Endpoint</label>
+        <span id="delete-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row">

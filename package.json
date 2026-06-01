@@ -1,6 +1,6 @@
 {
   "name": "node-red-nodes",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, OCI Notifications, OCI Logging, OCI Logging Analytics, and the OCI IoT Platform",
   "license": "UPL-1.0",
   "engines": {
@@ -45,6 +45,11 @@
       "delete-transaction": "fusion-scm-nodes/nodes/delete-transaction.js",
       "fusion-request": "fusion-scm-nodes/nodes/fusion-request.js",
       "smo-transformer": "fusion-scm-nodes/nodes/smo-transformer.js",
+      "smo-event": "fusion-scm-nodes/nodes/smo-event.js",
+      "manufacturing-work-order": "fusion-scm-nodes/nodes/manufacturing-work-order.js",
+      "manufacturing-work-order-child": "fusion-scm-nodes/nodes/manufacturing-work-order-child.js",
+      "maintenance-work-order": "fusion-scm-nodes/nodes/maintenance-work-order.js",
+      "maintenance-work-order-child": "fusion-scm-nodes/nodes/maintenance-work-order-child.js",
       "scm-lookup": "fusion-scm-nodes/nodes/scm-lookup.js",
 
       "oci-config": "oci-nodes/nodes/oci-config.js",
@@ -52,10 +57,14 @@
       "oci-log-analytics": "oci-nodes/nodes/oci-log-analytics.js",
       "oci-logging": "oci-nodes/nodes/oci-logging.js",
       "oci-object-storage": "oci-nodes/nodes/oci-object-storage.js",
+      "ords-config": "oci-nodes/nodes/ords-config.js",
+      "oci-ords-request": "oci-nodes/nodes/oci-ords-request.js",
+      "oci-ords-poll": "oci-nodes/nodes/oci-ords-poll.js",
       "iot-config": "oci-nodes/nodes/iot-config.js",
       "iot-send-command": "oci-nodes/nodes/iot-send-command.js",
+      "iot-get-content": "oci-nodes/nodes/iot-get-content.js",
       "iot-update-relationship": "oci-nodes/nodes/iot-update-relationship.js",
-      "iot-command": "oci-nodes/nodes/iot-command.js",
+      "iot-subscribe": "oci-nodes/nodes/iot-subscribe.js",
       "iot-telemetry": "oci-nodes/nodes/iot-telemetry.js"
     }
   }

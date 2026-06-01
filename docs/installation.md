@@ -42,7 +42,7 @@ npm install oracledb
 npm install axios
 npm install https-proxy-agent
 
-# OCI nodes (Notifications, Logging, Log Analytics, Object Storage, IoT Send Command)
+# OCI nodes (Notifications, Logging, Log Analytics, Object Storage, IoT control-plane nodes)
 npm install oci-sdk
 
 # IoT nodes (Telemetry, Command)
@@ -104,7 +104,7 @@ From the repository root:
 npm pack
 ```
 
-This creates a file like `node-red-nodes-0.4.1.tgz`. Upload that file in Palette Manager:
+This creates a file like `node-red-nodes-0.5.0.tgz`. Upload that file in Palette Manager:
 
 1. Open Node-RED editor.
 2. Menu → **Manage palette** → **Install**.
@@ -119,8 +119,8 @@ Windows (PowerShell):
 
 ```powershell
 cd $env:TEMP
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.4.1.tgz
-cd .\node-red-nodes-0.4.1
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.5.0.tgz
+cd .\node-red-nodes-0.5.0
 npm pack
 ```
 
@@ -128,8 +128,8 @@ Windows (cmd):
 
 ```cmd
 cd /d %TEMP%
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.4.1.tgz
-cd node-red-nodes-0.4.1
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.5.0.tgz
+cd node-red-nodes-0.5.0
 npm pack
 ```
 
@@ -137,8 +137,8 @@ Linux/macOS:
 
 ```bash
 cd /tmp
-tar -xf ~/Downloads/node-red-nodes-0.4.1.tgz
-cd node-red-nodes-0.4.1
+tar -xf ~/Downloads/node-red-nodes-0.5.0.tgz
+cd node-red-nodes-0.5.0
 npm pack
 ```
 
@@ -188,6 +188,7 @@ Not all dependencies are required. Install only what you need:
 |--------------------|---------|
 | DB nodes only | `oracledb` (+ Oracle Instant Client when Driver Mode is Thick) |
 | SCM nodes only | `axios`, `https-proxy-agent` |
-| OCI Notifications, Logging, Log Analytics, Object Storage, or IoT Send Command | `oci-sdk` |
-| IoT Telemetry or IoT Command | `mqtt` |
+| OCI Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | `oci-sdk` |
+| ORDS request/poll nodes | No additional package beyond Node.js v18+ |
+| IoT Telemetry or IoT MQTT In | `mqtt` |
 | Everything | All of the above |

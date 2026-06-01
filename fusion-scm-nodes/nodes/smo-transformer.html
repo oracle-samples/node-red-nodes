@@ -137,11 +137,12 @@
     category: "oracle fusion scm",
     color: "#4F7D7B",
     defaults: {
-      name: { value: "" }, eventTypeCode: { value: "CA_FAULT" }, selectedPreset: { value: "CA_FAULT" },
+      name: { value: "" }, eventTypeCode: { value: "" }, selectedPreset: { value: "" },
       customEventType: { value: "" }, entityCodeFields: { value: '["deviceId","machineId"]' },
+      eventTimeFields: { value: '["eventTime"]' }, defaultEventTime: { value: false }, outputTarget: { value: "smoEvent" },
       fieldMappings: { value: "[]" }, enableNesting: { value: false }, nestingKey: { value: "" },
       enableComposite: { value: false }, requiredFields: { value: "[]" }, splitFields: { value: "[]" },
-      customJsonata: { value: "" }, staleTimeout: { value: 0 },
+      samplePayload: { value: "" }, customJsonata: { value: "" }, staleTimeout: { value: 0 },
       maxCompositeEntries: { value: 1000 }, maxCompositeAgeSec: { value: 3600 }
     },
     inputs: 1, outputs: 1, icon: "cog.svg",
@@ -156,15 +157,17 @@
     oneditprepare: function () {
       var node = this;
       var _userReady = false;
-      var _loadedPreset = node.selectedPreset || "CA_FAULT";
+      var _loadedPreset = node.selectedPreset || "";
       var $presetSelect = $("#node-input-selectedPreset");
       var currentPreset = _loadedPreset;
+      var activePathInput = null;
 
+      $presetSelect.append($("<option>").val("").text("Select event type..."));
       EVENT_TYPE_ORDER.forEach(function (key) {
         var preset = SMO_PRESETS[key];
         $presetSelect.append($("<option>").val(key).text(preset.label || key));
       });
-      if (!SMO_PRESETS[currentPreset] && currentPreset !== "__custom__") {
+      if (currentPreset && !SMO_PRESETS[currentPreset] && currentPreset !== "__custom__") {
         $presetSelect.append($("<option>").val(currentPreset).text(currentPreset + " (custom)"));
       }
       $presetSelect.append($("<option>").val("__custom__").text("+ Add Custom Event Type..."));
@@ -174,17 +177,14 @@
         var selected = $(this).val();
         if (!_userReady || selected === _loadedPreset) return;
         _loadedPreset = null;
+        if (!selected) {
+          $("#custom-event-type-row").hide();
+          resetNeutralEventConfig();
+          return;
+        }
         if (selected === "__custom__") {
           $("#custom-event-type-row").show();
-          $("#node-input-eventTypeCode").val("");
-          renderEntityCodeFields(["deviceId", "machineId"]);
-          renderFieldMappings([]);
-          $("#node-input-enableNesting").prop("checked", false).trigger("change");
-          $("#node-input-nestingKey").val("");
-          $("#node-input-enableComposite").prop("checked", false).trigger("change");
-          renderRequiredFields([]); renderSplitFields([]); $("#node-input-staleTimeout").val(0);
-          $("#node-input-maxCompositeEntries").val(1000);
-          $("#node-input-maxCompositeAgeSec").val(3600);
+          resetNeutralEventConfig();
           return;
         }
         $("#custom-event-type-row").hide();
@@ -206,12 +206,20 @@
 
       var entityFields = parseJson(node.entityCodeFields, ["deviceId", "machineId"]);
       renderEntityCodeFields(entityFields);
-      $("#btn-add-entity-field").on("click", function () { addEntityCodeFieldRow(""); });
+      $("#btn-add-entity-field").on("click", function () { addEntityCodeFieldRow(""); refreshSampleTools(); });
+
+      var eventTimeFields = parseJson(node.eventTimeFields, ["eventTime"]);
+      renderEventTimeFields(eventTimeFields);
+      $("#btn-add-event-time-field").on("click", function () { addEventTimeFieldRow(""); refreshSampleTools(); });
+      $("#node-input-defaultEventTime").prop("checked", node.defaultEventTime === true || node.defaultEventTime === "true");
+      $("#node-input-outputTarget").val(node.outputTarget || "smoEvent");
+      $("#node-input-defaultEventTime, #node-input-outputTarget").on("change", refreshSampleTools);
 
       var mappings = parseJson(node.fieldMappings, []);
       renderFieldMappings(mappings);
       $("#btn-add-mapping").on("click", function () {
         addFieldMappingRow({ incomingField: "", smoField: "", transformType: "none", defaultValue: "", valueMap: {}, excludeFields: [], collectFields: [] });
+        refreshSampleTools();
       });
 
       // Enable drag-to-reorder (jQuery UI sortable is loaded by Node-RED)
@@ -220,45 +228,108 @@
         opacity: 0.7, placeholder: "mapping-sortable-placeholder", tolerance: "pointer"
       });
 
-      $("#node-input-enableNesting").on("change", function () { $("#nesting-key-row").toggle($(this).is(":checked")); });
+      $("#node-input-enableNesting").on("change", function () { $("#nesting-key-row").toggle($(this).is(":checked")); refreshSampleTools(); });
       if (node.enableNesting) $("#nesting-key-row").show();
-      $("#node-input-enableComposite").on("change", function () { $(".composite-config").toggle($(this).is(":checked")); });
+      $("#node-input-enableComposite").on("change", function () { $(".composite-config").toggle($(this).is(":checked")); refreshSampleTools(); });
       if (node.enableComposite) $(".composite-config").show();
 
       var reqFields = parseJson(node.requiredFields, []);
       renderRequiredFields(reqFields);
-      $("#btn-add-required-field").on("click", function () { addRequiredFieldRow(""); });
+      $("#btn-add-required-field").on("click", function () { addRequiredFieldRow(""); refreshSampleTools(); });
 
       var splitFields = parseJson(node.splitFields, []);
       renderSplitFields(splitFields);
       $("#btn-add-split-field").on("click", function () {
         addSplitFieldRow({ incomingField: "", delimiter: "-", outputField1: "", outputField2: "" });
+        refreshSampleTools();
       });
 
+      $("#entity-code-fields-container, #event-time-fields-container, #field-mappings-container, #required-fields-container, #split-fields-container, #nesting-key-row, #advanced-section")
+        .on("input change", "input,select,textarea", refreshSampleTools)
+        .on("click", "button", function () { setTimeout(refreshSampleTools, 0); });
+
+      $("#entity-code-fields-container, #event-time-fields-container, #field-mappings-container, #split-fields-container")
+        .on("focusin", ".entity-field-row input, .event-time-field-row input, .mapping-incoming, .split-incoming, .collect-field-entries input", function () {
+          activePathInput = this;
+        });
+
+      $("#node-input-samplePayload").on("input", refreshSampleTools);
+      $("#smo-sample-paths").on("click", ".smo-path-chip", function () {
+        insertPathIntoActiveField($(this).attr("data-path"));
+      });
+
+      function setAdvancedVisible(show) {
+        $("#advanced-section").toggle(show);
+        $("#btn-toggle-advanced").text(show ? "▼ Advanced" : "▶ Advanced");
+      }
       $("#btn-toggle-advanced").on("click", function () {
-        $("#advanced-section").toggle();
-        $(this).text($("#advanced-section").is(":visible") ? "▼ Advanced" : "▶ Advanced");
+        setAdvancedVisible(!$("#advanced-section").is(":visible"));
       });
 
       function applyPreset(preset, presetKey) {
         $("#node-input-eventTypeCode").val(preset.eventTypeCodeOverride || presetKey);
         renderEntityCodeFields(preset.entityCodeFields || ["deviceId", "machineId"]);
+        renderEventTimeFields(preset.eventTimeFields || ["eventTime"]);
+        $("#node-input-defaultEventTime").prop("checked", preset.defaultEventTime || false);
         renderFieldMappings(preset.fieldMappings || []);
         $("#node-input-enableNesting").prop("checked", preset.enableNesting || false).trigger("change");
         $("#node-input-nestingKey").val(preset.nestingKey || "");
         $("#node-input-enableComposite").prop("checked", preset.enableComposite || false).trigger("change");
+        if (preset.enableComposite) setAdvancedVisible(true);
         renderRequiredFields(preset.requiredFields || []);
         renderSplitFields(preset.splitFields || []);
         $("#node-input-staleTimeout").val(preset.staleTimeout || 0);
         $("#node-input-maxCompositeEntries").val(preset.maxCompositeEntries || 1000);
         $("#node-input-maxCompositeAgeSec").val(preset.maxCompositeAgeSec || 3600);
+        refreshSampleTools();
+      }
+
+      function resetNeutralEventConfig() {
+        $("#node-input-eventTypeCode").val("");
+        renderEntityCodeFields(["deviceId", "machineId"]);
+        renderEventTimeFields(["eventTime"]);
+        $("#node-input-defaultEventTime").prop("checked", false);
+        renderFieldMappings([]);
+        $("#node-input-enableNesting").prop("checked", false).trigger("change");
+        $("#node-input-nestingKey").val("");
+        $("#node-input-enableComposite").prop("checked", false).trigger("change");
+        renderRequiredFields([]);
+        renderSplitFields([]);
+        $("#node-input-staleTimeout").val(0);
+        $("#node-input-maxCompositeEntries").val(1000);
+        $("#node-input-maxCompositeAgeSec").val(3600);
+        refreshSampleTools();
       }
 
       var fm = node.fieldMappings;
       var isNewNode = (fm === "[]" || (Array.isArray(fm) && fm.length === 0));
       if (SMO_PRESETS[currentPreset] && isNewNode) applyPreset(SMO_PRESETS[currentPreset], currentPreset);
+      if ($("#node-input-enableComposite").is(":checked") || (node.customJsonata && node.customJsonata.trim() !== "")) {
+        setAdvancedVisible(true);
+      }
 
-      setTimeout(function () { _userReady = true; }, 0);
+      function insertPathIntoActiveField(path) {
+        var target = activePathInput;
+        if (!target || !$.contains(document, target)) {
+          target = $("#field-mappings-container .mapping-incoming").filter(function () {
+            return !$(this).val().trim();
+          }).first()[0];
+        }
+        if (!target) {
+          target = $("#field-mappings-container .mapping-incoming").first()[0];
+        }
+        if (target) {
+          $(target).val(path).trigger("input").focus();
+        }
+      }
+
+      function refreshSampleTools() {
+        renderSamplePaths();
+        updatePreviewPanel();
+        updateEditorValidation();
+      }
+
+      setTimeout(function () { _userReady = true; refreshSampleTools(); }, 0);
     },
 
     oneditsave: function () {
@@ -269,56 +340,38 @@
       });
       this.entityCodeFields = JSON.stringify(entityFields);
 
-      var mappings = [];
-      $("#field-mappings-container .mapping-row").each(function () {
-        var row = $(this);
-        var mapping = {
-          incomingField: row.find(".mapping-incoming").val().trim(),
-          smoField: row.find(".mapping-smo").val().trim(),
-          transformType: row.find(".mapping-transform").val(),
-          defaultValue: row.find(".mapping-default").val().trim()
-        };
-        if (mapping.transformType === "valueMap") {
-          var valueMap = {};
-          row.find(".value-map-entry").each(function () {
-            var k = $(this).find(".vmap-key").val().trim();
-            var v = $(this).find(".vmap-value").val().trim();
-            if (k) valueMap[k] = v;
-          });
-          mapping.valueMap = valueMap;
-        }
-        if (mapping.transformType === "dynamicSift") {
-          var excludes = [];
-          row.find(".exclude-field-entry").each(function () { var v = $(this).find("input").val().trim(); if (v) excludes.push(v); });
-          mapping.excludeFields = excludes;
-        }
-        if (mapping.transformType === "collectFlat") {
-          var collectFields = [];
-          row.find(".collect-flat-section .exclude-field-entry").each(function () { var v = $(this).find("input").val().trim(); if (v) collectFields.push(v); });
-          mapping.collectFields = collectFields;
-        }
-        var noIncomingOk = (mapping.transformType === "staticValue" || mapping.transformType === "collectFlat");
-        if (mapping.smoField && (mapping.incomingField || noIncomingOk)) mappings.push(mapping);
+      var eventTimeFields = [];
+      $("#event-time-fields-container .event-time-field-row").each(function () {
+        var val = $(this).find("input").val().trim();
+        if (val) eventTimeFields.push(val);
       });
-      this.fieldMappings = JSON.stringify(mappings);
+      this.eventTimeFields = JSON.stringify(eventTimeFields);
+      this.defaultEventTime = $("#node-input-defaultEventTime").is(":checked");
+      this.outputTarget = $("#node-input-outputTarget").val();
+      this.samplePayload = $("#node-input-samplePayload").val();
 
-      var reqFields = [];
-      $("#required-fields-container .required-field-row").each(function () { var val = $(this).find("input").val().trim(); if (val) reqFields.push(val); });
-      this.requiredFields = JSON.stringify(reqFields);
+      this.fieldMappings = JSON.stringify(collectFieldMappingsFromEditor());
 
-      var splitFields = [];
-      $("#split-fields-container .split-field-row").each(function () {
-        var row = $(this);
-        var sf = { incomingField: row.find(".split-incoming").val().trim(), delimiter: row.find(".split-delimiter").val() || "-",
-          outputField1: row.find(".split-output1").val().trim(), outputField2: row.find(".split-output2").val().trim() };
-        if (sf.incomingField) splitFields.push(sf);
-      });
-      this.splitFields = JSON.stringify(splitFields);
+      this.requiredFields = JSON.stringify(collectInputValues("#required-fields-container .required-field-row input"));
+
+      this.splitFields = JSON.stringify(collectSplitFieldsFromEditor());
 
       var selectedPreset = $("#node-input-selectedPreset").val();
       if (selectedPreset === "__custom__") {
         var customVal = $("#node-input-customEventType").val().trim();
-        if (customVal) { this.selectedPreset = customVal; this.eventTypeCode = customVal; $("#node-input-eventTypeCode").val(customVal); }
+        if (customVal) {
+          this.selectedPreset = customVal;
+          this.eventTypeCode = customVal;
+          $("#node-input-eventTypeCode").val(customVal);
+        } else {
+          this.selectedPreset = "";
+          this.eventTypeCode = "";
+          $("#node-input-eventTypeCode").val("");
+        }
+      } else if (!selectedPreset) {
+        this.selectedPreset = "";
+        this.eventTypeCode = "";
+        $("#node-input-eventTypeCode").val("");
       } else {
         this.selectedPreset = selectedPreset;
         var preset = SMO_PRESETS[selectedPreset];
@@ -348,6 +401,17 @@
     $("#entity-code-fields-container").append(row);
   }
 
+  function renderEventTimeFields(fields) {
+    $("#event-time-fields-container").empty();
+    fields.forEach(function (f) { addEventTimeFieldRow(f); });
+  }
+  function addEventTimeFieldRow(value) {
+    var row = $('<div class="event-time-field-row" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+      '<input type="text" value="' + escapeHtml(value) + '" style="flex:1;" />' +
+      '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).parent().remove();">✕</button></div>');
+    $("#event-time-fields-container").append(row);
+  }
+
   function renderFieldMappings(mappings) {
     $("#field-mappings-container").empty();
     mappings.forEach(function (m) { addFieldMappingRow(m); });
@@ -355,15 +419,17 @@
 
   function addFieldMappingRow(mapping) {
     var tt = mapping.transformType || "none";
-    var opts =
+    var opts = '<optgroup label="Basic">' +
       '<option value="none"'       + (tt === "none"       ? " selected" : "") + '>None</option>' +
       '<option value="string"'     + (tt === "string"     ? " selected" : "") + '>String</option>' +
       '<option value="number"'     + (tt === "number"     ? " selected" : "") + '>Number</option>' +
       '<option value="staticValue"'+ (tt === "staticValue"? " selected" : "") + '>Static Value</option>' +
       '<option value="valueMap"'   + (tt === "valueMap"   ? " selected" : "") + '>Value Map</option>' +
       '<option value="nestedObject"'+(tt === "nestedObject"?" selected" : "") + '>Nested Object</option>' +
+      '</optgroup><optgroup label="Advanced">' +
       '<option value="collectFlat"'+ (tt === "collectFlat"? " selected" : "") + '>Collect Flat Fields</option>' +
-      '<option value="dynamicSift"'+ (tt === "dynamicSift"? " selected" : "") + '>Dynamic Sift</option>';
+      '<option value="dynamicSift"'+ (tt === "dynamicSift"? " selected" : "") + '>Dynamic Sift</option>' +
+      '</optgroup>';
     var dv = mapping.defaultValue || "";
     var isStatic = (tt === "staticValue");
 
@@ -372,13 +438,13 @@
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
           '<div class="mapping-drag-handle" style="cursor:grab;padding:4px 2px;color:#999;font-size:16px;" title="Drag to reorder">☰</div>' +
           '<div style="flex:1;" class="incoming-field-col">' +
-            '<label style="font-size:11px;color:#666;">Incoming Field</label>' +
+            '<label style="font-size:11px;color:#666;">Read From</label>' +
             '<input type="text" class="mapping-incoming" value="' + escapeHtml(mapping.incomingField || "") + '" style="width:100%;" /></div>' +
-          '<div style="flex:1;"><label style="font-size:11px;color:#666;">Outgoing Field</label>' +
+          '<div style="flex:1;"><label style="font-size:11px;color:#666;">Write To data.*</label>' +
             '<input type="text" class="mapping-smo" value="' + escapeHtml(mapping.smoField || "") + '" style="width:100%;" /></div>' +
-          '<div style="flex:1;"><label style="font-size:11px;color:#666;">Transform</label>' +
+          '<div style="flex:1;"><label style="font-size:11px;color:#666;">Convert</label>' +
             '<select class="mapping-transform" style="width:100%;">' + opts + '</select></div>' +
-          '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="default-value-label">' + (isStatic ? 'Value' : 'Default Value') + '</label>' +
+          '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="default-value-label">' + (isStatic ? 'Value' : 'Fallback') + '</label>' +
             '<input type="text" class="mapping-default" value="' + escapeHtml(dv) + '" style="width:100%;" /></div>' +
           '<div style="padding-top:14px;"><button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.mapping-row\').remove();">✕</button></div>' +
         '</div>' +
@@ -390,7 +456,7 @@
           '<button type="button" class="red-ui-button red-ui-button-small btn-add-vmap" style="margin-top:4px;">+ Add Value</button></div>' +
         '<div class="collect-flat-section" style="display:none;margin-top:6px;padding:6px;background:#f0f0f0;border-radius:3px;">' +
           '<label style="font-size:11px;font-weight:bold;color:#666;">Fields to Collect</label>' +
-          '<div style="font-size:11px;color:#888;margin-bottom:4px;">Flat payload fields to gather into a single nested object. Incoming Field is optional.</div>' +
+          '<div style="font-size:11px;color:#888;margin-bottom:4px;">Field paths to gather into a single nested object. Read From is optional.</div>' +
           '<div class="collect-field-entries"></div>' +
           '<button type="button" class="red-ui-button red-ui-button-small btn-add-collect" style="margin-top:4px;">+ Add Field</button></div>' +
         '<div class="dynamic-sift-section" style="display:none;margin-top:6px;padding:6px;background:#f0f0f0;border-radius:3px;">' +
@@ -409,7 +475,7 @@
       row.find(".dynamic-sift-section").toggle(val === "dynamicSift");
       row.find(".static-value-hint").toggle(s);
       row.find(".incoming-field-col").css("opacity", s ? "0.4" : "1");
-      row.find(".default-value-label").text(s ? "Value" : "Default Value");
+      row.find(".default-value-label").text(s ? "Value" : "Fallback");
     });
 
     if (tt === "valueMap" && mapping.valueMap) {
@@ -453,7 +519,7 @@
   function renderSplitFields(fields) { $("#split-fields-container").empty(); fields.forEach(function (f) { addSplitFieldRow(f); }); }
   function addSplitFieldRow(sf) {
     var row = $('<div class="split-field-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
-      '<div style="display:flex;gap:8px;"><div style="flex:2;"><label style="font-size:11px;color:#666;">Incoming Field</label>' +
+      '<div style="display:flex;gap:8px;"><div style="flex:2;"><label style="font-size:11px;color:#666;">Read From</label>' +
         '<input type="text" class="split-incoming" value="' + escapeHtml(sf.incomingField || "") + '" style="width:100%;" /></div>' +
       '<div style="flex:1;"><label style="font-size:11px;color:#666;">Delimiter</label>' +
         '<input type="text" class="split-delimiter" value="' + escapeHtml(sf.delimiter || "-") + '" style="width:100%;" /></div></div>' +
@@ -464,12 +530,594 @@
       '<div style="padding-top:14px;"><button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.split-field-row\').remove();">✕</button></div></div></div>');
     $("#split-fields-container").append(row);
   }
+
+  function collectEditorConfig() {
+    return {
+      eventTypeCode: $("#node-input-eventTypeCode").val(),
+      entityCodeFields: collectInputValues("#entity-code-fields-container .entity-field-row input"),
+      eventTimeFields: collectInputValues("#event-time-fields-container .event-time-field-row input"),
+      defaultEventTime: $("#node-input-defaultEventTime").is(":checked"),
+      enableNesting: $("#node-input-enableNesting").is(":checked"),
+      nestingKey: $("#node-input-nestingKey").val().trim(),
+      enableComposite: $("#node-input-enableComposite").is(":checked"),
+      requiredFields: collectInputValues("#required-fields-container .required-field-row input"),
+      splitFields: collectSplitFieldsFromEditor(),
+      fieldMappings: collectFieldMappingsFromEditor(),
+      customJsonata: $("#node-input-customJsonata").val()
+    };
+  }
+
+  function collectInputValues(selector) {
+    var values = [];
+    $(selector).each(function () {
+      var value = $(this).val().trim();
+      if (value) values.push(value);
+    });
+    return values;
+  }
+
+  function collectFieldMappingsFromEditor() {
+    var mappings = [];
+    $("#field-mappings-container .mapping-row").each(function () {
+      var row = $(this);
+      var mapping = {
+        incomingField: row.find(".mapping-incoming").val().trim(),
+        smoField: row.find(".mapping-smo").val().trim(),
+        transformType: row.find(".mapping-transform").val(),
+        defaultValue: row.find(".mapping-default").val().trim()
+      };
+      if (mapping.transformType === "valueMap") {
+        var valueMap = {};
+        row.find(".value-map-entry").each(function () {
+          var k = $(this).find(".vmap-key").val().trim();
+          var v = $(this).find(".vmap-value").val().trim();
+          if (k) valueMap[k] = v;
+        });
+        mapping.valueMap = valueMap;
+      }
+      if (mapping.transformType === "dynamicSift") {
+        var excludes = [];
+        row.find(".dynamic-sift-section .exclude-field-entry").each(function () {
+          var v = $(this).find("input").val().trim();
+          if (v) excludes.push(v);
+        });
+        mapping.excludeFields = excludes;
+      }
+      if (mapping.transformType === "collectFlat") {
+        mapping.collectFields = collectInputValuesFromContainer(row.find(".collect-flat-section .exclude-field-entry input"));
+      }
+      var noIncomingOk = (mapping.transformType === "staticValue" || mapping.transformType === "collectFlat");
+      if (mapping.smoField && (mapping.incomingField || noIncomingOk)) mappings.push(mapping);
+    });
+    return mappings;
+  }
+
+  function collectInputValuesFromContainer(inputs) {
+    var values = [];
+    inputs.each(function () {
+      var value = $(this).val().trim();
+      if (value) values.push(value);
+    });
+    return values;
+  }
+
+  function collectSplitFieldsFromEditor() {
+    var splitFields = [];
+    $("#split-fields-container .split-field-row").each(function () {
+      var row = $(this);
+      var sf = {
+        incomingField: row.find(".split-incoming").val().trim(),
+        delimiter: row.find(".split-delimiter").val() || "-",
+        outputField1: row.find(".split-output1").val().trim(),
+        outputField2: row.find(".split-output2").val().trim()
+      };
+      if (sf.incomingField) splitFields.push(sf);
+    });
+    return splitFields;
+  }
+
+  function parseSamplePayload() {
+    var sampleText = $("#node-input-samplePayload").val().trim();
+    if (!sampleText) return { payload: null, error: null };
+    try {
+      var payload = JSON.parse(sampleText);
+      if (Array.isArray(payload)) {
+        if (payload.length === 0) {
+          return { payload: null, error: "Sample Payload array must contain at least one object." };
+        }
+        for (var i = 0; i < payload.length; i++) {
+          if (!payload[i] || typeof payload[i] !== "object" || Array.isArray(payload[i])) {
+            return { payload: null, error: "Sample Payload arrays can only contain JSON objects." };
+          }
+        }
+        return { payload: payload, error: null };
+      }
+      if (!payload || typeof payload !== "object") {
+        return { payload: null, error: "Sample Payload must be a JSON object or an array of JSON objects." };
+      }
+      return { payload: payload, error: null };
+    } catch (e) {
+      return { payload: null, error: "Sample Payload JSON is invalid: " + e.message };
+    }
+  }
+
+  function renderSamplePaths() {
+    var parsed = parseSamplePayload();
+    var pathsContainer = $("#smo-sample-paths");
+    pathsContainer.empty();
+    if (parsed.error) {
+      pathsContainer.append($('<span class="smo-sample-muted"></span>').text(parsed.error));
+      return;
+    }
+    if (!parsed.payload) {
+      pathsContainer.append($('<span class="smo-sample-muted">Paste one payload object, or an array of payload objects, to see detected paths.</span>'));
+      return;
+    }
+
+    var paths = extractSamplePaths(parsed.payload);
+    if (paths.length === 0) {
+      pathsContainer.append($('<span class="smo-sample-muted">No paths found in sample payload.</span>'));
+      return;
+    }
+    paths.forEach(function (entry) {
+      pathsContainer.append($('<button type="button" class="red-ui-button red-ui-button-small smo-path-chip"></button>')
+        .attr("data-path", entry.path)
+        .attr("title", entry.type)
+        .text(entry.path));
+    });
+  }
+
+  function updatePreviewPanel() {
+    var parsed = parseSamplePayload();
+    var previewOutput = $("#smo-preview-output");
+    var previewStatus = $("#smo-preview-status");
+    previewStatus.hide().empty();
+
+    if (parsed.error) {
+      previewOutput.text(parsed.error);
+      return;
+    }
+    if (!parsed.payload) {
+      previewOutput.text("Paste a sample payload to preview the transformed event.");
+      return;
+    }
+
+    var preview = buildPreviewFromSamples(parsed.payload, collectEditorConfig());
+    if (preview.error) {
+      previewOutput.text(preview.error);
+      return;
+    }
+    previewOutput.text(JSON.stringify(preview.result, null, 2));
+    if (preview.notes && preview.notes.length > 0) {
+      previewStatus.html(preview.notes.map(escapeHtml).join("<br />")).show();
+    }
+  }
+
+  function extractSamplePaths(sample) {
+    var entries = [];
+    var seen = {};
+    var samples = normalizeSamplePayloads(sample);
+    samples.forEach(function (payload) {
+      Object.keys(payload).sort().forEach(function (key) {
+        collectSamplePath(entries, seen, payload[key], key);
+      });
+    });
+    return entries.sort(function (a, b) {
+      return a.path < b.path ? -1 : (a.path > b.path ? 1 : 0);
+    });
+  }
+
+  function collectSamplePath(entries, seen, value, path) {
+    if (!seen[path]) {
+      seen[path] = true;
+      entries.push({ path: path, type: getSampleValueType(value) });
+    }
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      if (value.length > 0) collectSamplePath(entries, seen, value[0], path + ".0");
+      return;
+    }
+    Object.keys(value).sort().forEach(function (key) {
+      collectSamplePath(entries, seen, value[key], path + "." + key);
+    });
+  }
+
+  function normalizeSamplePayloads(sample) {
+    if (!sample || typeof sample !== "object") return [];
+    if (Array.isArray(sample)) {
+      for (var i = 0; i < sample.length; i++) {
+        if (!sample[i] || typeof sample[i] !== "object" || Array.isArray(sample[i])) return [];
+      }
+      return sample;
+    }
+    return [sample];
+  }
+
+  function getSampleValueType(value) {
+    if (Array.isArray(value)) return "array";
+    if (value === null) return "null";
+    return typeof value;
+  }
+
+  function buildPreviewEvent(sample, config, nowProvider) {
+    if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+      return { event: null, error: "Sample Payload must be a single JSON object.", notes: [] };
+    }
+    if (config.customJsonata && config.customJsonata.trim() !== "") {
+      return { event: null, error: "Preview is unavailable when JSONata Override is set.", notes: [] };
+    }
+
+    var eventTimeFields = config.eventTimeFields || ["eventTime"];
+    var payload = applyPreviewSplitFields(sample, config.splitFields || []);
+    var data = applyPreviewFieldMappings(payload, config.fieldMappings || []);
+    if (config.enableNesting && config.nestingKey) {
+      var wrapped = {};
+      wrapped[config.nestingKey] = data;
+      data = wrapped;
+    }
+
+    var event = {
+      entityCode: resolvePreviewEntityCode(sample, config.entityCodeFields || []),
+      eventTypeCode: config.eventTypeCode || "",
+      eventTime: resolvePreviewEventTime(sample, eventTimeFields, config.defaultEventTime, nowProvider),
+      data: data
+    };
+
+    return {
+      event: event,
+      error: null,
+      notes: getPreviewNotes(event, config)
+    };
+  }
+
+  function buildPreviewFromSamples(sampleInput, config, nowProvider) {
+    var samples = normalizeSamplePayloads(sampleInput);
+    if (samples.length === 0) {
+      return { result: null, event: null, error: "Sample Payload must be a JSON object or an array of JSON objects.", notes: [] };
+    }
+    if (samples.length === 1) {
+      var single = buildPreviewEvent(samples[0], config, nowProvider);
+      return { result: single.event, event: single.event, error: single.error, notes: single.notes };
+    }
+    if (config.customJsonata && config.customJsonata.trim() !== "") {
+      return { result: null, event: null, error: "Preview is unavailable when JSONata Override is set.", notes: [] };
+    }
+    if (config.enableComposite) {
+      return buildCompositePreview(samples, config, nowProvider);
+    }
+    return buildMultiplePreview(samples, config, nowProvider);
+  }
+
+  function buildMultiplePreview(samples, config, nowProvider) {
+    var outputs = [];
+    var errors = [];
+    for (var i = 0; i < samples.length; i++) {
+      var preview = buildPreviewEvent(samples[i], config, nowProvider);
+      if (preview.error) {
+        errors.push({ fragmentIndex: i, error: preview.error });
+      } else {
+        outputs.push({ fragmentIndex: i, event: preview.event });
+      }
+    }
+    return {
+      result: {
+        inputCount: samples.length,
+        mode: "multiple",
+        outputs: outputs,
+        errors: errors
+      },
+      event: null,
+      error: null,
+      notes: ["Array sample preview transforms each payload object separately. Runtime still expects one message at a time."]
+    };
+  }
+
+  function buildCompositePreview(samples, config, nowProvider) {
+    var outputs = [];
+    var errors = [];
+    var pending = [];
+    var store = {};
+    var requiredFields = config.requiredFields || [];
+
+    for (var i = 0; i < samples.length; i++) {
+      var preview = buildPreviewEvent(samples[i], config, nowProvider);
+      if (preview.error) {
+        errors.push({ fragmentIndex: i, error: preview.error });
+        continue;
+      }
+
+      var missingRequired = getMissingRequiredPreviewFields(preview.event, requiredFields);
+      if (missingRequired.length === 0) {
+        outputs.push({ fragmentIndexes: [i], status: "complete", event: preview.event });
+        continue;
+      }
+
+      var key = buildPreviewCompositeKey(preview.event);
+      if (!key) {
+        errors.push({
+          fragmentIndex: i,
+          error: "Incomplete composite fragments require entityCode and eventTime.",
+          missingRequired: missingRequired,
+          event: preview.event
+        });
+        continue;
+      }
+
+      var entry = store[key] || { fragmentIndexes: [], event: null, missingRequired: [] };
+      entry.fragmentIndexes.push(i);
+      entry.event = entry.event ? mergePreviewEvents(entry.event, preview.event) : preview.event;
+      entry.missingRequired = getMissingRequiredPreviewFields(entry.event, requiredFields);
+
+      if (entry.missingRequired.length === 0) {
+        outputs.push({ fragmentIndexes: entry.fragmentIndexes, status: "merged", event: entry.event });
+        delete store[key];
+      } else {
+        store[key] = entry;
+      }
+    }
+
+    Object.keys(store).sort().forEach(function (key) {
+      pending.push({
+        compositeKey: key,
+        fragmentIndexes: store[key].fragmentIndexes,
+        missingRequired: store[key].missingRequired,
+        event: store[key].event
+      });
+    });
+
+    return {
+      result: {
+        inputCount: samples.length,
+        mode: "composite",
+        outputs: outputs,
+        pending: pending,
+        errors: errors
+      },
+      event: null,
+      error: null,
+      notes: ["Composite preview simulates fragment grouping by entityCode, eventTime, and eventTypeCode. Runtime still expects one message at a time."]
+    };
+  }
+
+  function getMissingRequiredPreviewFields(event, requiredFields) {
+    var missing = [];
+    requiredFields.forEach(function (field) {
+      if (!event.data || event.data[field] == null) missing.push(field);
+    });
+    return missing;
+  }
+
+  function buildPreviewCompositeKey(event) {
+    if (event.entityCode == null || event.eventTime == null) return null;
+    return event.entityCode + "_" + event.eventTime + "_" + event.eventTypeCode;
+  }
+
+  function mergePreviewEvents(existing, incoming) {
+    var merged = Object.assign({}, existing, incoming);
+    merged.data = mergePreviewData(existing.data || {}, incoming.data || {});
+    return merged;
+  }
+
+  function mergePreviewData(a, b) {
+    var result = Object.assign({}, a);
+    Object.keys(b).forEach(function (key) {
+      if (result[key] != null && typeof result[key] === "object" && !Array.isArray(result[key]) &&
+          b[key] != null && typeof b[key] === "object" && !Array.isArray(b[key])) {
+        result[key] = Object.assign({}, result[key], b[key]);
+      } else {
+        result[key] = b[key];
+      }
+    });
+    return result;
+  }
+
+  function getPreviewNotes(event, config) {
+    var notes = [];
+    if (!config.enableComposite) return notes;
+    var missingRequired = [];
+    var requiredFields = config.requiredFields || [];
+    requiredFields.forEach(function (field) {
+      if (event.data[field] == null) missingRequired.push(field);
+    });
+    if (missingRequired.length > 0) {
+      notes.push("Composite preview is incomplete; runtime waits for: " + missingRequired.join(", ") + ".");
+      if (event.entityCode == null || event.eventTime == null) {
+        notes.push("Incomplete composite fragments also require entityCode and eventTime.");
+      }
+    }
+    return notes;
+  }
+
+  function getByPath(source, path) {
+    if (!source || path === undefined || path === null || path === "") return undefined;
+    if (Object.prototype.hasOwnProperty.call(source, path)) return source[path];
+    var parts = String(path).split(".");
+    var value = source;
+    for (var i = 0; i < parts.length; i++) {
+      if (value === undefined || value === null) return undefined;
+      value = value[parts[i]];
+    }
+    return value;
+  }
+
+  function resolvePreviewEntityCode(payload, entityCodeFields) {
+    for (var i = 0; i < entityCodeFields.length; i++) {
+      var value = getByPath(payload, entityCodeFields[i]);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  function resolvePreviewEventTime(payload, eventTimeFields, defaultEventTime, nowProvider) {
+    for (var i = 0; i < eventTimeFields.length; i++) {
+      var value = getByPath(payload, eventTimeFields[i]);
+      if (value != null && value !== "") return value;
+    }
+    var now = nowProvider || function () { return new Date().toISOString(); };
+    return defaultEventTime ? now() : null;
+  }
+
+  function applyPreviewSplitFields(payload, splitFields) {
+    var output = Object.assign({}, payload);
+    for (var i = 0; i < splitFields.length; i++) {
+      var sf = splitFields[i];
+      var value = getByPath(payload, sf.incomingField);
+      if (value != null && typeof value === "string") {
+        var parts = value.split(sf.delimiter);
+        if (parts.length >= 2) {
+          output[sf.outputField1] = parts[0];
+          var secondPart = parts.slice(1).join(sf.delimiter);
+          var asNumber = Number(secondPart);
+          output[sf.outputField2] = isNaN(asNumber) ? secondPart : asNumber;
+        }
+      }
+    }
+    return output;
+  }
+
+  function applyPreviewFieldMappings(payload, fieldMappings) {
+    var data = {};
+    for (var i = 0; i < fieldMappings.length; i++) {
+      var mapping = fieldMappings[i];
+      var incomingField = mapping.incomingField;
+      var smoField = mapping.smoField;
+      var transformType = mapping.transformType || "none";
+
+      if (data[smoField] !== undefined) continue;
+
+      if (transformType === "staticValue") {
+        if (mapping.defaultValue !== undefined && mapping.defaultValue !== "") {
+          data[smoField] = mapping.defaultValue;
+        }
+        continue;
+      }
+
+      if (transformType === "collectFlat") {
+        var collected = {};
+        var collectFields = mapping.collectFields || [];
+        for (var k = 0; k < collectFields.length; k++) {
+          var fieldName = collectFields[k];
+          var collectedValue = getByPath(payload, fieldName);
+          if (collectedValue !== undefined) collected[fieldName] = collectedValue;
+        }
+        if (Object.keys(collected).length > 0) data[smoField] = collected;
+        continue;
+      }
+
+      var value = getByPath(payload, incomingField);
+      if (value === undefined) {
+        if (mapping.defaultValue !== undefined && mapping.defaultValue !== "") {
+          data[smoField] = mapping.defaultValue;
+        }
+        continue;
+      }
+
+      switch (transformType) {
+        case "none":
+          data[smoField] = value;
+          break;
+        case "string":
+          data[smoField] = String(value);
+          break;
+        case "number":
+          data[smoField] = Number(value);
+          break;
+        case "valueMap":
+          var valueMap = mapping.valueMap || {};
+          if (valueMap["__present__"] !== undefined) {
+            data[smoField] = valueMap["__present__"];
+          } else {
+            var sv = String(value);
+            data[smoField] = valueMap[sv] !== undefined ? valueMap[sv] : value;
+          }
+          break;
+        case "nestedObject":
+          data[smoField] = value;
+          break;
+        case "dynamicSift":
+          var excludeFields = mapping.excludeFields || [];
+          var sifted = {};
+          Object.keys(payload).forEach(function (key) {
+            if (excludeFields.indexOf(key) === -1) sifted[key] = payload[key];
+          });
+          data[smoField] = sifted;
+          break;
+        default:
+          data[smoField] = value;
+      }
+    }
+    return data;
+  }
+
+  function getStaticValidationMessages(config) {
+    var messages = [];
+    config = config || {};
+    var entityCodeFields = config.entityCodeFields || [];
+    var eventTimeFields = config.eventTimeFields || [];
+    var fieldMappings = config.fieldMappings || [];
+    var requiredFields = config.requiredFields || [];
+
+    if (!config.eventTypeCode) {
+      messages.push("Select an Event Type.");
+    }
+
+    if (entityCodeFields.length === 0) {
+      messages.push("Add at least one Entity Code field path.");
+    }
+
+    if (!config.defaultEventTime && eventTimeFields.length === 0) {
+      messages.push("Add at least one Event Time field path or enable Default Time.");
+    }
+
+    if (config.enableComposite) {
+      var mappedFields = {};
+      fieldMappings.forEach(function (mapping) {
+        if (mapping.smoField) mappedFields[mapping.smoField] = true;
+      });
+      var missingRequired = [];
+      requiredFields.forEach(function (fieldName) {
+        if (fieldName && !mappedFields[fieldName]) missingRequired.push(fieldName);
+      });
+      if (missingRequired.length > 0) {
+        messages.push("Composite required fields without mappings: " + missingRequired.join(", ") + ".");
+      }
+    }
+
+    return messages;
+  }
+
+  function updateEditorValidation() {
+    var messages = getStaticValidationMessages(collectEditorConfig());
+    var validation = $("#smo-transformer-validation");
+    if (messages.length === 0) {
+      $("#smo-transformer-validation-row").hide();
+      validation.empty();
+    } else {
+      validation.html(messages.map(escapeHtml).join("<br />"));
+      $("#smo-transformer-validation-row").show();
+    }
+  }
   function escapeHtml(str) { return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 </script>
 
 <style>
   .mapping-sortable-placeholder { border:2px dashed #d4a843; border-radius:4px; background:#fef9ee; height:60px; margin-bottom:8px; }
   .mapping-drag-handle:hover { color:#555 !important; }
+  .smo-sample-muted { color:#888; font-size:12px; }
+  .smo-path-chip { margin:0 4px 4px 0; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  #smo-preview-output {
+    margin:0;
+    padding:8px;
+    min-height:120px;
+    max-height:260px;
+    overflow:auto;
+    border:1px solid #ddd;
+    border-radius:4px;
+    background:#fafafa;
+    font-family:monospace;
+    font-size:12px;
+    white-space:pre-wrap;
+  }
 </style>
 
 <script type="text/html" data-template-name="smo-transformer">
@@ -481,7 +1129,7 @@
   <hr />
   <div class="form-row">
     <label for="node-input-selectedPreset"><i class="fa fa-bolt"></i> Event Type</label>
-    <select id="node-input-selectedPreset" style="width:70%;"></select>
+    <select id="node-input-selectedPreset" style="width:260px;"></select>
   </div>
   <div class="form-row" id="custom-event-type-row" style="display:none;">
     <label>&nbsp;</label>
@@ -492,24 +1140,66 @@
   </div>
   <hr />
   <div class="form-row">
-    <label><i class="fa fa-id-card"></i> Entity Code Fields</label>
-    <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">Fields to check (in order) for the entity identifier. First match wins.</div>
+    <label style="width:130px;"><i class="fa fa-id-card"></i> Entity Code Fields</label>
+    <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the entity identifier. First match wins. Dot paths like <code>device.id</code> are supported.</div>
   </div>
   <div class="form-row">
-    <div id="entity-code-fields-container" style="margin-left:105px;"></div>
-    <div style="margin-left:105px;margin-top:4px;">
+    <div id="entity-code-fields-container" style="margin-left:135px;"></div>
+    <div style="margin-left:135px;margin-top:4px;">
       <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-entity-field">+ Add Field</button>
     </div>
+  </div>
+  <div class="form-row">
+    <label style="width:130px;"><i class="fa fa-clock-o"></i> Event Time Fields</label>
+    <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the event timestamp. Leave empty to emit <code>null</code> unless Default Time is enabled.</div>
+  </div>
+  <div class="form-row">
+    <div id="event-time-fields-container" style="margin-left:135px;"></div>
+    <div style="margin-left:135px;margin-top:4px;">
+      <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-event-time-field">+ Add Field</button>
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="node-input-defaultEventTime" style="width:130px;"><i class="fa fa-calendar-plus-o"></i> Default Time</label>
+    <input type="checkbox" id="node-input-defaultEventTime" style="width:auto;vertical-align:middle;" />
+    <span style="font-size:12px;color:#666;"> Use the current time when no event time field has a value</span>
+  </div>
+  <div class="form-row">
+    <label for="node-input-outputTarget" style="width:130px;"><i class="fa fa-sign-out"></i> Output Target</label>
+    <select id="node-input-outputTarget" style="width:200px;">
+      <option value="smoEvent">msg.smoEvent</option>
+      <option value="payload">msg.payload</option>
+    </select>
+  </div>
+  <div class="form-row" id="smo-transformer-validation-row" style="display:none;">
+    <div id="smo-transformer-validation" class="form-tips" style="margin-left:135px;"></div>
   </div>
   <hr />
   <div class="form-row">
     <label><i class="fa fa-exchange"></i> Field Mappings</label>
-    <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">Map incoming fields to outgoing data fields. Drag ☰ to reorder. First match wins when multiple incoming fields map to the same outgoing field.</div>
+    <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">Map incoming field paths to outgoing <code>data.*</code> fields. Drag ☰ to reorder. First match wins when multiple input paths write to the same output field.</div>
   </div>
   <div class="form-row">
     <div id="field-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
     <div style="margin-left:20px;margin-top:4px;">
       <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-mapping">+ Add Mapping</button>
+    </div>
+  </div>
+  <hr />
+  <div class="form-row">
+    <label for="node-input-samplePayload" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-flask"></i> Sample Payload</label>
+    <textarea id="node-input-samplePayload" rows="7" style="width:calc(100% - 137px);font-family:monospace;font-size:12px;"></textarea>
+    <div style="margin-left:135px;font-size:11px;color:#888;margin-top:4px;">Paste one payload object, or an array of payload objects to preview composite fragments. Runtime still expects one message at a time.</div>
+  </div>
+  <div class="form-row">
+    <label style="width:130px;"><i class="fa fa-list"></i> Detected Paths</label>
+    <div id="smo-sample-paths" style="margin-left:135px;"></div>
+  </div>
+  <div class="form-row">
+    <label style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-eye"></i> Preview</label>
+    <div style="display:inline-block;width:calc(100% - 137px);vertical-align:top;">
+      <pre id="smo-preview-output">Paste a sample payload to preview the transformed event.</pre>
+      <div id="smo-preview-status" class="form-tips" style="display:none;margin-top:6px;"></div>
     </div>
   </div>
   <hr />
@@ -524,39 +1214,40 @@
   </div>
   <hr />
   <div class="form-row">
-    <label for="node-input-enableComposite"><i class="fa fa-link"></i> Composite</label>
-    <input type="checkbox" id="node-input-enableComposite" style="width:auto;vertical-align:middle;" />
-    <span style="font-size:12px;color:#666;"> Enable composite message joining</span>
-  </div>
-  <div class="composite-config" style="display:none;">
-    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-      <label style="font-size:12px;font-weight:bold;color:#555;">Required Fields (all must be present for a complete message)</label>
-      <div id="required-fields-container" style="margin-top:4px;"></div>
-      <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-required-field" style="margin-top:4px;">+ Add Required Field</button>
-    </div></div>
-    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-      <label style="font-size:12px;font-weight:bold;color:#555;">Split Field Parsing (optional)</label>
-      <div id="split-fields-container" style="margin-top:4px;"></div>
-      <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-split-field" style="margin-top:4px;">+ Add Split Field</button>
-    </div></div>
-    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-      <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = disabled)</label>
-      <input type="number" id="node-input-staleTimeout" value="0" min="0" style="width:80px;" />
-    </div></div>
-    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-      <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Composites</label>
-      <input type="number" id="node-input-maxCompositeEntries" value="1000" min="1" style="width:100px;" />
-    </div></div>
-    <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-      <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Age (seconds)</label>
-      <input type="number" id="node-input-maxCompositeAgeSec" value="3600" min="1" style="width:100px;" />
-    </div></div>
-  </div>
-  <hr />
-  <div class="form-row">
     <button type="button" class="red-ui-button red-ui-button-small" id="btn-toggle-advanced">▶ Advanced</button>
   </div>
   <div id="advanced-section" style="display:none;">
+    <div class="form-row">
+      <label for="node-input-enableComposite"><i class="fa fa-link"></i> Composite</label>
+      <input type="checkbox" id="node-input-enableComposite" style="width:auto;vertical-align:middle;" />
+      <span style="font-size:12px;color:#666;"> Enable composite message joining</span>
+    </div>
+    <div class="composite-config" style="display:none;">
+      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;">Required Fields (all must be present for a complete message)</label>
+        <div id="required-fields-container" style="margin-top:4px;"></div>
+        <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-required-field" style="margin-top:4px;">+ Add Required Field</button>
+      </div></div>
+      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;">Split Field Parsing (optional)</label>
+        <div style="font-size:11px;color:#888;margin:4px 0;">Read From supports dot paths.</div>
+        <div id="split-fields-container" style="margin-top:4px;"></div>
+        <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-split-field" style="margin-top:4px;">+ Add Split Field</button>
+      </div></div>
+      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = disabled)</label>
+        <input type="number" id="node-input-staleTimeout" value="0" min="0" style="width:100px;" />
+      </div></div>
+      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Composites</label>
+        <input type="number" id="node-input-maxCompositeEntries" value="1000" min="1" style="width:100px;" />
+      </div></div>
+      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Age (seconds)</label>
+        <input type="number" id="node-input-maxCompositeAgeSec" value="3600" min="1" style="width:100px;" />
+      </div></div>
+    </div>
+    <hr />
     <div class="form-row">
       <label for="node-input-customJsonata"><i class="fa fa-code"></i> JSONata Override</label>
       <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">If provided, this JSONata expression replaces all field mapping configuration above. The full <code>msg</code> object is available.</div>
@@ -575,15 +1266,21 @@
   (e.g. from a dequeue with batch size greater than 1), you must place a <b>split</b> node before this node
   configured with a <b>fixed length of 1</b>. Without the split node, the transformer receives the entire
   array as a single payload and will not process individual messages correctly.</p>
-  <p>Typical flow: <code>dequeue</code> → <code>split</code> (fixed length: 1) → <code>smo-transformer</code></p>
+  <p>Typical flow: <code>dequeue</code> → <code>split</code> (fixed length: 1) → <code>smo-transformer</code> → <code>smo-event</code></p>
   <h3>Quick Start</h3>
-  <p>Select an event type from the dropdown to auto-populate field mappings, transforms, and composite settings. Drag ☰ handles to reorder mappings.</p>
+  <p>Select an event type from the dropdown to auto-populate field mappings, transforms, and composite settings. Paste a sample payload to see detected paths and preview the transformed event. Drag ☰ handles to reorder mappings.</p>
   <h3>Key Behaviors</h3>
   <ul>
+    <li><b>Dot paths:</b> Entity Code Fields, Event Time Fields, mapping Read From values, split fields, and collect fields can read nested input values such as <code>device.id</code>.</li>
+    <li><b>Mapping Assistant:</b> The sample payload box accepts one JSON object or an array of JSON objects, lists detected paths, and inserts a clicked path into the last focused path field.</li>
+    <li><b>Preview:</b> The preview panel applies the configured mappings to the sample payload. In Composite mode, array samples simulate fragment grouping and merging. Preview is unavailable while JSONata Override is set because runtime JSONata evaluation happens server-side.</li>
+    <li><b>Event time:</b> The node checks configured Event Time Fields in order. It emits <code>null</code> when no value is found unless Default Time is explicitly enabled.</li>
+    <li><b>Output target:</b> By default, transformed events are written to <code>msg.smoEvent</code> so the original <code>msg.payload</code> remains available. Select <code>msg.payload</code> to overwrite the payload instead.</li>
     <li><b>First match wins:</b> When multiple incoming fields map to the same outgoing field, the first one found in the payload is used.</li>
     <li><b>Default values:</b> If an incoming field is missing from the payload, the default value is used instead.</li>
     <li><b>Static Value:</b> Writes a constant value to the outgoing field with no incoming field required.</li>
     <li><b>Presence-based value maps:</b> Use <code>__present__</code> in a value map to map based on field existence.</li>
+    <li><b>Invalid payloads:</b> Non-object and array payloads raise an error and can be routed to a Catch node.</li>
     <li><b>Composite identity:</b> For incomplete composite fragments, both <code>entityCode</code> and <code>eventTime</code> must be present. Missing key parts now fail fast instead of using a shared fallback key.</li>
     <li><b>Pending bounds:</b> Composite pending entries are bounded by stale timeout, max pending age, and max pending count to prevent unbounded memory growth.</li>
   </ul>

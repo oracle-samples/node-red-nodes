@@ -36,21 +36,7 @@
 
 module.exports = function (RED) {
     const oracledb = require("oracledb");
-
-    function getQQuoteCloseDelimiter(openDelimiter) {
-        switch (openDelimiter) {
-            case "[":
-                return "]";
-            case "(":
-                return ")";
-            case "{":
-                return "}";
-            case "<":
-                return ">";
-            default:
-                return openDelimiter;
-        }
-    }
+    const dbError = require("../lib/db-error.js");
 
     // Blank string literals, quoted identifiers, and comments in sql so the
     // placeholder regex cannot match ':' inside literal values like 'call :id'.
@@ -58,101 +44,80 @@ module.exports = function (RED) {
     function stripSqlForBindScan(sql) {
         var out = "";
         var state = "normal";
-        var qCloseDelimiter = "";
 
         for (var i = 0; i < sql.length; i++) {
             var ch = sql[i];
             var next = i + 1 < sql.length ? sql[i + 1] : "";
-            var next2 = i + 2 < sql.length ? sql[i + 2] : "";
 
-            switch (state) {
-                case "normal":
-                    // Oracle q-quoting: q'X ... X' (and Q'X ... X').
-                    if ((ch === "q" || ch === "Q") && next === "'" && next2) {
-                        qCloseDelimiter = getQQuoteCloseDelimiter(next2);
-                        state = "q_quote";
-                        out += "   ";
-                        i += 2;
-                        continue;
-                    }
-                    if (ch === "'") {
-                        state = "single_quote";
-                        out += " ";
-                        continue;
-                    }
-                    if (ch === "\"") {
-                        state = "double_quote";
-                        out += " ";
-                        continue;
-                    }
-                    if (ch === "-" && next === "-") {
-                        state = "line_comment";
-                        out += "  ";
-                        i++;
-                        continue;
-                    }
-                    if (ch === "/" && next === "*") {
-                        state = "block_comment";
-                        out += "  ";
-                        i++;
-                        continue;
-                    }
-                    out += ch;
-                    continue;
-                case "single_quote":
-                    if (ch === "'" && next === "'") {
-                        // '' is Oracle's escaped single-quote — consume both chars
-                        // so the second ' does not flip state back to normal.
-                        out += "  ";
-                        i++;
-                        continue;
-                    }
-                    if (ch === "'") {
-                        state = "normal";
-                    }
+            if (state === "normal") {
+                if (ch === "'") {
+                    state = "single_quote";
                     out += " ";
                     continue;
-                case "double_quote":
-                    if (ch === "\"") {
-                        state = "normal";
-                    }
+                }
+                if (ch === "\"") {
+                    state = "double_quote";
                     out += " ";
                     continue;
-                case "line_comment":
-                    if (ch === "\n" || ch === "\r") {
-                        state = "normal";
-                        out += ch;
-                    } else {
-                        out += " ";
-                    }
+                }
+                if (ch === "-" && next === "-") {
+                    state = "line_comment";
+                    out += "  ";
+                    i++;
                     continue;
-                case "block_comment":
-                    if (ch === "*" && next === "/") {
-                        state = "normal";
-                        out += "  ";
-                        i++;
-                    } else if (ch === "\n" || ch === "\r") {
-                        out += ch;
-                    } else {
-                        out += " ";
-                    }
+                }
+                if (ch === "/" && next === "*") {
+                    state = "block_comment";
+                    out += "  ";
+                    i++;
                     continue;
-                case "q_quote":
-                    // q-quoted literal closes at <delimiter>' (for example ]' or |').
-                    if (ch === qCloseDelimiter && next === "'") {
-                        state = "normal";
-                        qCloseDelimiter = "";
-                        out += "  ";
-                        i++;
-                    } else if (ch === "\n" || ch === "\r") {
-                        out += ch;
-                    } else {
-                        out += " ";
-                    }
+                }
+                out += ch;
+                continue;
+            }
+
+            if (state === "single_quote") {
+                if (ch === "'" && next === "'") {
+                    // '' is Oracle's escaped single-quote — consume both characters together.
+                    out += "  ";
+                    i++;
                     continue;
-                default:
+                }
+                if (ch === "'") {
+                    state = "normal";
+                }
+                out += " ";
+                continue;
+            }
+
+            if (state === "double_quote") {
+                if (ch === "\"") {
+                    state = "normal";
+                }
+                out += " ";
+                continue;
+            }
+
+            if (state === "line_comment") {
+                if (ch === "\n" || ch === "\r") {
+                    state = "normal";
                     out += ch;
-                    continue;
+                } else {
+                    out += " ";
+                }
+                continue;
+            }
+
+            if (state === "block_comment") {
+                if (ch === "*" && next === "/") {
+                    state = "normal";
+                    out += "  ";
+                    i++;
+                } else if (ch === "\n" || ch === "\r") {
+                    out += ch;
+                } else {
+                    out += " ";
+                }
             }
         }
 
@@ -407,27 +372,30 @@ module.exports = function (RED) {
                 if (node.sqlSource === "msg") {
                     sql = msg.sql;
                     if (!sql || typeof sql !== "string") {
-                        node.status({ fill: "red", shape: "ring", text: "no msg.sql" });
                         const err = new Error("SQL Source is set to msg.sql but msg.sql is empty or not a string");
-                        node.error(err.message, msg);
-                        return done(err);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "no msg.sql",
+                            statusShape: "ring"
+                        });
                     }
                 } else {
                     sql = node.sqlcmd;
                     if (!sql) {
-                        node.status({ fill: "red", shape: "ring", text: "no SQL provided" });
                         const err = new Error("No SQL statement provided");
-                        node.error(err.message, msg);
-                        return done(err);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "no SQL provided",
+                            statusShape: "ring"
+                        });
                     }
                 }
                 sql = sql.trim();
 
                 if (node.sqlSource === "editor" && hasEditorStatementChain(sql)) {
                     const err = new Error("Editor SQL must contain exactly one statement (semicolon statement chains are not allowed)");
-                    node.status({ fill: "red", shape: "ring", text: "invalid sql" });
-                    node.error(err.message, msg);
-                    return done(err);
+                    return dbError.handleNodeError(node, msg, err, done, {
+                        statusText: "invalid sql",
+                        statusShape: "ring"
+                    });
                 }
 
                 let binds = [];
@@ -435,9 +403,11 @@ module.exports = function (RED) {
                     try {
                         binds = validateBindsValue(msg.binds);
                     } catch (bindErr) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid binds" });
-                        node.error("Invalid msg.binds: " + bindErr.message, msg);
-                        return done(bindErr);
+                        const err = new Error("Invalid msg.binds: " + bindErr.message);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "invalid binds",
+                            statusShape: "ring"
+                        });
                     }
                 } else if (node.bindsMappings.length > 0) {
                     binds = await resolveBindsFromMappings(msg);
@@ -450,26 +420,28 @@ module.exports = function (RED) {
                             binds = validateBindsValue(JSON.parse(node.binds));
                         }
                     } catch (parseErr) {
-                        node.status({ fill: "red", shape: "ring", text: "invalid binds" });
-                        node.error("Invalid binds: " + parseErr.message, msg);
-                        return done(parseErr);
+                        const err = new Error("Invalid binds: " + parseErr.message);
+                        return dbError.handleNodeError(node, msg, err, done, {
+                            statusText: "invalid binds",
+                            statusShape: "ring"
+                        });
                     }
                 }
 
                 try {
                     verifyBindParity(sql, binds);
                 } catch (bindParityErr) {
-                    node.status({ fill: "red", shape: "ring", text: "binds mismatch" });
-                    node.error(bindParityErr.message, msg);
-                    return done(bindParityErr);
+                    return dbError.handleNodeError(node, msg, bindParityErr, done, {
+                        statusText: "binds mismatch",
+                        statusShape: "ring"
+                    });
                 }
 
                 let maxRows = node.maxrows;
                 if (maxRows > 10000) maxRows = 10000;
 
-                // autoCommit:false — SELECTs work fine; DML silently rolls back on
-                // connection close. Callers that need to commit must use an explicit
-                // COMMIT in a PL/SQL block or route through the transaction nodes.
+                // autoCommit:false keeps standalone DML from being committed by accident.
+                // When msg.transaction is present, end-transaction owns the commit/rollback.
                 const options = {
                     autoCommit: false,
                     outFormat: oracledb.OUT_FORMAT_OBJECT,
@@ -503,10 +475,7 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: "query failed" });
-                msg.error = { message: err.message, code: err.errorNum || null };
-                node.error(err.message, msg);
-                done(err);
+                dbError.handleNodeError(node, msg, err, done, { statusText: "query failed" });
             } finally {
                 if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {

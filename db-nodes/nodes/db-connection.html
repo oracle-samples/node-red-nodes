@@ -439,7 +439,7 @@ RED.nodes.registerType("db-connection", {
 </dl>
 
 <h3>Connection Pool</h3>
-<p>Enables a reusable connection pool. Recommended for flows that execute frequent queries. Set <b>Pool Min</b> and <b>Pool Max</b> to control the number of open connections; <b>Pool Increment</b> controls how many are added when the pool grows; <b>Queue Timeout</b> is the maximum milliseconds a request waits for a connection before failing.</p>
+<p>Enables a reusable connection pool. Recommended for flows that execute frequent queries. Set <b>Pool Min</b> and <b>Pool Max</b> to control the number of open connections; <b>Pool Increment</b> controls how many are added when the pool grows; <b>Queue Timeout</b> is the maximum milliseconds a request waits for a connection before failing. Leave any of these fields blank to use the Oracle driver defaults.</p>
 
 <h3>Session Settings (NLS)</h3>
 <p>Optional. Each field maps to an Oracle <code>ALTER SESSION SET</code> statement executed immediately after every new connection. Leave blank to accept database server defaults.</p>

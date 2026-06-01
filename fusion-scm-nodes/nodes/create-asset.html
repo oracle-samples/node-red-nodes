@@ -67,14 +67,57 @@ window.scmMappingEditor = (function () {
     var _valueLabelMap = {
         dequeued: "Field Name",
         msg: "Property Path",
-        static: "Value"
+        static: "Text",
+        staticNumber: "Number",
+        staticBoolean: "Boolean",
+        staticJson: "JSON",
+        currentTimestamp: "Timestamp"
     };
 
     var _valuePlaceholderMap = {
         dequeued: "e.g. AssetNumber",
         msg: "e.g. payload.someField",
-        static: "e.g. 100100100"
+        static: "e.g. STANDARD",
+        staticNumber: "e.g. 1",
+        staticBoolean: "true or false",
+        staticJson: "e.g. [{\"FmSerialNumber\":\"SN001\"}]",
+        currentTimestamp: "Generated at runtime"
     };
+
+    function _normalizeBooleanValue(value) {
+        var normalized = String(value == null ? "" : value).trim().toLowerCase();
+        return normalized === "false" ? "false" : "true";
+    }
+
+    function _syncValueControl(row, type) {
+        var valueInput = row.find(".scm-value");
+        var booleanInput = row.find(".scm-boolean-value");
+        var jsonInput = row.find(".scm-json-value");
+        row.find(".scm-value-label").text(_valueLabelMap[type] || "Value");
+        valueInput.attr("placeholder", _valuePlaceholderMap[type] || "");
+
+        if (type === "staticBoolean") {
+            valueInput.hide().prop("disabled", true);
+            jsonInput.hide().prop("disabled", true);
+            booleanInput.show().prop("disabled", false);
+            if (booleanInput.val() !== "true" && booleanInput.val() !== "false") {
+                booleanInput.val("true");
+            }
+            return;
+        }
+
+        if (type === "staticJson") {
+            valueInput.hide().prop("disabled", true);
+            booleanInput.hide().prop("disabled", true);
+            jsonInput.show().prop("disabled", false);
+            return;
+        }
+
+        booleanInput.hide().prop("disabled", true);
+        jsonInput.hide().prop("disabled", true);
+        valueInput.show().prop("disabled", type === "currentTimestamp");
+        if (type === "currentTimestamp") valueInput.val("");
+    }
 
     function _addRow(m) {
         var srcType = m.sourceType || "dequeued";
@@ -88,20 +131,36 @@ window.scmMappingEditor = (function () {
                   '<select class="scm-source-type" style="width:100%;">' +
                     '<option value="dequeued"' + (srcType === "dequeued" ? ' selected' : '') + '>dequeued data</option>' +
                     '<option value="msg"' + (srcType === "msg" ? ' selected' : '') + '>msg property</option>' +
-                    '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static value</option>' +
+                    '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static text</option>' +
+                    '<option value="staticNumber"' + (srcType === "staticNumber" ? ' selected' : '') + '>static number</option>' +
+                    '<option value="staticBoolean"' + (srcType === "staticBoolean" ? ' selected' : '') + '>static boolean</option>' +
+                    '<option value="staticJson"' + (srcType === "staticJson" ? ' selected' : '') + '>static JSON</option>' +
+                    '<option value="currentTimestamp"' + (srcType === "currentTimestamp" ? ' selected' : '') + '>current timestamp</option>' +
                   '</select></div>' +
                 '<div style="flex:1;"><label style="font-size:11px;color:#666;" class="scm-value-label">' + (_valueLabelMap[srcType] || "Value") + '</label>' +
-                  '<input type="text" class="scm-value" value="' + _escapeHtml(m.value || "") + '" placeholder="' + (_valuePlaceholderMap[srcType] || "") + '" style="width:100%;" /></div>' +
+                  '<input type="text" class="scm-value" value="' + _escapeHtml(m.value || "") + '" placeholder="' + (_valuePlaceholderMap[srcType] || "") + '" style="width:100%;" />' +
+                  '<select class="scm-boolean-value" style="width:100%;display:none;">' +
+                    '<option value="true">true</option>' +
+                    '<option value="false">false</option>' +
+                  '</select>' +
+                  '<textarea class="scm-json-value" rows="3" style="width:100%;display:none;font-family:monospace;font-size:12px;">' + _escapeHtml(m.value || "") + '</textarea></div>' +
                 '<div style="padding-top:14px;">' +
                   '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.scm-mapping-row\').remove();">&times;</button></div>' +
               '</div>' +
             '</div>'
         );
+        row.find(".scm-boolean-value").val(_normalizeBooleanValue(m.value));
         row.find(".scm-source-type").on("change", function () {
             var type = $(this).val();
-            row.find(".scm-value-label").text(_valueLabelMap[type] || "Value");
-            row.find(".scm-value").attr("placeholder", _valuePlaceholderMap[type] || "");
+            if (type === "staticBoolean") {
+                row.find(".scm-boolean-value").val(_normalizeBooleanValue(row.find(".scm-value").val()));
+            }
+            if (type === "staticJson" && !row.find(".scm-json-value").val()) {
+                row.find(".scm-json-value").val(row.find(".scm-value").val());
+            }
+            _syncValueControl(row, type);
         });
+        _syncValueControl(row, srcType);
         $("#scm-mappings-container").append(row);
     }
 
@@ -119,7 +178,7 @@ window.scmMappingEditor = (function () {
         renderAll(mappings);
 
         $("#btn-add-scm-mapping").off("click").on("click", function () {
-            _addRow({ scmField: "", sourceType: "dequeued", value: "" });
+            _addRow({ scmField: "", sourceType: "static", value: "" });
         });
 
         $("#scm-mappings-container").sortable({
@@ -132,10 +191,11 @@ window.scmMappingEditor = (function () {
         var mappings = [];
         $("#scm-mappings-container .scm-mapping-row").each(function () {
             var row = $(this);
+            var sourceType = row.find(".scm-source-type").val();
             var m = {
                 scmField: row.find(".scm-field").val().trim(),
-                sourceType: row.find(".scm-source-type").val(),
-                value: row.find(".scm-value").val().trim()
+                sourceType: sourceType,
+                value: sourceType === "staticJson" ? row.find(".scm-json-value").val().trim() : sourceType === "staticBoolean" ? row.find(".scm-boolean-value").val() : row.find(".scm-value").val().trim()
             };
             if (m.scmField) mappings.push(m);
         });
@@ -189,7 +249,7 @@ window.scmEndpointPreview = (function () {
     <div class="form-row">
         <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
-            Map SCM API fields to dequeued data, message properties, or static values. Drag &#9776; to reorder.
+            Map SCM API fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
         </div>
     </div>
     <div class="form-row">
@@ -210,7 +270,7 @@ window.scmEndpointPreview = (function () {
     <dd>Map SCM API fields to values. Each row specifies:
         <ul>
             <li><b>SCM Field</b> &mdash; the API field name</li>
-            <li><b>Source</b> &mdash; <code>dequeued data</code> (reads from msg.dequeued), <code>msg property</code> (reads from any msg path), or <code>static value</code> (constant)</li>
+            <li><b>Source</b> &mdash; <code>dequeued data</code> (reads from msg.dequeued), <code>msg property</code> (reads from any msg path), <code>static text</code>, <code>static number</code>, <code>static boolean</code>, <code>static JSON</code>, or <code>current timestamp</code></li>
             <li><b>Value</b> &mdash; the field name, property path, or literal value depending on source type</li>
         </ul>
     </dd>

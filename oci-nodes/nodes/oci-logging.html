@@ -65,7 +65,7 @@ window.ociLoggingMappingEditor = (function () {
                 '<div style="flex:1;"><label style="font-size:11px;color:#666;">Log Field</label>' +
                   '<input type="text" class="ocilogging-field" value="' + _escapeHtml(m.logField || "") + '" style="width:100%;" /></div>' +
                 '<div style="width:140px;"><label style="font-size:11px;color:#666;">Source</label>' +
-                  '<select class="ocilogging-source-type" style="width:100%;">' +
+                  '<select class="ocilogging-source-type" style="width:140px;">' +
                     '<option value="dequeued"' + (srcType === "dequeued" ? ' selected' : '') + '>dequeued data</option>' +
                     '<option value="msg"' + (srcType === "msg" ? ' selected' : '') + '>msg property</option>' +
                     '<option value="static"' + (srcType === "static" ? ' selected' : '') + '>static value</option>' +
@@ -190,14 +190,14 @@ RED.nodes.registerType("oci-logging", {
         <label for="node-input-logSource"><i class="fa fa-desktop"></i> Log Source</label>
         <input type="text" id="node-input-logSource" placeholder="source-system">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Identifies the producer (e.g. <code>source-system</code>, <code>host-a</code>). Overridden by <code>msg.logSource</code>.
+            Identifies the producer (e.g. <code>source-system</code>, <code>host-a</code>). <code>msg.logSource</code> can override this value.
         </div>
     </div>
     <div class="form-row">
         <label for="node-input-logType"><i class="fa fa-tag"></i> Log Type</label>
         <input type="text" id="node-input-logType" placeholder="app.event-type">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Category/type label for the log records. Overridden by <code>msg.logType</code>.
+            Category/type label for the log records. <code>msg.logType</code> can override this value.
         </div>
     </div>
     <hr/>
@@ -211,7 +211,7 @@ RED.nodes.registerType("oci-logging", {
             <option value="DEBUG">DEBUG</option>
         </select>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            Used as the <code>level</code> field if not already in payload. Overridden by <code>msg.severity</code>.
+            Used as the <code>level</code> field if not already in payload. <code>msg.severity</code> can override this value.
         </div>
     </div>
     <hr/>

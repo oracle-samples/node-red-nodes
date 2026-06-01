@@ -422,7 +422,12 @@ module.exports = function (RED) {
             if (!p) throw new Error("Pool is not enabled or failed");
             // Passing tag lets Oracle prefer a connection already configured for this
             // NLS fingerprint, avoiding an unnecessary sessionCallback round-trip.
-            return await p.getConnection(node._nlsTag ? { tag: node._nlsTag } : undefined);
+            // When untagged, call with no argument: an explicit undefined still counts
+            // as one argument and node-oracledb rejects it as a non-object (NJS-005).
+            if (node._nlsTag) {
+                return await p.getConnection({ tag: node._nlsTag });
+            }
+            return await p.getConnection();
         };
 
         node.getConnection = async function () {

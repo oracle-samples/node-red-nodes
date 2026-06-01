@@ -103,8 +103,8 @@
         "name": "",
         "ociConfig": "",
         "digitalTwinOcid": "",
-        "baseEndpoint": "iot/v1",
-        "commandKey": "shutdown",
+        "requestEndpoint": "iot/v1/cmd/shutdown",
+        "responseEndpoint": "iot/v1/rsp/shutdown",
         "requestDuration": "PT10M",
         "responseDuration": "PT10M",
         "waitForResponse": true,
@@ -153,7 +153,7 @@
         "id": "d80a31dec71f8077",
         "type": "comment",
         "z": "5b7105f00c7c8bff",
-        "name": "command node listens for the shutdown command",
+        "name": "mqtt in node listens for the shutdown topic",
         "info": "",
         "x": 310,
         "y": 420,
@@ -161,7 +161,7 @@
     },
     {
         "id": "41ddba2826b91017",
-        "type": "iot-command",
+        "type": "iot-subscribe",
         "z": "5b7105f00c7c8bff",
         "name": "",
         "iotDevice": "a1fbb2cfb60372b7",
@@ -219,7 +219,7 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.4.1"
+            "node-red-nodes": "0.5.0"
         }
     }
 ]
