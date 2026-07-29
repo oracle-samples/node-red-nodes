@@ -58,6 +58,19 @@ RED.nodes.registerType("scm-server", {
         return this.hostname || "SCM Server";
     },
     oneditprepare: function() {
+        var nodeId = this.id;
+
+        function updateRestBasePreview() {
+            var hostname = $("#node-config-input-hostname").val().trim() || "<fusion-host>";
+            var version = $("#node-config-input-version").val().trim() || "<api-version>";
+            $("#scm-server-rest-base-preview").text(
+                "https://" + hostname + "/fscmRestApi/resources/" + version
+            );
+        }
+
+        $("#node-config-input-hostname,#node-config-input-version").on("input change", updateRestBasePreview);
+        updateRestBasePreview();
+
         function toggleProxy() {
             var show = $("#node-config-input-useProxy").is(":checked");
             $("#proxy-row").toggle(show);
@@ -71,6 +84,38 @@ RED.nodes.registerType("scm-server", {
         }
         toggleExpiryFallback();
         $("#node-config-input-useExpiryFallback").on("change", toggleExpiryFallback);
+
+        $("#btn-test-scm").on("click", function () {
+            var btn = $(this);
+            var resultEl = $("#test-scm-result");
+            if (!$("#node-config-input-hostname").val().trim()) {
+                resultEl.text("\u2717 Hostname is required").css("color", "#d62728");
+                return;
+            }
+            if (!$("#node-config-input-tokenUrl").val().trim()) {
+                resultEl.text("\u2717 Token URL is required").css("color", "#d62728");
+                return;
+            }
+            btn.prop("disabled", true);
+            resultEl.text("Testing...").css("color", "#888");
+            $.ajax({
+                url: "scm-server/" + nodeId + "/test",
+                type: "POST",
+                success: function (data) {
+                    if (data.success) {
+                        resultEl.text("✓ " + data.message).css("color", "#2ca02c");
+                    } else {
+                        resultEl.text("✗ " + data.message).css("color", "#d62728");
+                    }
+                },
+                error: function (err) {
+                    var msg = "Test failed";
+                    if (err.status === 404) msg = "Deploy the flow first, then test.";
+                    resultEl.text("✗ " + msg).css("color", "#d62728");
+                },
+                complete: function () { btn.prop("disabled", false); }
+            });
+        });
     }
 });
 </script>
@@ -83,11 +128,17 @@ RED.nodes.registerType("scm-server", {
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
     <div class="form-row">
         <label for="node-config-input-hostname"><i class="fa fa-server"></i> Hostname</label>
-        <input type="text" id="node-config-input-hostname">
+        <input type="text" id="node-config-input-hostname" placeholder="<fusion-host>">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Enter the Fusion hostname only, without <code>https://</code> or a path.</div>
     </div>
     <div class="form-row">
         <label for="node-config-input-version"><i class="fa fa-code-fork"></i> API Version</label>
-        <input type="text" id="node-config-input-version" placeholder="e.g. 11.13.18.05">
+        <input type="text" id="node-config-input-version" placeholder="<api-version>">
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-link"></i> REST Base</label>
+        <code id="scm-server-rest-base-preview" style="font-size:11px;overflow-wrap:anywhere;"></code>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">The fixed <code>/fscmRestApi/resources</code> segment and resource paths are appended automatically.</div>
     </div>
     </fieldset>
 
@@ -131,6 +182,19 @@ RED.nodes.registerType("scm-server", {
         <input type="text" id="node-config-input-proxyUrl" placeholder="http://proxy.example.com:80">
     </div>
     </fieldset>
+    <div class="config-test-actions">
+        <div class="form-row" style="text-align:center;">
+            <button type="button" class="red-ui-button" id="btn-test-scm">
+                <i class="fa fa-plug"></i> Test SCM Connection
+            </button>
+            <span id="test-scm-result" style="margin-left:10px;font-size:12px;"></span>
+        </div>
+        <div class="form-row" style="text-align:center;margin-top:2px;">
+            <div style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+                <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+            </div>
+        </div>
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="scm-server">
@@ -139,9 +203,9 @@ RED.nodes.registerType("scm-server", {
 <h3>Connection</h3>
 <dl class="message-properties">
     <dt>Hostname</dt>
-    <dd>Fusion SCM host (for example <code>example.fa.us2.oraclecloud.com</code>).</dd>
+    <dd>Fusion SCM hostname without a protocol or path.</dd>
     <dt>API Version</dt>
-    <dd>Fusion REST API version segment used by SCM nodes (for example <code>11.13.18.05</code>).</dd>
+    <dd>Fusion REST API version supplied with the environment access details. The editor previews the REST root formed from the hostname, fixed <code>/fscmRestApi/resources</code> segment, and version.</dd>
 </dl>
 
 <h3>Authentication</h3>
@@ -154,6 +218,8 @@ RED.nodes.registerType("scm-server", {
     <dd>OAuth scope string required by your Fusion tenant.</dd>
     <dt>Expiry Fallback (min)</dt>
     <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer.</dd>
+    <dt>Test Connection</dt>
+    <dd>Tests OAuth token acquisition and Fusion REST host reachability with the deployed configuration. Click <strong>Update</strong> then <strong>Deploy</strong> after changing fields, then test.</dd>
 </dl>
 
 <h3>Network</h3>
@@ -165,7 +231,7 @@ RED.nodes.registerType("scm-server", {
 <h3>Notes</h3>
 <ul>
     <li>Token URL must use HTTPS — a non-HTTPS URL is rejected at deploy time.</li>
-    <li>Hostname, API Version, Token URL, and Scope must all be set before deploying; missing fields raise a clear error at deploy time.</li>
+    <li>Hostname, API Version, Token URL, and Scope must all be set before deploying; missing or malformed fields raise a clear error at deploy time.</li>
     <li>Do not use production credentials in exported example flows.</li>
 </ul>
 </script>

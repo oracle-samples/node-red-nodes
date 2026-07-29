@@ -21,7 +21,7 @@ If end-transaction receives a timed-out transaction, it raises `Transaction time
 If the same message hits end-transaction twice, the second pass is ignored with status `already ended` to prevent duplicate commit/rollback attempts.
 
 **Standalone mode:** Dequeue can run without transaction nodes for simple use cases, but messages are auto-committed on dequeue and cannot be rolled back on downstream failure.
-In Continuous mode, enable retry controls to survive transient DB outages without redeploying the flow.
+In Continuous mode, enable retry controls to survive transient DB outages without redeploying the flow. The node applies retry controls to DB/dequeue errors. For multi-consumer queues, configure **Subscriber** with the AQ consumer name; `ORA-25231` means the consumer name is missing and stops immediately.
 
 **Dequeue mode:** Use Remove (default) for normal message consumption. Use Browse for monitoring queue contents without consuming. Use Locked only when you need to inspect before deciding to remove.
 
@@ -34,7 +34,7 @@ In Continuous mode, enable retry controls to survive transient DB outages withou
 
 **autoCommit behavior:** The SQL node uses `autoCommit: false`. SELECT queries work as expected. Standalone DML statements (INSERT, UPDATE, DELETE) are not committed and will roll back when the standalone connection closes; for standalone DML, use a PL/SQL block with an explicit `COMMIT`. When the flow is inside begin/end transaction nodes, SQL uses `msg.transaction.connection` and the end-transaction node commits or rolls back the work.
 
-**Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message at runtime. Validate the source of `msg.sql` to avoid executing untrusted SQL.
+**Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message and executed as-is, with the configured DB user's privileges. The editor's single-statement guard does **not** apply to `msg.sql` (so it can run anonymous PL/SQL blocks). Only feed `msg.sql` from trusted flow logic — never from unvalidated HTTP, MQTT, or other external input — and pair it with least-privileged DB users.
 **Bind parity checks:** The SQL node fails fast when SQL placeholders and bind values do not match, with status `binds mismatch` before DB execute.
 
 ## SCM Payload Mappings
@@ -50,6 +50,8 @@ All SCM nodes that use payload mappings support structured mapping rows with typ
 | **static boolean** | Boolean literal | Dropdown value: `true` or `false` |
 | **static JSON** | Parsed JSON literal | `["SN1","SN2"]` — array/object for nested fields such as `serials` |
 | **current timestamp** | Runtime clock | Generated ISO timestamp |
+
+Clicking **Done** saves structured mapping rows. Reopening a Fusion SCM, SQL, OCI Logging, or OCI Log Analytics node restores its saved mapping configuration.
 
 ## OCI IoT Platform
 
@@ -93,3 +95,5 @@ When using connection pooling on the db-connection config node:
 | Queue Timeout | 60000 (ms) | Fails fast if no connection is available within 60 seconds |
 
 Adjust based on your workload and database session limits.
+
+**Transactions and pooling:** begin-transaction borrows one connection and holds it until the matching end-transaction (or the transaction timeout) runs. With pooling enabled, that connection is unavailable to the pool for the whole begin→end span, so flows that wait on slow or external steps between begin and end can exhaust a small pool — size `Pool Max` and `Queue Timeout` for the number of transactions you expect to run concurrently.

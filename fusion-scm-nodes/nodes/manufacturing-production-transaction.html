@@ -1,0 +1,207 @@
+<!--
+ Copyright (c) 2025 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("manufacturing-production-transaction", {
+    category: "oracle fusion scm",
+    paletteLabel: "manufacturing production transaction",
+    defaults: {
+        name: { value: "" },
+        server: { type: "scm-server", required: true },
+        mode: { value: "operationComplete" },
+        mappings: { value: '[{"scmField":"OrganizationCode","sourceType":"msg","value":"payload.OrganizationCode"},{"scmField":"WorkOrderNumber","sourceType":"msg","value":"payload.WorkOrderNumber"},{"scmField":"WoOperationSequenceNumber","sourceType":"msg","value":"payload.WoOperationSequenceNumber"},{"scmField":"TransactionQuantity","sourceType":"msg","value":"payload.TransactionQuantity"},{"scmField":"TransactionDate","sourceType":"currentTimestamp","value":""},{"scmField":"AssemblyAssetNumber","sourceType":"msg","value":"payload.AssemblyAssetNumber"},{"scmField":"ComplSubinventoryCode","sourceType":"msg","value":"payload.ComplSubinventoryCode"},{"scmField":"TransactionSerial","sourceType":"msg","value":"payload.TransactionSerial"}]' }
+    },
+    inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-industry",
+    label: function () {
+        if (this.name) return this.name;
+        var labels = {
+            operationComplete: "operation complete",
+            operationReject: "operation reject",
+            operationScrap: "operation scrap",
+            operationReverseToReady: "operation reverse to ready",
+            materialIssue: "material issue",
+            materialReturn: "material return",
+            outputComplete: "output complete",
+            outputReturn: "output return"
+        };
+        return labels[this.mode] || "manufacturing production transaction";
+    },
+    oneditprepare: function () {
+        var node = this;
+        var defaultMappingsByMode = {
+            operationComplete: operationMappings(),
+            operationReject: operationMappings(),
+            operationScrap: operationMappings(),
+            operationReverseToReady: operationMappings(),
+            materialIssue: materialMappings(),
+            materialReturn: materialMappings(),
+            outputComplete: outputMappings(),
+            outputReturn: outputMappings()
+        };
+        var endpointByMode = {
+            operationComplete: "operationTransactions",
+            operationReject: "operationTransactions",
+            operationScrap: "operationTransactions",
+            operationReverseToReady: "operationTransactions",
+            materialIssue: "materialTransactions",
+            materialReturn: "materialTransactions",
+            outputComplete: "materialTransactions",
+            outputReturn: "materialTransactions"
+        };
+        var userEditedMappings = false;
+        var lastMode = node.mode || "operationComplete";
+        var mappings = [];
+        try { mappings = JSON.parse(node.mappings); } catch(e) {}
+        if (!Array.isArray(mappings) || mappings.length === 0) {
+            mappings = defaultMappingsByMode[lastMode] || defaultMappingsByMode.operationComplete;
+        }
+
+        window.scmMappingEditor.init({ mappings: JSON.stringify(mappings) });
+        $("#scm-mappings-container").on("change input", ".scm-field,.scm-value,.scm-boolean-value,.scm-json-value,.scm-source-type", function() {
+            userEditedMappings = true;
+        });
+        $("#node-input-mode").on("change", function () {
+            var mode = $(this).val() || "operationComplete";
+            if (mode !== lastMode && !userEditedMappings) {
+                window.scmMappingEditor.renderAll(defaultMappingsByMode[mode] || defaultMappingsByMode.operationComplete);
+            }
+            lastMode = mode;
+            updateEndpoint();
+        });
+        $("#node-input-server").on("change", updateEndpoint);
+        updateEndpoint();
+
+        function updateEndpoint() {
+            var endpoint = endpointByMode[$("#node-input-mode").val()] || "operationTransactions";
+            var serverNode = RED.nodes.node($("#node-input-server").val());
+            if (serverNode && serverNode.hostname && serverNode.version) {
+                $("#scm-url-display").text("https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint);
+            } else {
+                $("#scm-url-display").text("Select SCM Server to preview endpoint");
+            }
+        }
+    },
+    oneditsave: function () {
+        var savedMappings = window.scmMappingEditor.save();
+        $("#node-input-mappings").val(savedMappings);
+        this.mappings = savedMappings;
+    }
+});
+
+function operationMappings() {
+    return [
+        {scmField:"OrganizationCode",sourceType:"msg",value:"payload.OrganizationCode"},
+        {scmField:"WorkOrderNumber",sourceType:"msg",value:"payload.WorkOrderNumber"},
+        {scmField:"WoOperationSequenceNumber",sourceType:"msg",value:"payload.WoOperationSequenceNumber"},
+        {scmField:"TransactionQuantity",sourceType:"msg",value:"payload.TransactionQuantity"},
+        {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+        {scmField:"AssemblyAssetNumber",sourceType:"msg",value:"payload.AssemblyAssetNumber"},
+        {scmField:"ComplSubinventoryCode",sourceType:"msg",value:"payload.ComplSubinventoryCode"},
+        {scmField:"TransactionSerial",sourceType:"msg",value:"payload.TransactionSerial"}
+    ];
+}
+
+function materialMappings() {
+    return [
+        {scmField:"OrganizationCode",sourceType:"msg",value:"payload.OrganizationCode"},
+        {scmField:"WorkOrderNumber",sourceType:"msg",value:"payload.WorkOrderNumber"},
+        {scmField:"WoOperationSequenceNumber",sourceType:"msg",value:"payload.WoOperationSequenceNumber"},
+        {scmField:"InventoryItemNumber",sourceType:"msg",value:"payload.InventoryItemNumber"},
+        {scmField:"TransactionQuantity",sourceType:"msg",value:"payload.TransactionQuantity"},
+        {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+        {scmField:"SubinventoryCode",sourceType:"msg",value:"payload.SubinventoryCode"},
+        {scmField:"TransactionUOMCode",sourceType:"msg",value:"payload.TransactionUOMCode"},
+        {scmField:"TransactionSerial",sourceType:"msg",value:"payload.TransactionSerial"}
+    ];
+}
+
+function outputMappings() {
+    return [
+        {scmField:"OrganizationCode",sourceType:"msg",value:"payload.OrganizationCode"},
+        {scmField:"WorkOrderNumber",sourceType:"msg",value:"payload.WorkOrderNumber"},
+        {scmField:"InventoryItemNumber",sourceType:"msg",value:"payload.InventoryItemNumber"},
+        {scmField:"TransactionQuantity",sourceType:"msg",value:"payload.TransactionQuantity"},
+        {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+        {scmField:"SubinventoryCode",sourceType:"msg",value:"payload.SubinventoryCode"},
+        {scmField:"TransactionUOMCode",sourceType:"msg",value:"payload.TransactionUOMCode"}
+    ];
+}
+</script>
+
+<script type="text/x-red" data-template-name="manufacturing-production-transaction">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" />
+    </div>
+    <div class="form-row">
+        <label for="node-input-mode"><i class="fa fa-list"></i> Mode</label>
+        <select id="node-input-mode" style="width:200px;">
+            <option value="operationComplete">Operation Complete</option>
+            <option value="operationReject">Operation Reject</option>
+            <option value="operationScrap">Operation Scrap</option>
+            <option value="operationReverseToReady">Operation Reverse to Ready</option>
+            <option value="materialIssue">Material / Ingredient Issue</option>
+            <option value="materialReturn">Material / Ingredient Return</option>
+            <option value="outputComplete">Output Product Complete</option>
+            <option value="outputReturn">Output Product Return</option>
+        </select>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label><i class="fa fa-link"></i> Endpoint</label>
+        <span id="scm-url-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+            Map production transaction detail fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
+        </div>
+    </div>
+    <div class="form-row">
+        <div id="scm-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
+        <div style="margin-left:20px;margin-top:4px;">
+            <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-scm-mapping">+ Add Mapping</button>
+        </div>
+    </div>
+    <input type="hidden" id="node-input-mappings">
+</script>
+
+<script type="text/x-red" data-help-name="manufacturing-production-transaction">
+<p>Posts Fusion Manufacturing production reporting transactions for batches/work orders, including operation completions, material/ingredient issue and return, and output product completion and return.</p>
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
+    <dt>Mode</dt><dd>Selects the target endpoint and managed mode defaults. Operation modes use <code>operationTransactions</code> and <code>OperationTransactionDetail</code>. Material and output modes use <code>materialTransactions</code> and <code>MaterialTransactionDetail</code>.</dd>
+    <dt>Endpoint</dt><dd>Auto-built from server config and the selected Mode.</dd>
+    <dt>Payload Mappings</dt>
+    <dd>Map detail fields to values. Each row specifies:
+        <ul>
+            <li><b>SCM Field</b> &mdash; the production transaction detail field name</li>
+            <li><b>Source</b> &mdash; <code>dequeued data</code> (reads from msg.dequeued), <code>msg property</code> (reads from any msg path), <code>static text</code>, <code>static number</code>, <code>static boolean</code>, <code>static JSON</code>, or <code>current timestamp</code></li>
+            <li><b>Value</b> &mdash; the field name, property path, or literal value depending on source type</li>
+        </ul>
+    </dd>
+</dl>
+<h3>Inputs</h3>
+<dl class="message-properties">
+    <dt>mode <span class="property-type">string</span></dt><dd>Optional runtime override for the configured Mode.</dd>
+</dl>
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>API response body on success, error details on failure.</dd>
+    <dt>manufacturingProductionTransaction <span class="property-type">object</span></dt><dd>API response body on success.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
+</dl>
+<h3>Details</h3>
+<p>Operation modes accept operation transaction fields only. To issue or return an ingredient, use a Material mode instead of adding <code>InventoryItemNumber</code>, <code>SubinventoryCode</code>, or <code>TransactionUOMCode</code> to an Operation mode.</p>
+<p>Operation Complete sets <code>FromDispatchState=READY</code> and <code>ToDispatchState=COMPLETE</code>. Operation Reject sets <code>READY</code> to <code>REJECT</code>. Operation Scrap sets <code>READY</code> to <code>SCRAP</code>. Operation Reverse to Ready sets <code>COMPLETE</code> to <code>READY</code>.</p>
+<p>Material / Ingredient Issue sets <code>TransactionTypeCode=MATERIAL_ISSUE</code>. Material / Ingredient Return sets <code>TransactionTypeCode=MATERIAL_RETURN</code>. Output Product Complete sets <code>TransactionTypeCode=PRODUCT_COMPLETION</code> and <code>OutputTypeCode=PRODUCT</code>. Output Product Return sets <code>TransactionTypeCode=PRODUCT_RETURN</code> and <code>OutputTypeCode=PRODUCT</code>.</p>
+</script>

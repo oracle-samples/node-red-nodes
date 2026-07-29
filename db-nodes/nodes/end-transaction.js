@@ -71,8 +71,11 @@ module.exports = function(RED) {
                 return done();
             }
 
-            // Clear the safety timeout from begin-transaction (if set)
-            if (msg.transaction._timeout) {
+            // Clear the safety timeout from begin-transaction and stop begin
+            // from tracking this transaction (prevents timer-handle accumulation).
+            if (typeof msg.transaction._untrack === "function") {
+                msg.transaction._untrack();
+            } else if (msg.transaction._timeout) {
                 clearTimeout(msg.transaction._timeout);
                 msg.transaction._timeout = null;
             }

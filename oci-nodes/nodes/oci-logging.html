@@ -158,7 +158,9 @@ RED.nodes.registerType("oci-logging", {
         updatePayloadSource();
     },
     oneditsave: function () {
-        this.mappings = ociLoggingMappingEditor.save();
+        var savedMappings = ociLoggingMappingEditor.save();
+        $("#node-input-mappings").val(savedMappings);
+        this.mappings = savedMappings;
     }
 });
 </script>
@@ -180,7 +182,7 @@ RED.nodes.registerType("oci-logging", {
     <hr/>
     <div class="form-row">
         <label for="node-input-logId"><i class="fa fa-file-text-o"></i> Log OCID</label>
-        <input type="text" id="node-input-logId" placeholder="ocid1.log.oc1...">
+        <input type="text" id="node-input-logId" placeholder="<log-ocid>">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
             OCID of the Custom Log created in OCI Console → Logging. If empty, reads from <code>msg.logId</code>.
         </div>
@@ -246,6 +248,7 @@ RED.nodes.registerType("oci-logging", {
             </div>
         </div>
     </div>
+    <input type="hidden" id="node-input-mappings">
 </script>
 
 <script type="text/x-red" data-help-name="oci-logging">
@@ -258,7 +261,7 @@ to a log that can feed OCI Service Connectors, alarms, or the Logging Explorer.<
     <dt>OCI Config</dt>
     <dd>References an OCI Config node for authentication and region.</dd>
     <dt>Log OCID</dt>
-    <dd>OCID of the Custom Log. Format: <code>ocid1.log.oc1.&lt;region&gt;.&lt;...&gt;</code>. If empty, reads from <code>msg.logId</code>.</dd>
+    <dd>OCID of the Custom Log. If empty, reads from <code>msg.logId</code>.</dd>
     <dt>Log Source</dt>
     <dd>Producer identifier stored in each log batch (e.g. <code>node-red</code>, <code>iot-gateway</code>). If empty, reads from <code>msg.logSource</code>.</dd>
     <dt>Log Type</dt>

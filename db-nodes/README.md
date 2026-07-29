@@ -52,7 +52,7 @@ gh repo clone oracle-samples/node-red-nodes
 Install inside the Node-RED directory (`~/.node-red`):
 
 ```bash
-npm install oracledb
+npm install oracledb@^7.0.1
 ```
 
 > **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.

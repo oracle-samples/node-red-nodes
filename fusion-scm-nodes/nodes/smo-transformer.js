@@ -54,6 +54,15 @@ module.exports = function (RED) {
     node.requiredFields = parseJsonSafe(config.requiredFields, []);
     node.splitFields = parseJsonSafe(config.splitFields, []);
     node.customJsonata = config.customJsonata || "";
+    node.jsonataExpr = null;
+    node.jsonataError = null;
+    if (node.customJsonata && node.customJsonata.trim() !== "") {
+      try {
+        node.jsonataExpr = RED.util.prepareJSONataExpression(node.customJsonata, node);
+      } catch (prepErr) {
+        node.jsonataError = prepErr;
+      }
+    }
     node.staleTimeout = parseInt(config.staleTimeout, 10) || 0;
     node.maxCompositeEntries = Math.max(1, parseInt(config.maxCompositeEntries, 10) || DEFAULT_MAX_COMPOSITE_ENTRIES);
     node.maxCompositeAgeSec = Math.max(1, parseInt(config.maxCompositeAgeSec, 10) || DEFAULT_MAX_COMPOSITE_AGE_SEC);
@@ -73,17 +82,14 @@ module.exports = function (RED) {
           return;
         }
 
-        // Custom JSONata override
+        // Custom JSONata override (expression compiled once at construction)
         if (node.customJsonata && node.customJsonata.trim() !== "") {
-          var expr;
-          try {
-            expr = RED.util.prepareJSONataExpression(node.customJsonata, node);
-          } catch (prepErr) {
-            node.error("JSONata preparation error: " + prepErr.message, msg);
-            done(prepErr);
+          if (node.jsonataError) {
+            node.error("JSONata preparation error: " + node.jsonataError.message, msg);
+            done(node.jsonataError);
             return;
           }
-          RED.util.evaluateJSONataExpression(expr, msg, function (err, result) {
+          RED.util.evaluateJSONataExpression(node.jsonataExpr, msg, function (err, result) {
             if (err) {
               node.error("JSONata evaluation error: " + err.message, msg);
               done(err);
@@ -375,11 +381,15 @@ module.exports = function (RED) {
 
   function scheduleStaleTimer(node, compositeStore, staleTimers, key, send) {
     clearCompositeTimer(staleTimers, key);
-    if (node.staleTimeout <= 0) return;
+    // Fall back to maxCompositeAgeSec when no explicit stale timeout is set so an
+    // idle incomplete composite is always evicted by a timer, not only on later input.
+    var timeoutSec = node.staleTimeout > 0 ? node.staleTimeout : node.maxCompositeAgeSec;
+    if (timeoutSec <= 0) return;
+    var reason = node.staleTimeout > 0 ? "stale timeout" : "max pending age exceeded";
     staleTimers[key] = setTimeout(function () {
-      flushCompositeEntry(node, compositeStore, staleTimers, key, "stale timeout", send);
+      flushCompositeEntry(node, compositeStore, staleTimers, key, reason, send);
       if (Object.keys(compositeStore).length === 0) node.status({});
-    }, node.staleTimeout * 1000);
+    }, timeoutSec * 1000);
   }
 
   function handleComposite(node, msg, outputPayload, compositeStore, staleTimers, send, done) {

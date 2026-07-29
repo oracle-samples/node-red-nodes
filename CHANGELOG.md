@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.6.0] - 2026-07-29
+
+### Added
+- `scm-server` Test Connection validates OAuth token acquisition and Fusion REST reachability, and the editor shows a derived REST base preview.
+- `scm-lookup` adds Redwood Recipe/Batch aliases and manufacturing operation, material, resource, output, and reservation lookups with dedicated Work Order ID and Operation ID fields.
+- `manufacturing-production-transaction` posts Fusion Manufacturing operation complete, reject, scrap, and reverse-to-ready transactions; material issue/return transactions; and output product completion/return transactions.
+
+### Changed
+- `oracledb` updated to `^7.0.1`; `mqtt` updated to `5.15.2`; `oci-sdk`, `oci-common`, and `oci-identitydataplane` updated to `2.137.0`; `axios` updated to `1.17.0`.
+- `create-asset`, `manufacturing-work-order-child`, `maintenance-work-order-child`, `delete-transaction`, `smo-event`, and `smo-transformer` now use the expanded palette labels `create installed base asset`, `manage manufacturing work order details`, `manage maintenance work order details`, `delete scm record`, `smart operations event`, and `smart operations transformer`.
+- `Fusion SCM payload-mapping editors` now show resolved message paths, source-specific placeholders, inline field-type guidance, and realistic `msg.payload`/timestamp/typed-constant presets; runtime validation rejects duplicate path prefixes, incompatible typed constants, invalid dates, and invalid JSON before sending requests.
+- `scm-lookup` Inventory Organization queries can select organization name, code, or ID while returning the complete Fusion organization response.
+- `scm-lookup` now exposes and validates required organization, item, and meter lookup keys as dedicated fields; On-Hand Quantity also provides optional Subinventory Code scoping.
+- `manufacturing-work-order` create presets now use `WorkDefinitionCode`, include `ExplosionFlag`, and reject the read-only `WorkDefinitionName` field before sending a request.
+- `enqueue` Output toggle is now labeled Pass Message to clarify that successful enqueue passes the message downstream.
+- `misc-transaction` now supports Account Alias Receipt and Account Alias Issue modes that set the matching `TransactionTypeName`.
+- `dequeue` Batch Size is now capped at 10000 messages per dequeue.
+- `scm-server` now validates the configured hostname and API version as a Fusion REST base before deploy.
+
+### Fixed
+- `Fusion SCM payload-mapping editors` present in `v0.5.0`, plus `sql`, `oci-logging`, and `oci-log-analytics`, now persist mapping rows and Smart Operations custom configuration after Done.
+- `db-connection` now detects and reuses an already-initialized process-wide Thick driver, preventing `NJS-090` when initialization arguments differ.
+- `dequeue` Continuous mode now increments retry attempts across repeated dequeue-time failures, honors Max Retries, and stops immediately with `subscriber required` when a multi-consumer queue needs a Subscriber.
+- `begin-transaction`/`end-transaction` no longer leak timeout handles across completed transactions, and a redeploy during an active transaction now rolls back and closes the open connection.
+- `smo-transformer` actively evicts incomplete composite entries at the maximum pending age even when no further messages arrive.
+- `Fusion SCM payload-mapping editors` now translate conventional paths when switching between Message property and Dequeued data while preserving custom paths.
+- `sql`, `enqueue`, `dequeue`, `begin-transaction`, and `end-transaction` Catch-path errors redact labeled tokens, passwords, private keys, wallet/config paths, and connect descriptors before reporting them; Continuous dequeue applies the same redaction to retry errors.
+- `fusion-request`, `delete-transaction`, and `scm-lookup` custom URLs are now restricted to the configured SCM host, so the Fusion OAuth bearer token cannot be sent to an arbitrary host.
+- `scm-lookup` rejects primary and Additional Filter values containing `;` (the Fusion query filter separator) to prevent filter injection.
+
+---
+
 ## [0.5.0] - 2026-05-29
 
 ### Added
@@ -57,7 +89,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `db-connection` close path now waits for in-flight pool creation before shutdown so redeploy/stop cannot leave a newly created pool unclosed.
 - `db-connection` standalone connection leak — connection now closed if NLS/session init fails after connect.
 - `db-connection` pool fields now preserve driver defaults when left blank (blanks were coerced to `0`).
-- `db-connection` config-file auth path now resolves from runtime user home (`~/.oci/config`) instead of hardcoded `/home/opc`.
+- `db-connection` config-file auth path now resolves from the runtime user home (`~/.oci/config`) instead of a fixed user path.
 - `create-asset`, `create-meter-reading`, `misc-transaction`, `subinventory-quantity-transfer` — error handler now calls `done(err)` correctly, fixing Catch node routing on failures.
 - `oci-config`, `oci-notification`, `oci-object-storage` — concurrent async client/provider initialization deduplicated with in-flight promise guards.
 - `scm-server` token cache no longer immediately invalidates when `expires_in` is under 30 seconds.

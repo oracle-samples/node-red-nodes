@@ -37,7 +37,7 @@
 <script type="text/javascript">
 RED.nodes.registerType("delete-transaction", {
     category: "oracle fusion scm",
-    paletteLabel: "delete transaction",
+    paletteLabel: "delete scm record",
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
@@ -51,8 +51,8 @@ RED.nodes.registerType("delete-transaction", {
     icon: "font-awesome/fa-trash",
     label: function () {
         if (this.name) return this.name;
-        var labels = { asset:"delete asset", meter:"delete meter reading", misc:"delete miscellaneous transaction", subinventory:"delete subinventory transfer", custom:"delete transaction" };
-        return labels[this.mode] || "delete transaction";
+        var labels = { asset:"delete asset", meter:"delete meter reading", misc:"delete miscellaneous transaction", subinventory:"delete subinventory transfer", custom:"delete scm record" };
+        return labels[this.mode] || "delete scm record";
     },
     oneditprepare: function () {
         var $mode = $("#node-input-mode");
@@ -161,7 +161,7 @@ RED.nodes.registerType("delete-transaction", {
     <dt>Delete Type</dt><dd>Selects the REST endpoint for the resource type being deleted. Use <code>Custom</code> to provide your own base URL.</dd>
     <dt>Resource ID</dt><dd>Identifier to append to the selected endpoint. If left blank, reads from <code>msg.resourceId</code>.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Delete Type and SCM Server.</dd>
-    <dt>Custom URL</dt><dd>Custom base endpoint used only when Delete Type is <code>Custom</code>. Query parameters are not allowed.</dd>
+    <dt>Custom URL</dt><dd>Custom base endpoint used only when Delete Type is <code>Custom</code>. Query parameters are not allowed. Must use HTTPS and target the configured SCM server host; requests to any other host are rejected so the bearer token is not sent elsewhere.</dd>
 </dl>
 
 <h3>Outputs</h3>

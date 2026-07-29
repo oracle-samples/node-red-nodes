@@ -42,6 +42,13 @@ RED.nodes.registerType("scm-lookup", {
         name: { value: "" },
         server: { type: "scm-server", required: true },
         lookupType: { value: "custom" },
+        organizationQueryField: { value: "OrganizationName" },
+        workOrderId: { value: "" },
+        workOrderOperationId: { value: "" },
+        organizationCode: { value: "" },
+        itemNumber: { value: "" },
+        meterCode: { value: "" },
+        subinventoryCode: { value: "" },
         queryValue: { value: "" },
         queryFilters: { value: "" },
         customUrl: { value: "" },
@@ -55,12 +62,19 @@ RED.nodes.registerType("scm-lookup", {
         var labels = {
             installedBaseAsset: "lookup asset",
             meterReading: "lookup meter",
-            organizationId: "lookup org id",
+            organizationId: "lookup organization",
             item: "lookup item",
             subinventory: "lookup subinventory",
             onHandQuantity: "lookup on-hand",
             workDefinition: "lookup work def",
+            recipe: "lookup recipe",
             manufacturingWorkOrder: "lookup mfg WO",
+            batch: "lookup batch",
+            workOrderOperation: "lookup batch op",
+            workOrderMaterial: "lookup batch material",
+            workOrderResource: "lookup batch resource",
+            workOrderOutput: "lookup batch output",
+            reservationStatus: "lookup reservation",
             maintenanceWorkOrder: "lookup maint WO",
             custom: "scm lookup"
         };
@@ -75,7 +89,14 @@ RED.nodes.registerType("scm-lookup", {
             subinventory: "subinventories",
             onHandQuantity: "inventoryOnhandBalances",
             workDefinition: "workDefinitions",
+            recipe: "workDefinitions",
             manufacturingWorkOrder: "workOrders",
+            batch: "workOrders",
+            workOrderOperation: "workOrders/{WorkOrderId}/child/WorkOrderOperation",
+            workOrderMaterial: "workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationMaterial",
+            workOrderResource: "workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationResource",
+            workOrderOutput: "workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationOutput",
+            reservationStatus: "workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationMaterial",
             maintenanceWorkOrder: "maintenanceWorkOrders"
         };
         var queryParamMap = {
@@ -86,11 +107,39 @@ RED.nodes.registerType("scm-lookup", {
             subinventory: "SecondaryInventoryName",
             onHandQuantity: "ItemNumber",
             workDefinition: "WorkDefinitionName",
+            recipe: "WorkDefinitionName",
             manufacturingWorkOrder: "WorkOrderNumber",
+            batch: "WorkOrderNumber",
+            workOrderOperation: "OperationSequenceNumber",
+            workOrderMaterial: "InventoryItemNumber",
+            workOrderResource: "ResourceCode",
+            workOrderOutput: "InventoryItemNumber",
+            reservationStatus: "InventoryItemNumber",
             maintenanceWorkOrder: "WorkOrderNumber"
         };
+        var dedicatedQueryFieldMap = {
+            installedBaseAsset: [{ id: "itemNumber", queryParam: "ItemNumber" }],
+            meterReading: [{ id: "meterCode", queryParam: "MeterCode" }],
+            item: [{ id: "organizationCode", queryParam: "OrganizationCode" }],
+            subinventory: [{ id: "organizationCode", queryParam: "OrganizationCode" }],
+            onHandQuantity: [
+                { id: "organizationCode", queryParam: "OrganizationCode" },
+                { id: "subinventoryCode", queryParam: "SubinventoryCode" }
+            ],
+            workDefinition: [
+                { id: "organizationCode", queryParam: "OrganizationCode" },
+                { id: "itemNumber", queryParam: "ItemNumber" }
+            ],
+            recipe: [
+                { id: "organizationCode", queryParam: "OrganizationCode" },
+                { id: "itemNumber", queryParam: "ItemNumber" }
+            ],
+            manufacturingWorkOrder: [{ id: "organizationCode", queryParam: "OrganizationCode" }],
+            batch: [{ id: "organizationCode", queryParam: "OrganizationCode" }],
+            maintenanceWorkOrder: [{ id: "organizationCode", queryParam: "OrganizationCode" }]
+        };
 
-        function buildFilterSuffix() {
+        function buildFilterSuffix(lookupType) {
             var raw = $("#node-input-queryFilters").val().trim();
             if (!raw) return "";
             var filters;
@@ -103,10 +152,23 @@ RED.nodes.registerType("scm-lookup", {
                 return null;
             }
             var parts = [];
+            var dedicatedFields = dedicatedQueryFieldMap[lookupType] || [];
+            var dedicatedParams = dedicatedFields.map(function (field) { return field.queryParam; });
             Object.keys(filters).forEach(function (key) {
                 var value = filters[key];
-                if (value !== undefined && value !== null && value !== "") {
+                if (dedicatedParams.indexOf(key) === -1 && value !== undefined && value !== null && value !== "") {
                     parts.push(key + "=" + value);
+                }
+            });
+            return parts.length > 0 ? ";" + parts.join(";") : "";
+        }
+
+        function buildDedicatedFilterSuffix(lookupType) {
+            var parts = [];
+            (dedicatedQueryFieldMap[lookupType] || []).forEach(function (field) {
+                var value = $("#node-input-" + field.id).val().trim();
+                if (value) {
+                    parts.push(field.queryParam + "=" + value);
                 }
             });
             return parts.length > 0 ? ";" + parts.join(";") : "";
@@ -116,7 +178,7 @@ RED.nodes.registerType("scm-lookup", {
             var lookupType = $("#node-input-lookupType").val();
             var $endpoint = $("#lookup-endpoint-display");
             var queryValue = $("#node-input-queryValue").val().trim();
-            var filterSuffix = buildFilterSuffix();
+            var filterSuffix = buildFilterSuffix(lookupType);
             if (filterSuffix === null) {
                 $endpoint.text("Additional Filters JSON is invalid");
                 return;
@@ -146,24 +208,55 @@ RED.nodes.registerType("scm-lookup", {
             }
 
             var endpoint = endpointMap[lookupType];
-            var queryParam = queryParamMap[lookupType] || "q";
+            var workOrderId = $("#node-input-workOrderId").val().trim();
+            var workOrderOperationId = $("#node-input-workOrderOperationId").val().trim();
+            endpoint = endpoint.replace(
+                "{WorkOrderId}",
+                workOrderId ? encodeURIComponent(workOrderId) : "{msg.workOrderId}"
+            ).replace(
+                "{WorkOrderOperationId}",
+                workOrderOperationId ? encodeURIComponent(workOrderOperationId) : "{msg.workOrderOperationId}"
+            );
+            var queryParam = lookupType === "organizationId"
+                ? $("#node-input-organizationQueryField").val()
+                : (queryParamMap[lookupType] || "q");
             var base = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint;
-            $endpoint.text(queryValue ? base + "?q=" + queryParam + "=" + queryValue + filterSuffix : base);
+            var dedicatedFilterSuffix = buildDedicatedFilterSuffix(lookupType);
+            $endpoint.text(queryValue ? base + "?q=" + queryParam + "=" + queryValue + dedicatedFilterSuffix + filterSuffix : base);
         }
 
         function updateSections() {
             var type = $("#node-input-lookupType").val();
             var isCustom = (type === "custom");
+            var usesWorkOrderId = ["workOrderOperation", "workOrderMaterial", "workOrderResource", "workOrderOutput", "reservationStatus"].indexOf(type) !== -1;
+            var usesOperationId = ["workOrderMaterial", "workOrderResource", "workOrderOutput", "reservationStatus"].indexOf(type) !== -1;
             $(".custom-section").toggle(isCustom);
+            $(".organization-query-section").toggle(type === "organizationId");
+            $(".work-order-id-section").toggle(usesWorkOrderId);
+            $(".work-order-operation-id-section").toggle(usesOperationId);
+            $(".organization-code-section").toggle([
+                "item", "subinventory", "onHandQuantity", "workDefinition", "recipe",
+                "manufacturingWorkOrder", "batch", "maintenanceWorkOrder"
+            ].indexOf(type) !== -1);
+            $(".item-number-section").toggle(["installedBaseAsset", "workDefinition", "recipe"].indexOf(type) !== -1);
+            $(".meter-code-section").toggle(type === "meterReading");
+            $(".subinventory-code-section").toggle(type === "onHandQuantity");
             var labelMap = {
                 installedBaseAsset: "Serial Number",
                 meterReading: "Asset Number",
-                organizationId: "Organization Name",
+                organizationId: $("#node-input-organizationQueryField option:selected").text(),
                 item: "Item Number",
-                subinventory: "Subinventory Name",
+                subinventory: "Subinventory Code",
                 onHandQuantity: "Item Number",
                 workDefinition: "Work Definition Name",
+                recipe: "Recipe / Work Definition Name",
                 manufacturingWorkOrder: "Work Order Number",
+                batch: "Batch / Work Order Number",
+                workOrderOperation: "Operation Sequence Number",
+                workOrderMaterial: "Material / Ingredient Item Number",
+                workOrderResource: "Resource Code",
+                workOrderOutput: "Output Product Item Number",
+                reservationStatus: "Reserved Material Item Number",
                 maintenanceWorkOrder: "Work Order Number",
                 custom: "Query Value"
             };
@@ -172,8 +265,15 @@ RED.nodes.registerType("scm-lookup", {
         }
         updateSections();
         $("#node-input-lookupType").on("change", updateSections);
+        $("#node-input-organizationQueryField").on("change", updateSections);
         $("#node-input-server").on("change", updateEndpointPreview);
         $("#node-input-customUrl").on("input", updateEndpointPreview);
+        $("#node-input-workOrderId").on("input", updateEndpointPreview);
+        $("#node-input-workOrderOperationId").on("input", updateEndpointPreview);
+        $("#node-input-organizationCode").on("input", updateEndpointPreview);
+        $("#node-input-itemNumber").on("input", updateEndpointPreview);
+        $("#node-input-meterCode").on("input", updateEndpointPreview);
+        $("#node-input-subinventoryCode").on("input", updateEndpointPreview);
         $("#node-input-queryValue").on("input", updateEndpointPreview);
         $("#node-input-queryFilters").on("input", updateEndpointPreview);
         $("#node-input-customQueryParam").on("input", updateEndpointPreview);
@@ -198,14 +298,40 @@ RED.nodes.registerType("scm-lookup", {
             <option value="custom">Custom</option>
             <option value="installedBaseAsset">Installed Base Asset</option>
             <option value="meterReading">Meter Reading</option>
-            <option value="organizationId">Organization ID</option>
+            <option value="organizationId">Inventory Organization</option>
             <option value="item">Item</option>
             <option value="subinventory">Subinventory</option>
             <option value="onHandQuantity">On-Hand Quantity</option>
             <option value="workDefinition">Work Definition</option>
+            <option value="recipe">Recipe / Work Definition</option>
             <option value="manufacturingWorkOrder">Manufacturing Work Order</option>
+            <option value="batch">Batch / Manufacturing Work Order</option>
+            <option value="workOrderOperation">Batch Operation by Sequence</option>
+            <option value="workOrderMaterial">Batch Material / Ingredient Line</option>
+            <option value="workOrderResource">Batch Resource Line</option>
+            <option value="workOrderOutput">Batch Output Product Line</option>
+            <option value="reservationStatus">Batch Material Reservation Status</option>
             <option value="maintenanceWorkOrder">Maintenance Work Order</option>
         </select>
+    </div>
+    <div class="form-row work-order-id-section" style="display:none;">
+        <label for="node-input-workOrderId"><i class="fa fa-key"></i> Work Order ID</label>
+        <input type="text" id="node-input-workOrderId" placeholder="Fusion work order resource ID">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. This is the Fusion resource ID, not the displayed work order or batch number. <code>msg.workOrderId</code> overrides this field.</div>
+    </div>
+    <div class="form-row work-order-operation-id-section" style="display:none;">
+        <label for="node-input-workOrderOperationId"><i class="fa fa-key"></i> Operation ID</label>
+        <input type="text" id="node-input-workOrderOperationId" placeholder="Fusion operation resource ID">
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Required for this nested lookup. This is the Fusion operation resource ID, not the operation sequence. <code>msg.workOrderOperationId</code> overrides this field.</div>
+    </div>
+    <div class="form-row organization-query-section">
+        <label for="node-input-organizationQueryField"><i class="fa fa-filter"></i> Find by</label>
+        <select id="node-input-organizationQueryField" style="width:200px;">
+            <option value="OrganizationName">Organization Name</option>
+            <option value="OrganizationCode">Organization Code</option>
+            <option value="OrganizationId">Organization ID</option>
+        </select>
+        <div style="margin-left:105px;font-size:11px;color:#888;">Controls the Fusion query field. The output remains the full inventory organization response.</div>
     </div>
     <hr/>
     <div class="custom-section scm-custom-endpoint-section" style="display:none;">
@@ -230,10 +356,30 @@ RED.nodes.registerType("scm-lookup", {
         <input type="text" id="node-input-queryValue" style="width:calc(100% - 167px);">
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.queryValue</code>.</div>
     </div>
+    <div class="form-row organization-code-section" style="display:none;">
+        <label for="node-input-organizationCode" style="width:160px;"><i class="fa fa-building"></i> Organization Code</label>
+        <input type="text" id="node-input-organizationCode" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. Leave empty to read from <code>msg.organizationCode</code>.</div>
+    </div>
+    <div class="form-row item-number-section" style="display:none;">
+        <label for="node-input-itemNumber" style="width:160px;"><i class="fa fa-cube"></i> Item Number</label>
+        <input type="text" id="node-input-itemNumber" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. Leave empty to read from <code>msg.itemNumber</code>.</div>
+    </div>
+    <div class="form-row meter-code-section" style="display:none;">
+        <label for="node-input-meterCode" style="width:160px;"><i class="fa fa-tachometer"></i> Meter Code</label>
+        <input type="text" id="node-input-meterCode" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. Leave empty to read from <code>msg.meterCode</code>.</div>
+    </div>
+    <div class="form-row subinventory-code-section" style="display:none;">
+        <label for="node-input-subinventoryCode" style="width:160px;"><i class="fa fa-archive"></i> Subinventory Code</label>
+        <input type="text" id="node-input-subinventoryCode" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional on-hand scope. Leave empty to read from <code>msg.subinventoryCode</code>.</div>
+    </div>
     <div class="form-row">
         <label for="node-input-queryFilters" style="width:160px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Additional Filters</label>
         <textarea id="node-input-queryFilters" rows="4" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
-        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional JSON object appended to the REST <code>q</code> expression, for example <code>{"OrganizationCode":"M1"}</code>. Can be overridden by <code>msg.queryFilters</code>.</div>
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional JSON object appended to the REST <code>q</code> expression for extra narrowing. Dedicated fields above take precedence over matching keys. Values containing <code>;</code> are rejected. Can be overridden by <code>msg.queryFilters</code>.</div>
     </div>
 </script>
 
@@ -245,20 +391,33 @@ RED.nodes.registerType("scm-lookup", {
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Lookup Type</dt><dd>Selects the REST endpoint and query parameter:
         <ul>
-            <li><b>Installed Base Asset</b> — queries by SerialNumber</li>
-            <li><b>Meter Reading</b> — queries by AssetNumber</li>
-            <li><b>Organization ID</b> — queries by OrganizationName</li>
-            <li><b>Item</b> — queries itemsV2 by ItemNumber</li>
-            <li><b>Subinventory</b> — queries subinventories by SecondaryInventoryName</li>
-            <li><b>On-Hand Quantity</b> — queries inventoryOnhandBalances by ItemNumber</li>
-            <li><b>Work Definition</b> — queries workDefinitions by WorkDefinitionName</li>
-            <li><b>Manufacturing Work Order</b> — queries workOrders by WorkOrderNumber</li>
-            <li><b>Maintenance Work Order</b> — queries maintenanceWorkOrders by WorkOrderNumber</li>
-            <li><b>Custom</b> — provide your own base URL, query parameter name, and query value (all three required). Query parameters in Custom URL are not allowed.</li>
+            <li><b>Installed Base Asset</b> — queries by SerialNumber and ItemNumber</li>
+            <li><b>Meter Reading</b> — queries by AssetNumber and MeterCode</li>
+            <li><b>Inventory Organization</b> — queries by the selected Organization Name, Organization Code, or Organization ID field and returns the full matching record</li>
+            <li><b>Item</b> — queries itemsV2 by ItemNumber and OrganizationCode</li>
+            <li><b>Subinventory</b> — queries subinventories by SecondaryInventoryName and OrganizationCode</li>
+            <li><b>On-Hand Quantity</b> — queries inventoryOnhandBalances by ItemNumber and OrganizationCode, optionally scoped by SubinventoryCode</li>
+            <li><b>Work Definition</b> — queries workDefinitions by WorkDefinitionName, OrganizationCode, and ItemNumber</li>
+            <li><b>Recipe / Work Definition</b> — Redwood alias for Work Definition with the same required fields</li>
+            <li><b>Manufacturing Work Order</b> — queries workOrders by WorkOrderNumber and OrganizationCode</li>
+            <li><b>Batch / Manufacturing Work Order</b> — Redwood alias for Manufacturing Work Order with the same required fields</li>
+            <li><b>Batch Operation by Sequence</b> — queries a work order operation by OperationSequenceNumber. Requires <code>WorkOrderId</code>.</li>
+            <li><b>Batch Material / Ingredient Line</b> — queries operation materials by InventoryItemNumber. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
+            <li><b>Batch Resource Line</b> — queries operation resources by ResourceCode. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
+            <li><b>Batch Output Product Line</b> — queries operation outputs by InventoryItemNumber. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
+            <li><b>Batch Material Reservation Status</b> — reads operation material lines, including reservation fields such as <code>ReservedQuantity</code>. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
+            <li><b>Maintenance Work Order</b> — queries maintenanceWorkOrders by WorkOrderNumber and OrganizationCode</li>
+            <li><b>Custom</b> — provide your own base URL, query parameter name, and query value (all three required). Query parameters in Custom URL are not allowed. The Custom URL must use HTTPS and target the configured SCM server host. Query values may not contain <code>;</code>.</li>
         </ul>
     </dd>
+    <dt>Work Order ID</dt><dd>Fusion resource ID for the parent work order. Required by manufacturing child lookups. This is not the displayed work order or batch number.</dd>
+    <dt>Operation ID</dt><dd>Fusion resource ID for the parent operation. Required by material, resource, output, and reservation child lookups. This is not the operation sequence.</dd>
+    <dt>Organization Code</dt><dd>Required organization scope for item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups.</dd>
+    <dt>Item Number</dt><dd>Required with Installed Base Asset and Work Definition/Recipe lookups.</dd>
+    <dt>Meter Code</dt><dd>Required with Meter Reading lookups.</dd>
+    <dt>Subinventory Code</dt><dd>Optional subinventory scope for On-Hand Quantity lookups.</dd>
     <dt>Query Value</dt><dd>The value to search for. If left blank, reads from <code>msg.queryValue</code>.</dd>
-    <dt>Additional Filters</dt><dd>Optional JSON object appended to the REST <code>q</code> expression. Use it to narrow lookups by fields such as <code>OrganizationCode</code> or <code>ItemNumber</code>.</dd>
+    <dt>Additional Filters</dt><dd>Optional JSON object appended to the REST <code>q</code> expression for extra narrowing. Dedicated lookup fields take precedence over matching keys. Values containing <code>;</code> are rejected.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Lookup Type and SCM Server.</dd>
 </dl>
 
@@ -273,6 +432,12 @@ RED.nodes.registerType("scm-lookup", {
 <dl class="message-properties">
     <dt>msg.queryValue <span class="property-type">string</span></dt><dd>Overrides the Query Value for this message.</dd>
     <dt>msg.queryFilters <span class="property-type">object|string</span></dt><dd>Overrides Additional Filters for this message. Provide an object or a JSON object string.</dd>
+    <dt>msg.organizationCode <span class="property-type">string</span></dt><dd>Overrides Organization Code for lookup types that require organization scope.</dd>
+    <dt>msg.itemNumber <span class="property-type">string</span></dt><dd>Overrides Item Number for asset and work definition/recipe lookups.</dd>
+    <dt>msg.meterCode <span class="property-type">string</span></dt><dd>Overrides Meter Code for meter reading lookups.</dd>
+    <dt>msg.subinventoryCode <span class="property-type">string</span></dt><dd>Overrides the optional Subinventory Code for on-hand lookups.</dd>
+    <dt>msg.workOrderId <span class="property-type">string|number</span></dt><dd>Overrides Work Order ID for manufacturing child lookups.</dd>
+    <dt>msg.workOrderOperationId <span class="property-type">string|number</span></dt><dd>Overrides Operation ID for material, resource, output, and reservation child lookups.</dd>
 </dl>
 
 <h3>Details</h3>
@@ -280,7 +445,7 @@ RED.nodes.registerType("scm-lookup", {
 and get-organization-id nodes. Select a lookup type to auto-configure the endpoint, or use
 Custom mode to query any SCM REST endpoint with your own URL and parameter. In Custom mode,
 Query Param and Query Value must both be provided — the node errors if either is missing.</p>
-<p>For work-order prerequisite lookups, Additional Filters are useful when the primary value is not unique.
-For example, lookup a Work Definition by <code>WorkDefinitionName</code> and add filters for
-<code>OrganizationCode</code> and <code>ItemNumber</code>.</p>
+<p>Required business keys and organization scope are shown as dedicated fields for each predefined lookup.
+Use Additional Filters only for optional criteria beyond those fields.</p>
+<p>Primary Query Values and Additional Filter values containing <code>;</code> are rejected because Fusion uses semicolons to separate <code>q</code> filter expressions.</p>
 </script>

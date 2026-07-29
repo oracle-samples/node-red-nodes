@@ -36,17 +36,17 @@ Install required npm packages inside your Node-RED user directory (`~/.node-red`
 cd ~/.node-red
 
 # DB nodes
-npm install oracledb
+npm install oracledb@^7.0.1
 
 # SCM nodes
-npm install axios
-npm install https-proxy-agent
+npm install axios@1.17.0
+npm install https-proxy-agent@^7.0.6
 
 # OCI nodes (Notifications, Logging, Log Analytics, Object Storage, IoT control-plane nodes)
-npm install oci-sdk
+npm install oci-sdk@2.137.0
 
 # IoT nodes (Telemetry, Command)
-npm install mqtt
+npm install mqtt@5.15.2
 ```
 
 Install Oracle Instant Client (23c) when using DB nodes in Thick mode:
@@ -75,6 +75,10 @@ sudo dnf install oracle-instantclient-sqlplus
 - Install dependencies inside the final runtime image/layer (avoid copying `node_modules` across different OS images).
 - If you upgrade Node.js after installing modules, run `npm rebuild oracledb`.
 - For Thick mode, ensure Instant Client shared libraries are present at runtime (`LD_LIBRARY_PATH` or `ORACLE_CLIENT_LIB`).
+- All DB connection configurations share one process-wide node-oracledb driver mode. The first
+  successful Thick initialization selects the Oracle Client, and later DB nodes reuse it. Keep
+  `ORACLE_CLIENT_LIB` aligned with the configured Oracle Client installation, and restart Node-RED
+  to change driver mode or client-library settings.
 - Prefer Thin mode when Oracle Advanced Security features and wallet/TNS requirements do not require Thick mode.
 
 ## 1.3 Install from Local `.tgz` in Palette Manager
@@ -104,7 +108,7 @@ From the repository root:
 npm pack
 ```
 
-This creates a file like `node-red-nodes-0.5.0.tgz`. Upload that file in Palette Manager:
+This creates a file like `node-red-nodes-0.6.0.tgz`. Upload that file in Palette Manager:
 
 1. Open Node-RED editor.
 2. Menu → **Manage palette** → **Install**.
@@ -119,8 +123,8 @@ Windows (PowerShell):
 
 ```powershell
 cd $env:TEMP
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.5.0.tgz
-cd .\node-red-nodes-0.5.0
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.6.0.tgz
+cd .\node-red-nodes-0.6.0
 npm pack
 ```
 
@@ -128,8 +132,8 @@ Windows (cmd):
 
 ```cmd
 cd /d %TEMP%
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.5.0.tgz
-cd node-red-nodes-0.5.0
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.6.0.tgz
+cd node-red-nodes-0.6.0
 npm pack
 ```
 
@@ -137,8 +141,8 @@ Linux/macOS:
 
 ```bash
 cd /tmp
-tar -xf ~/Downloads/node-red-nodes-0.5.0.tgz
-cd node-red-nodes-0.5.0
+tar -xf ~/Downloads/node-red-nodes-0.6.0.tgz
+cd node-red-nodes-0.6.0
 npm pack
 ```
 

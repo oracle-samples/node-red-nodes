@@ -37,7 +37,7 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps } = require("../lib/url.js");
+    const { ensureHttps, ensureAllowedHost } = require("../lib/url.js");
     const scmError = require("../lib/scm-error.js");
 
     function DeleteTransactionNode(config) {
@@ -96,7 +96,9 @@ module.exports = function(RED) {
                     node.error(err.message, msg);
                     return done(err);
                 }
-                const parsedUrl = ensureHttps(baseUrl);
+                const parsedUrl = isCustomMode
+                    ? ensureAllowedHost(baseUrl, node.server.hostname)
+                    : ensureHttps(baseUrl);
                 if (isCustomMode && parsedUrl.search) {
                     const err = new Error("Custom URL must not include query parameters in custom delete mode");
                     node.status({ fill: "red", shape: "ring", text: "invalid custom URL" });

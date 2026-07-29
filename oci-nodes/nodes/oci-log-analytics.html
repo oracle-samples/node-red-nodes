@@ -166,7 +166,9 @@ RED.nodes.registerType("oci-log-analytics", {
         updatePayloadSource();
     },
     oneditsave: function () {
-        this.mappings = logMappingEditor.save();
+        var savedMappings = logMappingEditor.save();
+        $("#node-input-mappings").val(savedMappings);
+        this.mappings = savedMappings;
     }
 });
 </script>
@@ -195,7 +197,7 @@ RED.nodes.registerType("oci-log-analytics", {
     </div>
     <div class="form-row">
         <label for="node-input-logGroupOcid"><i class="fa fa-folder-o"></i> Log Group OCID</label>
-        <input type="text" id="node-input-logGroupOcid" placeholder="ocid1.loganalyticsloggroup.oc1...">
+        <input type="text" id="node-input-logGroupOcid" placeholder="<log-analytics-log-group-ocid>">
     </div>
     <div class="form-row">
         <label for="node-input-logSourceName"><i class="fa fa-file-code-o"></i> Log Source Name</label>
@@ -207,7 +209,7 @@ RED.nodes.registerType("oci-log-analytics", {
     <hr/>
     <div class="form-row">
         <label for="node-input-entityOcid"><i class="fa fa-microchip"></i> Entity OCID</label>
-        <input type="text" id="node-input-entityOcid" placeholder="(optional) ocid1.loganalyticsentity.oc1...">
+        <input type="text" id="node-input-entityOcid" placeholder="(optional) <log-analytics-entity-ocid>">
     </div>
     <div class="form-row">
         <label for="node-input-severity"><i class="fa fa-exclamation-triangle"></i> Default Severity</label>
@@ -254,6 +256,7 @@ RED.nodes.registerType("oci-log-analytics", {
             </div>
         </div>
     </div>
+    <input type="hidden" id="node-input-mappings">
 </script>
 
 <script type="text/x-red" data-help-name="oci-log-analytics">

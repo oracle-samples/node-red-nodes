@@ -101,6 +101,10 @@ RED.nodes.registerType("iot-config", {
         $("#btn-test-iot").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-iot-result");
+            if (!$("#node-config-input-deviceHost").val().trim()) {
+                resultEl.text("\u2717 Device Host is required").css("color", "#d62728");
+                return;
+            }
             btn.prop("disabled", true);
             resultEl.text("Testing...").css("color", "#888");
             $.ajax({
@@ -213,13 +217,15 @@ RED.nodes.registerType("iot-config", {
     <div class="form-tips" style="margin-left:135px;margin-top:6px;color:#666;font-size:11px;line-height:1.4">
         <b>Tip:</b> Keep <code>Clean Session</code> disabled to preserve queued commands and subscriptions across reconnects.
     </div>
-    <div class="form-row">
-        <button type="button" class="red-ui-button" id="btn-test-iot" style="margin-left:135px;">
-            <i class="fa fa-plug"></i> Test Connection
-        </button>
-        <span id="test-iot-result" style="margin-left:10px;font-size:12px;"></span>
-    </div>
     </fieldset>
+    <div class="config-test-actions">
+        <div class="form-row" style="text-align:center;">
+            <button type="button" class="red-ui-button" id="btn-test-iot">
+                <i class="fa fa-plug"></i> Test MQTT Connection
+            </button>
+            <span id="test-iot-result" style="margin-left:10px;font-size:12px;"></span>
+        </div>
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="iot-config">

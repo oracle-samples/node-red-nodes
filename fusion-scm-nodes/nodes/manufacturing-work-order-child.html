@@ -6,7 +6,7 @@
 <script type="text/javascript">
 RED.nodes.registerType("manufacturing-work-order-child", {
     category: "oracle fusion scm",
-    paletteLabel: "manufacturing work order details",
+    paletteLabel: "manage manufacturing work order details",
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
@@ -75,7 +75,7 @@ RED.nodes.registerType("manufacturing-work-order-child", {
                     actions: ["create"],
                     path: ["operationTransactions"],
                     noWorkOrderId: true,
-                    mappings: [{scmField:"OperationTransactionDetail",sourceType:"staticJson",value:""}]
+                    mappings: [{scmField:"OperationTransactionDetail",sourceType:"msg",value:"payload.OperationTransactionDetail"}]
                 }
             }
         });
@@ -85,11 +85,23 @@ RED.nodes.registerType("manufacturing-work-order-child", {
     }
 });
 
+function _syncConventionalPath(row, previousType, nextType, fieldSelector, valueSelector) {
+    var field = (row.find(fieldSelector).val() || "").trim();
+    var valueInput = row.find(valueSelector);
+    var value = (valueInput.val() || "").trim();
+    if (!field) return;
+    if (previousType === "msg" && nextType === "dequeued" && value === "payload." + field) {
+        valueInput.val(field);
+    } else if (previousType === "dequeued" && nextType === "msg" && value === field) {
+        valueInput.val("payload." + field);
+    }
+}
+
 if (!window.workOrderChildEditor) {
 window.workOrderChildEditor = (function () {
     var valueLabelMap = {
-        dequeued: "Field Name",
-        msg: "Property Path",
+        dequeued: "Dequeued path",
+        msg: "Message path",
         static: "Text",
         staticNumber: "Number",
         staticBoolean: "Boolean",
@@ -98,7 +110,7 @@ window.workOrderChildEditor = (function () {
     };
     var valuePlaceholderMap = {
         dequeued: "e.g. WorkOrderNumber",
-        msg: "e.g. payload.quantity",
+        msg: "e.g. payload.OperationSequenceNumber",
         static: "e.g. Released",
         staticNumber: "e.g. 1",
         staticBoolean: "true or false",
@@ -120,7 +132,7 @@ window.workOrderChildEditor = (function () {
                     value: field.value || ""
                 };
             }
-            return { scmField: field, sourceType: "msg", value: "" };
+            return { scmField: field, sourceType: "msg", value: "payload." + field };
         });
     }
 
@@ -129,12 +141,52 @@ window.workOrderChildEditor = (function () {
         return normalized === "false" ? "false" : "true";
     }
 
+    var childFieldTypes = {
+        OperationName:"text", OperationDescription:"text", WorkCenterCode:"text", ItemNumber:"text", UOMCode:"text",
+        SupplySubinventory:"text", SupplyLocator:"text", ResourceCode:"text", UsageUOMCode:"text",
+        SerialNumber:"text", WorkOrderProductSerialStatus:"text", InventoryItemNumber:"text", TransactionUOMCode:"text",
+        AssemblyAssetNumber:"text", ComplSubinventoryCode:"text",
+        OperationSequenceNumber:"number", WoOperationSequenceNumber:"number", RequiredQuantity:"number", RequiredUsage:"number", AssignedUnits:"number",
+        CountPointOperationFlag:"boolean", AutoTransactFlag:"boolean", TransactionSerial:"json", OperationTransactionDetail:"json",
+        PlannedStartDate:"date", PlannedCompletionDate:"date"
+    };
+
+    function syncRowFeedback(row) {
+        var sourceType = row.find(".work-order-child-source-type").val();
+        var value = row.find(".work-order-child-value").val().trim();
+        var field = row.find(".work-order-child-field").val().trim();
+        var preview = "";
+        var warning = "";
+        if (sourceType === "msg") {
+            row.find(".work-order-child-value").attr("placeholder", "e.g. payload." + (field || "FieldName"));
+            preview = "Resolves to msg." + (value || "<message path>");
+            if (/^msg\./.test(value)) warning = "Enter a path relative to msg (for example, payload." + (field || "FieldName") + ").";
+        } else if (sourceType === "dequeued") {
+            row.find(".work-order-child-value").attr("placeholder", "e.g. " + (field || "FieldName"));
+            preview = "Resolves to msg.dequeued." + (value || "<dequeued path>");
+            if (/^(msg\.dequeued\.|dequeued\.)/.test(value)) warning = "Enter a path relative to msg.dequeued (for example, " + (field || "FieldName") + ").";
+        }
+        var fieldType = childFieldTypes[field];
+        if (!warning && fieldType && /^static/.test(sourceType)) {
+            var valid = fieldType === "number" ? (sourceType === "staticNumber" || sourceType === "static") :
+                fieldType === "boolean" ? sourceType === "staticBoolean" :
+                fieldType === "json" ? sourceType === "staticJson" : sourceType === "static";
+            if (!valid) warning = field + " expects static " + fieldType + ". Change the source type to avoid changing the Fusion value.";
+        }
+        if (!warning && fieldType === "date" && sourceType === "static" && value && isNaN(Date.parse(value))) {
+            warning = field + " must be an ISO 8601 date-time or use current timestamp.";
+        }
+        row.find(".work-order-child-resolved-path").text(preview).toggle(!!preview);
+        row.find(".work-order-child-mapping-warning").text(warning).toggle(!!warning);
+    }
+
     function syncValueControl(row, type) {
         var valueInput = row.find(".work-order-child-value");
         var booleanInput = row.find(".work-order-child-boolean-value");
         var jsonInput = row.find(".work-order-child-json-value");
         row.find(".work-order-child-value-label").text(valueLabelMap[type] || "Value");
         valueInput.attr("placeholder", valuePlaceholderMap[type] || "");
+        syncRowFeedback(row);
 
         if (type === "staticBoolean") {
             valueInput.hide().prop("disabled", true);
@@ -160,7 +212,7 @@ window.workOrderChildEditor = (function () {
     }
 
     function addRow(m) {
-        var srcType = m.sourceType || "msg";
+        var srcType = m.sourceType || "static";
         var row = $(
             '<div class="work-order-child-mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
               '<div style="display:flex;align-items:center;gap:8px;">' +
@@ -187,11 +239,17 @@ window.workOrderChildEditor = (function () {
                 '<div style="padding-top:14px;">' +
                   '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.work-order-child-mapping-row\').remove();">&times;</button></div>' +
               '</div>' +
+              '<div class="work-order-child-resolved-path" style="display:none;margin:5px 0 0 28px;font-size:11px;color:#555;"></div>' +
+              '<div class="work-order-child-mapping-warning" style="display:none;margin:3px 0 0 28px;font-size:11px;color:#c62828;"></div>' +
             '</div>'
         );
         row.find(".work-order-child-boolean-value").val(normalizeBooleanValue(m.value));
+        row.data("sourceType", srcType);
         row.find(".work-order-child-source-type").on("change", function () {
             var type = $(this).val();
+            var previousType = row.data("sourceType");
+            _syncConventionalPath(row, previousType, type, ".work-order-child-field", ".work-order-child-value");
+            row.data("sourceType", type);
             if (type === "staticBoolean") {
                 row.find(".work-order-child-boolean-value").val(normalizeBooleanValue(row.find(".work-order-child-value").val()));
             }
@@ -199,6 +257,9 @@ window.workOrderChildEditor = (function () {
                 row.find(".work-order-child-json-value").val(row.find(".work-order-child-value").val());
             }
             syncValueControl(row, type);
+        });
+        row.find(".work-order-child-field,.work-order-child-value,.work-order-child-boolean-value,.work-order-child-json-value").on("input change", function () {
+            syncRowFeedback(row);
         });
         syncValueControl(row, srcType);
         $("#work-order-child-mappings-container").append(row);
@@ -401,7 +462,7 @@ window.workOrderChildEditor = (function () {
 
 <script type="text/x-red" data-help-name="manufacturing-work-order-child">
 <p>Creates, reads, updates, or deletes manufacturing work order child records such as operations, components, resources, and serials. Progress mode posts manufacturing operation transactions for quantity/progress reporting.</p>
-<p>For Progress mode, map <code>OperationTransactionDetail</code> to a JSON array value. Do not wrap the static JSON value in another <code>OperationTransactionDetail</code> object.</p>
+    <p>For Progress mode, <code>OperationTransactionDetail</code> reads a nested array from <code>msg.payload.OperationTransactionDetail</code> by default.</p>
 
 <h3>Inputs</h3>
 <dl class="message-properties">

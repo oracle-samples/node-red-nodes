@@ -37,30 +37,8 @@
 module.exports = function(RED) {
     const oracledb = require("oracledb");
     const dbError = require("../lib/db-error.js");
+    const oracleAq = require("../lib/oracle-aq.js");
     const RETRY_WARN_THROTTLE_MS = 30000;
-    const DEFAULT_RETRY_DELAY_MS = 5000;
-
-    // Map config values to oracledb constants.
-    const DEQ_MODES = {
-        "remove":  oracledb.AQ_DEQ_MODE_REMOVE,
-        "browse":  oracledb.AQ_DEQ_MODE_BROWSE,
-        "locked":  oracledb.AQ_DEQ_MODE_LOCKED
-    };
-
-    // Convert Oracle DbObject payloads to plain JS objects.
-    // Non-ADT values pass through unchanged.
-    function dbObjectToPojo(obj) {
-        if (obj && obj._objType && obj._objType.attributes) {
-            const result = {};
-            for (const attr of obj._objType.attributes) {
-                const val = obj[attr.name];
-                result[attr.name] = (val && val._objType && val._objType.attributes)
-                    ? dbObjectToPojo(val) : val;
-            }
-            return result;
-        }
-        return obj;
-    }
 
     function DbDequeueNode(config) {
         RED.nodes.createNode(this, config);
@@ -68,28 +46,18 @@ module.exports = function(RED) {
 
         node.queueName = config.queueName;
         node.subscriber = config.subscriber || null;
-        node.batchSize = Number(config.batchSize) || 1;
+        node.batchSize = oracleAq.normalizeBatchSize(config.batchSize);
         node.deqMode = config.deqMode || "remove";
         node.mode = config.mode || "transactional";
-        node.wait = Number(config.wait) || 0;
+        node.wait = oracleAq.normalizeWait(config.wait);
         node.waitForever = !!config.waitForever;
         node.payloadType = config.payloadType || "json";
         node.adtTypeName = config.adtTypeName || "";
         node.retryEnabled = config.retryEnabled !== false;
-        node.retryDelayMs = Number(config.retryDelayMs);
-        if (!Number.isFinite(node.retryDelayMs) || node.retryDelayMs < 0) {
-            node.retryDelayMs = DEFAULT_RETRY_DELAY_MS;
-        }
-        node.maxRetries = Number(config.maxRetries);
-        if (!Number.isFinite(node.maxRetries) || node.maxRetries < 0) {
-            node.maxRetries = 0;
-        } else {
-            node.maxRetries = Math.floor(node.maxRetries);
-        }
+        node.retryDelayMs = oracleAq.normalizeRetryDelay(config.retryDelayMs);
+        node.maxRetries = oracleAq.normalizeMaxRetries(config.maxRetries);
 
-        const queuePayloadType = node.payloadType === "adt" ? node.adtTypeName.toUpperCase()
-            : node.payloadType === "raw" ? oracledb.DB_TYPE_RAW
-            : oracledb.DB_TYPE_JSON;
+        const queuePayloadType = oracleAq.resolveQueuePayloadType(oracledb, node.payloadType, node.adtTypeName);
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
@@ -118,17 +86,11 @@ module.exports = function(RED) {
                         payloadType: queuePayloadType,
                     });
 
-                    if (node.subscriber) queue.deqOptions.consumerName = node.subscriber;
-                    queue.deqOptions.mode = DEQ_MODES[node.deqMode] || oracledb.AQ_DEQ_MODE_REMOVE;
-                    queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
-                    queue.deqOptions.wait = node.waitForever
-                        ? oracledb.AQ_DEQ_WAIT_FOREVER
-                        : node.wait;
+                    oracleAq.configureDequeueQueue(queue, oracledb, node);
 
                     const messages = await queue.deqMany(node.batchSize);
 
-                    // Read and normalize payloads before closing the connection.
-                    const payloads = messages ? messages.map(m => dbObjectToPojo(m.payload)) : [];
+                    const payloads = messages ? messages.map(m => oracleAq.dbObjectToPojo(m.payload)) : [];
 
                     if (ownConnection) {
                         await connection.commit();
@@ -199,27 +161,28 @@ module.exports = function(RED) {
                 connection = null;
             }
 
-            function shouldRetry() {
-                if (!node.retryEnabled) return false;
-                if (node.maxRetries === 0) return true;
-                return retryAttempt <= node.maxRetries;
-            }
-
             function warnRetry(err) {
                 const now = Date.now();
                 if (retryAttempt === 1 || now - lastRetryWarnAt >= RETRY_WARN_THROTTLE_MS) {
                     lastRetryWarnAt = now;
                     const retryLimitText = node.maxRetries === 0 ? "unlimited" : String(node.maxRetries);
                     node.warn(
-                        `Continuous dequeue error: ${err.message}. Retrying in ${node.retryDelayMs}ms (attempt ${retryAttempt}, max ${retryLimitText}).`
+                        `Continuous dequeue error: ${dbError.redactText(err.message)}. Retrying in ${node.retryDelayMs}ms (attempt ${retryAttempt}, max ${retryLimitText}).`
                     );
                 }
             }
 
             function setTerminalError(err, reason) {
-                const text = reason || err.message || "failed";
+                const text = dbError.redactText(reason || err.message || "failed");
                 node.status({ fill: "red", shape: "dot", text: text });
                 node.error(`Continuous dequeue stopped: ${text}`);
+            }
+
+            function setConfigurationError(err, statusText) {
+                const text = statusText || "configuration required";
+                const detail = dbError.redactText(err.message || String(err));
+                node.status({ fill: "red", shape: "ring", text: text });
+                node.error(`Continuous dequeue stopped: ${text}. ${detail}`);
             }
 
             async function startListening() {
@@ -233,11 +196,10 @@ module.exports = function(RED) {
                             payloadType: queuePayloadType,
                         });
                         if (node.subscriber) queue.deqOptions.consumerName = node.subscriber;
-                        queue.deqOptions.wait = oracledb.AQ_DEQ_WAIT_FOREVER;
-                        queue.deqOptions.mode = DEQ_MODES[node.deqMode] || oracledb.AQ_DEQ_MODE_REMOVE;
-                        queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
+                        oracleAq.configureDequeueQueue(queue, oracledb, Object.assign({}, node, {
+                            waitForever: true
+                        }));
 
-                        retryAttempt = 0;
                         node.status({ fill: "green", shape: "ring", text: "listening" });
 
                         while (running) {
@@ -250,7 +212,7 @@ module.exports = function(RED) {
                                 await connection.commit();
                                 node.status({ fill: "green", shape: "dot", text: `dequeued ${messages.length}` });
                                 for (const m of messages) {
-                                    const payload = dbObjectToPojo(m.payload);
+                                    const payload = oracleAq.dbObjectToPojo(m.payload);
                                     node.send({
                                         _msgid: RED.util.generateId(),
                                         dequeued: payload,
@@ -259,6 +221,7 @@ module.exports = function(RED) {
                                 }
                                 node.status({ fill: "green", shape: "ring", text: "listening" });
                             }
+                            retryAttempt = 0;
                         }
                     } catch (err) {
                         if (!running) {
@@ -266,12 +229,17 @@ module.exports = function(RED) {
                         }
 
                         await closeConnection();
+                        if (!node.subscriber && oracleAq.isMissingConsumerNameError(err)) {
+                            setConfigurationError(err, "subscriber required");
+                            break;
+                        }
 
-                        retryAttempt += 1;
-                        if (!shouldRetry()) {
+                        const retry = oracleAq.nextRetryAttempt(retryAttempt, node.retryEnabled, node.maxRetries);
+                        retryAttempt = retry.attempt;
+                        if (!retry.shouldRetry) {
                             const reason = node.retryEnabled
-                                ? `retries exhausted at attempt ${retryAttempt}: ${err.message}`
-                                : err.message;
+                                ? `retries exhausted at attempt ${retryAttempt}: ${dbError.redactText(err.message)}`
+                                : dbError.redactText(err.message);
                             setTerminalError(err, reason);
                             break;
                         }

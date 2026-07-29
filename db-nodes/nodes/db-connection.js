@@ -74,6 +74,11 @@ module.exports = function (RED) {
         const requestedMode = normalizeDriverMode(node && node.driverMode);
         const nodeName = (node && node.name) || "db-connection";
 
+        if (oracledb.thin === false && initializedDriverMode !== "thick") {
+            initializedDriverMode = "thick";
+            thickInitArgs = null;
+        }
+
         if (!initializedDriverMode) {
             if (requestedMode === "thick") {
                 const envLibDir = (process.env.ORACLE_CLIENT_LIB || "").trim();

@@ -139,7 +139,7 @@ RED.nodes.registerType("dequeue", {
     <div class="form-row">
         <label for="node-input-retryEnabled" style="width:130px;"><i class="fa fa-repeat"></i> Enable Retries</label>
         <input type="checkbox" id="node-input-retryEnabled" style="width:auto;vertical-align:middle;">
-        <span style="font-size:12px;color:#666;"> Retry on DB errors in continuous mode</span>
+        <span style="font-size:12px;color:#666;"> Retry DB/dequeue errors in continuous mode</span>
     </div>
     <div id="retry-options">
         <div class="form-row">
@@ -149,7 +149,7 @@ RED.nodes.registerType("dequeue", {
         <div class="form-row">
             <label for="node-input-maxRetries" style="width:130px;"><i class="fa fa-sort-numeric-asc"></i> Max Retries</label>
             <input type="number" id="node-input-maxRetries" min="0" value="0" style="width:120px;">
-            <span style="font-size:12px;color:#666;margin-left:8px;">0 = unlimited</span>
+            <span style="font-size:12px;color:#666;margin-left:8px;">0 = unlimited retries</span>
         </div>
     </div>
     </div>
@@ -160,9 +160,9 @@ RED.nodes.registerType("dequeue", {
     </div>
     <div class="form-row">
         <label for="node-input-subscriber" style="width:130px;"><i class="fa fa-user"></i> Subscriber</label>
-        <input type="text" id="node-input-subscriber" placeholder="(optional) e.g. ALL_COMMANDS">
+        <input type="text" id="node-input-subscriber" placeholder="consumer name">
         <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
-            Consumer name for multi-consumer queues. Leave empty for single-consumer queues.
+            Required for multi-consumer queues. Leave empty only for single-consumer queues.
         </div>
     </div>
     <div class="form-row">
@@ -215,11 +215,11 @@ RED.nodes.registerType("dequeue", {
     <dt>DB Connection</dt><dd>Shared database connection configuration.</dd>
     <dt>Mode</dt><dd><b>Transactional</b> (default) — triggered by an incoming message; supports begin/end-transaction for rollback protection. <b>Continuous</b> — starts automatically on deploy, listens indefinitely, commits immediately after each batch; no input port.</dd>
     <dt>Queue Name</dt><dd>Schema-qualified queue name, e.g. <code>ADMIN.MY_QUEUE</code>.</dd>
-    <dt>Subscriber</dt><dd>Consumer name for multi-consumer queues. Leave empty for single-consumer queues.</dd>
+    <dt>Subscriber</dt><dd>Consumer name for multi-consumer queues. Leave empty only for single-consumer queues. <code>ORA-25231</code> means the queue requires this value.</dd>
     <dt>Payload Type</dt><dd><b>JSON</b> — plain JS object. <b>RAW</b> — Buffer. <b>ADT</b> — Oracle object type, automatically converted to a plain JS object with uppercase attribute names.</dd>
     <dt>Dequeue Mode</dt><dd><b>Remove</b> (default) — message permanently deleted on commit. <b>Browse</b> — message read without locking or removal. <b>Locked</b> — message locked for processing but not removed on commit.</dd>
     <dt>Block Indefinitely / Wait (seconds)</dt><dd>In Transactional mode, how long to wait for a message. 0 = return immediately if empty.</dd>
-    <dt>Enable Retries / Retry Delay / Max Retries</dt><dd>In Continuous mode, controls reconnect behaviour on DB errors. Max Retries 0 = unlimited.</dd>
+    <dt>Enable Retries / Retry Delay / Max Retries</dt><dd>In Continuous mode, controls reconnect behavior for DB/dequeue errors. A missing Subscriber for a multi-consumer queue stops immediately. Max Retries 0 = unlimited retries.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -234,5 +234,5 @@ RED.nodes.registerType("dequeue", {
 
 <h3>Details</h3>
 <p>In <b>Transactional</b> mode, if <code>msg.transaction.connection</code> is present (set by a begin-transaction node), the dequeue uses that shared connection and does not auto-commit — the message stays locked until end-transaction commits or rolls back. Without a transaction context, dequeue creates its own connection, auto-commits, and closes.</p>
-<p>In <b>Continuous</b> mode, the node starts on deploy and listens using <code>AQ_DEQ_WAIT_FOREVER</code>. On redeploy or stop, the blocking call is interrupted for a prompt shutdown. Commits immediately after each batch — rollback protection is not available.</p>
+<p>In <b>Continuous</b> mode, the node starts on deploy and listens using <code>AQ_DEQ_WAIT_FOREVER</code>. On redeploy or stop, the blocking call is interrupted for a prompt shutdown. Commits immediately after each batch — rollback protection is not available. If the queue is multi-consumer, set <b>Subscriber</b>; otherwise Oracle returns <code>ORA-25231</code>.</p>
 </script>

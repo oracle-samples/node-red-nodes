@@ -4,25 +4,26 @@ This project provides a set of custom Node-RED nodes that integrate Oracle Fusio
 
 ## Nodes
 
-| Node | Description |
-|------|-------------|
-| **scm-server** | Oracle Fusion Cloud SCM authentication, connection, and proxy config. |
-| **fusion-request** | Unified transaction node that starts in Custom mode and supports Create Asset, Meter Reading, Miscellaneous Transaction, and Subinventory Transfer presets. |
-| **scm-lookup** | Unified lookup node that starts in Custom mode and supports Asset, Meter Reading, Organization ID, Item, Subinventory, On-Hand Quantity, Work Definition, and Manufacturing/Maintenance Work Order presets. |
-| **smo-transformer** | Transforms telemetry data into structured SMO event payloads after an event type preset or custom event type is selected. |
-| **smo-event** | Sends structured Smart Operations operational events to Fusion SCM. |
-| **manufacturing-work-order** | Creates or updates discrete manufacturing work order headers. |
-| **manufacturing-work-order-child** | Manages manufacturing work order operations, components, resources, serials, and progress/quantity reporting. |
-| **maintenance-work-order** | Creates or updates maintenance work order headers. |
-| **maintenance-work-order-child** | Manages maintenance work order operations, materials, resources, and cost-impacting operation transactions. |
-| **create-asset** | Creates an Installed Base Asset. |
-| **create-meter-reading** | Creates a Meter Reading. |
-| **misc-transaction** | Creates a Miscellaneous Inventory Transaction with Custom, Receipt, and Issue modes. |
-| **subinventory-quantity-transfer** | Creates a Subinventory Transfer. |
-| **delete-transaction** | Deletes an SCM resource by mode-specific ID; starts in Custom mode and supports Asset, Meter, Misc, and Subinventory presets. |
-| **get-ib-asset** | Retrieves an asset by Serial Number. |
-| **get-meter-reading** | Retrieves meter readings by Asset Number. |
-| **get-organization-id** | Retrieves an organization by name. |
+| Node type | Palette label | Description |
+|-----------|---------------|-------------|
+| **scm-server** | Not in palette | Oracle Fusion Cloud SCM authentication, connection, and proxy config. |
+| **fusion-request** | `fusion request` | Unified transaction node that starts in Custom mode and supports Create Asset, Meter Reading, Miscellaneous Transaction, and Subinventory Transfer presets. |
+| **scm-lookup** | `scm lookup` | Unified lookup node that starts in Custom mode and supports Asset, Meter Reading, Inventory Organization, Item, Subinventory, On-Hand Quantity, Recipe/Work Definition, Batch/Manufacturing Work Order, manufacturing child-resource lookups with explicit parent resource IDs, and Maintenance Work Order presets. |
+| **smo-transformer** | `smart operations transformer` | Transforms telemetry data into structured Smart Operations event payloads after an event type preset or custom event type is selected. |
+| **smo-event** | `smart operations event` | Sends structured Smart Operations operational events to Fusion SCM. |
+| **manufacturing-work-order** | `manufacturing work order` | Creates or updates discrete manufacturing work order headers. |
+| **manufacturing-work-order-child** | `manage manufacturing work order details` | Manages manufacturing work order operations, components, resources, serials, and progress/quantity reporting. |
+| **manufacturing-production-transaction** | `manufacturing production transaction` | Posts batch/work order production reporting transactions for operations, materials/ingredients, and output products. |
+| **maintenance-work-order** | `maintenance work order` | Creates or updates maintenance work order headers. |
+| **maintenance-work-order-child** | `manage maintenance work order details` | Manages maintenance work order operations, materials, resources, and cost-impacting operation transactions. |
+| **create-asset** | `create installed base asset` | Creates an Installed Base Asset. |
+| **create-meter-reading** | `create meter reading` | Creates a Meter Reading. |
+| **misc-transaction** | `miscellaneous transaction` | Creates a Miscellaneous Inventory Transaction with Custom, Miscellaneous Receipt/Issue, and Account Alias Receipt/Issue modes. |
+| **subinventory-quantity-transfer** | `subinventory quantity transfer` | Creates a Subinventory Transfer. |
+| **delete-transaction** | `delete scm record` | Deletes an SCM resource by mode-specific ID; starts in Custom mode and supports Asset, Meter, Misc, and Subinventory presets. |
+| **get-ib-asset** | `get installed base asset` | Retrieves an asset by Serial Number. |
+| **get-meter-reading** | `get meter reading` | Retrieves meter readings by Asset Number. |
+| **get-organization-id** | `get organization id` | Retrieves an organization by name. |
 
 ## Installation
 
@@ -58,8 +59,8 @@ gh repo clone oracle-samples/node-red-nodes
 Install inside the Node-RED directory (`~/.node-red`):
 
 ```bash
-npm install axios
-npm install https-proxy-agent
+npm install axios@1.17.0
+npm install https-proxy-agent@^7.0.6
 ```
 
 ## Payload Mappings
@@ -76,16 +77,30 @@ All SCM nodes that use payload mappings support structured mapping rows with typ
 | **static JSON** | Parsed JSON | A JSON array/object/value for nested fields such as `serials` |
 | **current timestamp** | Runtime clock | Leave blank; generated as an ISO timestamp at runtime |
 
-`misc-transaction` Receipt and Issue modes set `TransactionTypeName` to the matching Fusion transaction type and leave `TransactionQuantity` unchanged. Use Custom mode when you want to map every transaction attribute yourself.
+Message and dequeued paths are relative: enter `payload.AssetNumber` for a Message property, or `AssetNumber` for Dequeued data. Switching between those sources converts conventional `payload.<SCMField>` and `<SCMField>` paths automatically while preserving custom paths. The editor previews the resolved `msg.*` path and warns about duplicate prefixes or known static-type mismatches. New presets use `msg.payload.*` for business data, runtime timestamps for applicable dates, and typed constants only for known Fusion values.
+
+Clicking **Done** saves the current mapping rows for both preset and Custom modes; reopening the node restores those saved rows.
+
+`misc-transaction` Receipt and Issue modes set `TransactionTypeName` to the matching Fusion transaction type and leave `TransactionQuantity` unchanged. Account Alias modes use the named alias field you map, such as `AccountAliasName`, instead of requiring users to map a raw account number. Use Custom mode when you want to map every transaction attribute yourself.
 `misc-transaction` and `subinventory-quantity-transfer` include a `serials` mapping row for serialized inventory transactions; set it from a message property or `static JSON`.
+
+## SCM Server
+
+Enter the Fusion hostname without a protocol or path, then enter the API version supplied for the environment. The editor previews the derived `https://<fusion-host>/fscmRestApi/resources/<api-version>` root; the fixed REST segment and resource paths are appended automatically. Test Connection obtains an OAuth token and then verifies that the configured Fusion REST host is reachable; OAuth-only success is reported as a partial failure.
+
+The `scm-lookup` Inventory Organization mode can search by Organization Name, Organization Code, or Organization ID. The selected field controls the Fusion query only; `msg.payload` still contains the complete matching organization response.
+
+Other predefined lookup modes expose all required business keys directly: organization-scoped item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups require **Organization Code**; asset and work definition lookups also show **Item Number** where required; meter readings require **Meter Code**. On-Hand Quantity optionally accepts **Subinventory Code**. Use Additional Filters only for extra narrowing criteria.
+
+Manufacturing child lookups expose **Work Order ID** and, for nested lines, **Operation ID**. These fields take Fusion `WorkOrderId` and `WorkOrderOperationId` resource IDs from parent lookup responses; they are distinct from the displayed batch number and operation sequence.
 
 ## Error Handling
 
 Fusion SCM REST nodes route failures to Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when Fusion returns a validation response body, that text is promoted into `msg.error.message`, while the raw response body remains available in `msg.payload`.
 
-## SMO Transformer
+## Smart Operations Transformer
 
-The smo-transformer converts incoming telemetry or message data into structured SMO event payloads. It starts with a neutral event type selection, supports 8 preset event types (CA_FAULT, CA_STATUS, CA_OPERATION_EXECUTION_START, etc.) that auto-populate field mappings when selected, plus custom event types. It reads nested input paths, can resolve event time from configurable source fields, writes to `msg.smoEvent` by default so the original `msg.payload` remains available, and includes a Mapping Assistant for sample payload path detection, composite-fragment array preview, and event preview.
+The smo-transformer converts incoming telemetry or message data into structured Smart Operations event payloads. It starts with a neutral event type selection, supports 8 preset event types (CA_FAULT, CA_STATUS, CA_OPERATION_EXECUTION_START, etc.) that auto-populate field mappings when selected, plus custom event types. It reads nested input paths, can resolve event time from configurable source fields, writes to `msg.smoEvent` by default so the original `msg.payload` remains available, and includes a Mapping Assistant for sample payload path detection, composite-fragment array preview, and event preview. Clicking **Done** saves custom event types, field mappings, and composite configuration for the next edit.
 
 > **Important:** The smo-transformer processes one message at a time. When dequeuing in batches or receiving arrays, place a **split** node (fixed length: 1) before the smo-transformer to ensure individual message processing.
 >
@@ -93,7 +108,7 @@ The smo-transformer converts incoming telemetry or message data into structured 
 >
 > **Invalid input:** Non-object and array payloads are treated as errors and can be routed to a Catch node.
 
-**Typical flow:** `dequeue` → `split` (fixed length: 1) → `smo-transformer` → `smo-event`
+**Typical flow:** `dequeue` → `split` (fixed length: 1) → `smart operations transformer` → `smart operations event`
 
 See [Node Reference](../docs/node-reference.md) for full configuration details.
 
@@ -105,7 +120,7 @@ You can find the online documentation for the Oracle Internet of Things Platform
 
 Example Node-RED flows are provided in the documentation showcasing different use cases:
 
-- Enqueue → Dequeue → Create Meter Reading → If Not Found, Create Asset
+- Enqueue → Dequeue → Create Meter Reading → If Not Found, `create installed base asset`
 - Conditional Asset Creation
 - Inventory Transactions
 - Closed-loop OCI IoT telemetry → Smart Operations event → Maintenance Work Order / raw command

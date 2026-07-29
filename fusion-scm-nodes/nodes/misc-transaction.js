@@ -43,7 +43,9 @@ module.exports = function(RED) {
 
     const MODE_TRANSACTION_TYPES = {
         receipt: "Miscellaneous Receipt",
-        issue: "Miscellaneous Issue"
+        issue: "Miscellaneous Issue",
+        accountaliasreceipt: "Account Alias Receipt",
+        accountaliasissue: "Account Alias Issue"
     };
 
     function MiscTransaction(config) {

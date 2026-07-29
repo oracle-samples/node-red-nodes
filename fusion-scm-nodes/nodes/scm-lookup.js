@@ -37,21 +37,108 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps } = require("../lib/url.js");
+    const { ensureHttps, ensureAllowedHost } = require("../lib/url.js");
     const scmError = require("../lib/scm-error.js");
 
     const LOOKUP_TYPES = {
-        installedBaseAsset: { endpoint: "installedBaseAssets",      queryParam: "SerialNumber",       configField: "queryValue" },
-        meterReading:       { endpoint: "meterReadings",            queryParam: "AssetNumber",        configField: "queryValue" },
+        installedBaseAsset: {
+            endpoint: "installedBaseAssets",
+            queryParam: "SerialNumber",
+            configField: "queryValue",
+            queryFields: [requiredQueryField("ItemNumber", "itemNumber", "Item Number", "no item number")]
+        },
+        meterReading: {
+            endpoint: "meterReadings",
+            queryParam: "AssetNumber",
+            configField: "queryValue",
+            queryFields: [requiredQueryField("MeterCode", "meterCode", "Meter Code", "no meter code")]
+        },
         organizationId:     { endpoint: "inventoryOrganizations",   queryParam: "OrganizationName",   configField: "queryValue" },
-        item:               { endpoint: "itemsV2",                  queryParam: "ItemNumber",         configField: "queryValue" },
-        subinventory:       { endpoint: "subinventories",           queryParam: "SecondaryInventoryName", configField: "queryValue" },
-        onHandQuantity:     { endpoint: "inventoryOnhandBalances",  queryParam: "ItemNumber",         configField: "queryValue" },
-        workDefinition:     { endpoint: "workDefinitions",          queryParam: "WorkDefinitionName", configField: "queryValue" },
-        manufacturingWorkOrder: { endpoint: "workOrders",           queryParam: "WorkOrderNumber",    configField: "queryValue" },
-        maintenanceWorkOrder:   { endpoint: "maintenanceWorkOrders", queryParam: "WorkOrderNumber",   configField: "queryValue" },
+        item: {
+            endpoint: "itemsV2",
+            queryParam: "ItemNumber",
+            configField: "queryValue",
+            queryFields: [organizationCodeField()]
+        },
+        subinventory: {
+            endpoint: "subinventories",
+            queryParam: "SecondaryInventoryName",
+            configField: "queryValue",
+            queryFields: [organizationCodeField()]
+        },
+        onHandQuantity: {
+            endpoint: "inventoryOnhandBalances",
+            queryParam: "ItemNumber",
+            configField: "queryValue",
+            queryFields: [
+                organizationCodeField(),
+                optionalQueryField("SubinventoryCode", "subinventoryCode")
+            ]
+        },
+        workDefinition: {
+            endpoint: "workDefinitions",
+            queryParam: "WorkDefinitionName",
+            configField: "queryValue",
+            queryFields: [
+                organizationCodeField(),
+                requiredQueryField("ItemNumber", "itemNumber", "Item Number", "no item number")
+            ]
+        },
+        recipe: {
+            endpoint: "workDefinitions",
+            queryParam: "WorkDefinitionName",
+            configField: "queryValue",
+            queryFields: [
+                organizationCodeField(),
+                requiredQueryField("ItemNumber", "itemNumber", "Item Number", "no item number")
+            ]
+        },
+        manufacturingWorkOrder: {
+            endpoint: "workOrders",
+            queryParam: "WorkOrderNumber",
+            configField: "queryValue",
+            queryFields: [organizationCodeField()]
+        },
+        batch: {
+            endpoint: "workOrders",
+            queryParam: "WorkOrderNumber",
+            configField: "queryValue",
+            queryFields: [organizationCodeField()]
+        },
+        workOrderOperation: {
+            path: ["workOrders", workOrderIdPath(), "child", "WorkOrderOperation"],
+            queryParam: "OperationSequenceNumber",
+            configField: "queryValue"
+        },
+        workOrderMaterial: {
+            path: ["workOrders", workOrderIdPath(), "child", "WorkOrderOperation", workOrderOperationIdPath(), "child", "WorkOrderOperationMaterial"],
+            queryParam: "InventoryItemNumber",
+            configField: "queryValue"
+        },
+        workOrderResource: {
+            path: ["workOrders", workOrderIdPath(), "child", "WorkOrderOperation", workOrderOperationIdPath(), "child", "WorkOrderOperationResource"],
+            queryParam: "ResourceCode",
+            configField: "queryValue"
+        },
+        workOrderOutput: {
+            path: ["workOrders", workOrderIdPath(), "child", "WorkOrderOperation", workOrderOperationIdPath(), "child", "WorkOrderOperationOutput"],
+            queryParam: "InventoryItemNumber",
+            configField: "queryValue"
+        },
+        reservationStatus: {
+            path: ["workOrders", workOrderIdPath(), "child", "WorkOrderOperation", workOrderOperationIdPath(), "child", "WorkOrderOperationMaterial"],
+            queryParam: "InventoryItemNumber",
+            configField: "queryValue"
+        },
+        maintenanceWorkOrder: {
+            endpoint: "maintenanceWorkOrders",
+            queryParam: "WorkOrderNumber",
+            configField: "queryValue",
+            queryFields: [organizationCodeField()]
+        },
         custom:             { endpoint: "",                         queryParam: "",                   configField: "queryValue" }
     };
+    const ORGANIZATION_QUERY_FIELDS = ["OrganizationName", "OrganizationCode", "OrganizationId"];
 
     function ScmLookupNode(config) {
         RED.nodes.createNode(this, config);
@@ -83,10 +170,22 @@ module.exports = function(RED) {
                 }
 
                 if (!hasValue(queryValue) && lookupType !== "custom") {
-                    node.status({ fill: "red", shape: "ring", text: "No query value" });
+                    node.status({ fill: "red", shape: "ring", text: "no query value" });
                     const err = new Error("No query value provided");
                     node.error(err.message, msg);
                     return done(err);
+                }
+
+                let lookupRequest;
+                if (lookupType !== "custom") {
+                    try {
+                        lookupRequest = buildLookupRequest(lookup, queryFilters, config, msg);
+                    } catch (pathErr) {
+                        node.status({ fill: "red", shape: "ring", text: pathErr.statusText || "invalid lookup ID" });
+                        msg.error = { message: pathErr.message, code: null };
+                        node.error(pathErr.message, msg);
+                        return done(pathErr);
+                    }
                 }
 
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
@@ -112,14 +211,21 @@ module.exports = function(RED) {
                         return done(err);
                     }
                 } else {
-                    const baseUrl = node.server.buildUrl(lookup.endpoint);
+                    const baseUrl = node.server.buildUrl(lookupRequest.endpoint);
                     // URLSearchParams encodes special characters in queryValue.
                     const params = new URLSearchParams();
-                    params.set("q", buildQueryExpression(lookup.queryParam, queryValue, queryFilters));
+                    const queryParam = lookupType === "organizationId"
+                        ? getOrganizationQueryField(config.organizationQueryField)
+                        : lookup.queryParam;
+                    params.set("q", buildQueryExpression(queryParam, queryValue, lookupRequest.queryFilters));
                     finalUrl = `${baseUrl}?${params.toString()}`;
                 }
 
-                ensureHttps(finalUrl);
+                if (lookupType === "custom") {
+                    ensureAllowedHost(finalUrl, node.server.hostname);
+                } else {
+                    ensureHttps(finalUrl);
+                }
 
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
                 const response = await axios.get(finalUrl, {
@@ -148,6 +254,10 @@ module.exports = function(RED) {
     }
 
     RED.nodes.registerType("scm-lookup", ScmLookupNode);
+
+    function getOrganizationQueryField(value) {
+        return ORGANIZATION_QUERY_FIELDS.includes(value) ? value : "OrganizationName";
+    }
 
     function hasValue(value) {
         return value !== undefined && value !== null && value !== "";
@@ -184,15 +294,124 @@ module.exports = function(RED) {
         return parsed;
     }
 
+    function assertSafeQueryValue(value) {
+        // ";" separates filters in a Fusion q expression; a value containing it
+        // would inject an extra filter, so reject it (field names are code-controlled).
+        if (String(value).indexOf(";") !== -1) {
+            throw new Error("Query value must not contain ';' (Fusion query filter separator)");
+        }
+    }
+
     function buildQueryExpression(primaryParam, primaryValue, queryFilters) {
         const parts = [];
         if (hasValue(primaryParam) && hasValue(primaryValue)) {
+            assertSafeQueryValue(primaryValue);
             parts.push(`${primaryParam}=${primaryValue}`);
         }
         Object.keys(queryFilters || {}).forEach((key) => {
+            assertSafeQueryValue(queryFilters[key]);
             parts.push(`${key}=${queryFilters[key]}`);
         });
         return parts.join(";");
+    }
+
+    function workOrderIdPath() {
+        return {
+            config: "workOrderId",
+            msg: "workOrderId",
+            label: "Work Order ID",
+            statusText: "no work order ID"
+        };
+    }
+
+    function organizationCodeField() {
+        return requiredQueryField("OrganizationCode", "organizationCode", "Organization Code", "no organization code");
+    }
+
+    function requiredQueryField(queryParam, field, label, statusText) {
+        return {
+            queryParam: queryParam,
+            config: field,
+            msg: field,
+            label: label,
+            statusText: statusText,
+            required: true
+        };
+    }
+
+    function optionalQueryField(queryParam, field) {
+        return {
+            queryParam: queryParam,
+            config: field,
+            msg: field,
+            required: false
+        };
+    }
+
+    function workOrderOperationIdPath() {
+        return {
+            config: "workOrderOperationId",
+            msg: "workOrderOperationId",
+            label: "Operation ID",
+            statusText: "no operation ID"
+        };
+    }
+
+    function buildLookupRequest(lookup, queryFilters, config, msg) {
+        var remainingFilters = Object.assign({}, queryFilters || {});
+        (lookup.queryFields || []).forEach(function (field) {
+            delete remainingFilters[field.queryParam];
+            var value = resolveQueryFieldValue(field, config, msg);
+            if (hasValue(value)) {
+                remainingFilters[field.queryParam] = value;
+            }
+        });
+        if (!lookup.path) {
+            return {
+                endpoint: lookup.endpoint,
+                queryFilters: remainingFilters
+            };
+        }
+
+        var endpointParts = lookup.path.map(function (part) {
+            if (typeof part === "string") {
+                return part;
+            }
+            var value = resolvePathValue(part, config, msg);
+            return encodeURIComponent(value);
+        });
+
+        return {
+            endpoint: endpointParts.join("/"),
+            queryFilters: remainingFilters
+        };
+    }
+
+    function resolveQueryFieldValue(field, config, msg) {
+        if (hasValue(msg[field.msg])) {
+            return msg[field.msg];
+        }
+        if (hasValue(config[field.config])) {
+            return config[field.config];
+        }
+        if (!field.required) {
+            return undefined;
+        }
+        var err = new Error(field.label + " is required for this lookup type");
+        err.statusText = field.statusText;
+        throw err;
+    }
+
+    function resolvePathValue(part, config, msg) {
+        if (hasValue(msg[part.msg])) {
+            return msg[part.msg];
+        }
+        if (hasValue(config[part.config])) {
+            return config[part.config];
+        }
+        var err = new Error(part.label + " is required for this lookup type");
+        err.statusText = part.statusText;
+        throw err;
     }
 
     function isEmptyCollection(data) {

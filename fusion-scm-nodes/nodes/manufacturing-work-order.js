@@ -58,6 +58,7 @@ module.exports = function(RED) {
         node.on("input", async function(msg, send, done) {
             try {
                 var action = resolveAction(config, msg);
+                validateMappingsForAction(mappings, action);
                 var payload = scmMapping.resolvePayload(mappings, msg, RED);
                 var workOrdersUrl = node.server.buildUrl("workOrders");
                 var url = resolveRequestUrl(workOrdersUrl, action, config, msg);
@@ -99,6 +100,14 @@ module.exports = function(RED) {
             throwValidationError("Manufacturing Work Order action must be create or update");
         }
         return action;
+    }
+
+    function validateMappingsForAction(mappings, action) {
+        if (action === "create" && mappings.some(function(mapping) {
+            return mapping.scmField === "WorkDefinitionName";
+        })) {
+            throwValidationError("WorkDefinitionName is read-only when creating a manufacturing work order; use WorkDefinitionCode");
+        }
     }
 
     function resolveRequestUrl(workOrdersUrl, action, config, msg) {
