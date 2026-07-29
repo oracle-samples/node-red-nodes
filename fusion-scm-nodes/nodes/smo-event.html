@@ -37,7 +37,7 @@
 <script type="text/javascript">
 RED.nodes.registerType("smo-event", {
     category: "oracle fusion scm",
-    paletteLabel: "smo event",
+    paletteLabel: "smart operations event",
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
@@ -50,7 +50,7 @@ RED.nodes.registerType("smo-event", {
     color: "#4F7D7B",
     icon: "font-awesome/fa-bolt",
     label: function () {
-        return this.name || "smo event";
+        return this.name || "smart operations event";
     },
     oneditprepare: function () {
         function updateEndpoint() {

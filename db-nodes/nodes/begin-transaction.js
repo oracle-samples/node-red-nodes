@@ -43,6 +43,7 @@ module.exports = function(RED) {
 
         node.timeoutSecs = Number(config.timeoutSecs) || 0;
         node.timeoutHandles = new Set();
+        node.activeTransactions = new Set();
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
@@ -56,6 +57,16 @@ module.exports = function(RED) {
             node.timeoutHandles.delete(handle);
         }
 
+        // Detach a transaction from this node's tracking. end-transaction calls
+        // this (via txn._untrack) on normal completion so the timer Set and the
+        // active-transaction Set do not accumulate handles across transactions.
+        function untrackTransaction(txn) {
+            if (!txn) return;
+            clearTrackedTimeout(txn._timeout);
+            txn._timeout = null;
+            node.activeTransactions.delete(txn);
+        }
+
         function scheduleTimeout(txn) {
             clearTrackedTimeout(txn._timeout);
             txn._timeout = null;
@@ -66,6 +77,7 @@ module.exports = function(RED) {
 
             var handle = setTimeout(async () => {
                 node.timeoutHandles.delete(handle);
+                node.activeTransactions.delete(txn);
                 txn._timeout = null;
 
                 txn.timedOut = true;
@@ -90,7 +102,13 @@ module.exports = function(RED) {
             try {
                 // Reuse existing transaction connection if present
                 if (msg.transaction && msg.transaction.connection) {
-                    scheduleTimeout(msg.transaction);
+                    var reused = msg.transaction;
+                    if (typeof reused._untrack === "function") {
+                        reused._untrack();
+                    }
+                    reused._untrack = function () { untrackTransaction(reused); };
+                    node.activeTransactions.add(reused);
+                    scheduleTimeout(reused);
                     node.status({ fill: "green", shape: "dot", text: "transaction reused" });
                     send(msg);
                     return done();
@@ -117,6 +135,8 @@ module.exports = function(RED) {
                     configurable: true
                 });
 
+                txn._untrack = function () { untrackTransaction(txn); };
+                node.activeTransactions.add(txn);
                 scheduleTimeout(txn);
  
                 node.status({ fill: "green", shape: "dot", text: "transaction started" });
@@ -130,7 +150,20 @@ module.exports = function(RED) {
             }
         });
 
-        node.on("close", function(done) {
+        node.on("close", async function(done) {
+            // Roll back and close any transaction still open at redeploy/shutdown so
+            // DB sessions and locks are not orphaned when no end-transaction runs.
+            for (const txn of node.activeTransactions) {
+                clearTrackedTimeout(txn._timeout);
+                txn._timeout = null;
+                txn._ended = true;
+                if (txn.connection) {
+                    try { await txn.connection.rollback(); } catch (e) { /* ignore */ }
+                    try { await txn.connection.close(); } catch (e) { /* ignore */ }
+                    txn.connection = null;
+                }
+            }
+            node.activeTransactions.clear();
             node.timeoutHandles.forEach((handle) => clearTimeout(handle));
             node.timeoutHandles.clear();
             if (done) done();

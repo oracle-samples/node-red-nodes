@@ -37,7 +37,7 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps } = require("../lib/url.js");
+    const { ensureHttps, ensureAllowedHost } = require("../lib/url.js");
     const scmMapping = require("../lib/scm-mapping.js");
     const scmError = require("../lib/scm-error.js");
 
@@ -84,7 +84,11 @@ module.exports = function(RED) {
                     node.error(err.message, msg);
                     return done(err);
                 }
-                ensureHttps(url);
+                if (txType === "custom") {
+                    ensureAllowedHost(url, node.server.hostname);
+                } else {
+                    ensureHttps(url);
+                }
 
                 const payload = scmMapping.resolvePayload(mappings, msg, RED);
 

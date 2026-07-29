@@ -86,7 +86,9 @@ RED.nodes.registerType("sql", {
         $("#node-input-bindsSource").on("change", toggleSources);
     },
     oneditsave: function () {
-        this.bindsMappings = sqlBindsMappingEditor.save();
+        var savedMappings = sqlBindsMappingEditor.save();
+        $("#node-input-bindsMappings").val(savedMappings);
+        this.bindsMappings = savedMappings;
     }
 });
 
@@ -267,6 +269,8 @@ var sqlBindsMappingEditor = (function () {
             <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-bind-mapping">+ Add Bind</button>
         </div>
     </div>
+    <input type="hidden" id="node-input-binds">
+    <input type="hidden" id="node-input-bindsMappings">
     <div class="form-row">
         <div id="binds-msg-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;display:none;">
             Binds will be read from <code>msg.binds</code> at runtime (JSON array or object).

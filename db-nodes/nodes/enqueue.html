@@ -150,7 +150,7 @@ RED.nodes.registerType("enqueue", {
         Messages are written to the queue table and committed to disk — durable across database restarts.
     </div>
     <div id="enqueue-buffered-warning" style="margin-left:105px;font-size:11px;color:#c47a00;margin-top:-6px;display:none;">
-        Buffered messages live in Oracle shared memory only — lost on DB restart. Auto-commits immediately after enqueue. Requires thick client mode.
+        Buffered messages live in Oracle shared memory only and are lost on DB restart. Requires Thick mode; JSON payloads are not supported.
     </div>
     <hr/>
     <div class="form-row">
@@ -167,26 +167,28 @@ RED.nodes.registerType("enqueue", {
         <div style="font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
     </div>
     <div class="form-row">
-        <label for="node-input-userPayload"><i class="fa fa-code"></i> Payload</label>
-        <div id="enqueue-payload-hint" style="font-size:11px;color:#888;margin-bottom:4px;"></div>
-        <div class="enqueue-payload-toolbar">
-            <button type="button" class="red-ui-button red-ui-button-small enqueue-json-editor" title="Open JSON editor">
-                <i class="fa fa-ellipsis-h"></i>
-            </button>
+        <label for="node-input-userPayload" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-code"></i> Payload</label>
+        <div style="width:calc(100% - 137px);display:inline-block;">
+            <div id="enqueue-payload-hint" style="font-size:11px;color:#888;margin-bottom:4px;"></div>
+            <div class="enqueue-payload-toolbar">
+                <button type="button" class="red-ui-button red-ui-button-small enqueue-json-editor" title="Open JSON editor">
+                    <i class="fa fa-ellipsis-h"></i>
+                </button>
+            </div>
+            <textarea id="node-input-userPayload" rows="5" style="width:100%;font-family:monospace;"></textarea>
         </div>
-        <textarea id="node-input-userPayload" rows="5" style="width:100%;"></textarea>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-enableOutput"><i class="fa fa-sign-out"></i> Output</label>
+        <label for="node-input-enableOutput" style="width:130px;"><i class="fa fa-sign-out"></i> Pass Message</label>
         <input type="checkbox" id="node-input-enableOutput" style="width:auto;">
-        <span style="margin-left:6px;font-size:12px;color:#888;">Add output port and pass msg downstream to continue the flow</span>
+        <span style="margin-left:6px;font-size:12px;color:#888;">Pass message downstream after successful enqueue.</span>
     </div>
     <input type="hidden" id="node-input-outputs">
 </script>
 
 <script type="text/x-red" data-help-name="enqueue">
-<p>Enqueues one or more JSON messages into an Oracle Advanced Queue (AQ).</p>
+<p>Enqueues one or more messages into an Oracle Advanced Queue (AQ).</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
@@ -195,7 +197,7 @@ RED.nodes.registerType("enqueue", {
     <dt>Recipients</dt><dd>Optional recipients for multi-consumer queues.</dd>
     <dt>Delivery Mode</dt>
     <dd><strong>Persistent</strong> (default): messages are written to the queue table and committed to disk — durable across database restarts.
-    <strong>Buffered</strong>: messages are stored in Oracle shared memory only — faster, but lost on DB restart. Auto-commits immediately after enqueue. Requires thick client mode.</dd>
+    <strong>Buffered</strong>: messages are stored in Oracle shared memory only — faster, but lost on DB restart. The current node implementation requires Thick mode, and JSON payloads do not support buffered delivery.</dd>
     <dt>Payload Type</dt>
     <dd><strong>JSON</strong> (default): payload is a JS object enqueued as <code>DB_TYPE_JSON</code>.
     <strong>RAW</strong>: payload is a string encoded to a UTF-8 Buffer.
@@ -207,7 +209,7 @@ RED.nodes.registerType("enqueue", {
 </dl>
 
 <h3>Outputs</h3>
-<p>Output is optional. Enable the <strong>Output</strong> toggle to send a msg after a successful enqueue.</p>
+<p><strong>Pass Message</strong> is enabled by default and sends a msg after a successful enqueue. Disable it to use the node as a terminal sink.</p>
 <dl class="message-properties">
     <dt>count <span class="property-type">number</span></dt>
     <dd>Number of messages enqueued.</dd>

@@ -37,7 +37,7 @@
 module.exports = function (RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps } = require("../lib/url.js");
+    const { ensureHttps, formatFusionRestBaseUrl } = require("../lib/url.js");
 
     function ScmServerNode(config) {
         RED.nodes.createNode(this, config);
@@ -75,6 +75,14 @@ module.exports = function (RED) {
         } catch (e) {
             node.error("Token URL must use HTTPS: " + node.tokenUrl);
             node.status({ fill: "red", shape: "ring", text: "token URL not HTTPS" });
+            return;
+        }
+
+        try {
+            formatFusionRestBaseUrl(node.hostname, node.version);
+        } catch (e) {
+            node.error(e.message);
+            node.status({ fill: "red", shape: "ring", text: "invalid base URL" });
             return;
         }
 
@@ -135,19 +143,43 @@ module.exports = function (RED) {
             return await _tokenPromise;
         };
 
+        node.testConnection = async function () {
+            var token = await node.getToken();
+            try {
+                await axios.get(formatFusionRestBaseUrl(node.hostname, node.version), {
+                    timeout: 30000,
+                    httpsAgent: proxyAgent || undefined,
+                    proxy: false,
+                    validateStatus: function () { return true; },
+                    headers: {
+                        "Authorization": "Bearer " + token,
+                        "Accept": "application/json"
+                    }
+                });
+                return {
+                    success: true,
+                    message: "Connected: OAuth token acquired and Fusion REST host reachable."
+                };
+            } catch (err) {
+                return {
+                    success: false,
+                    message: "OAuth succeeded, but Fusion REST failed: " + err.message
+                };
+            }
+        };
+
         /**
          * Builds the base URL for a given REST endpoint.
          * e.g. buildUrl("installedBaseAssets") => "https://hostname/fscmRestApi/resources/version/installedBaseAssets"
          */
         node.buildUrl = function (endpoint) {
-            const baseUrl = new URL("https://" + String(node.hostname || "").trim());
-            const encodedVersion = encodeURIComponent(String(node.version || "").trim());
+            const baseUrl = new URL(formatFusionRestBaseUrl(node.hostname, node.version));
             const endpointParts = String(endpoint || "")
                 .split("/")
                 .map((part) => part.trim())
                 .filter(Boolean)
                 .map((part) => encodeURIComponent(part));
-            baseUrl.pathname = "/fscmRestApi/resources/" + encodedVersion + "/";
+            baseUrl.pathname += "/";
             if (endpointParts.length > 0) {
                 baseUrl.pathname += endpointParts.join("/");
             }
@@ -173,6 +205,21 @@ module.exports = function (RED) {
         credentials: {
             username: { type: "text" },
             password: { type: "password" }
+        }
+    });
+
+    RED.httpAdmin.post("/scm-server/:id/test", RED.auth.needsPermission("scm-server.write"), async function (req, res) {
+        const node = RED.nodes.getNode(req.params.id);
+        if (!node) {
+            return res.status(404).json({ success: false, message: "Node not found. Deploy the flow first, then test." });
+        }
+        if (typeof node.testConnection !== "function") {
+            return res.json({ success: false, message: "SCM Server is misconfigured — check the required fields." });
+        }
+        try {
+            res.json(await node.testConnection());
+        } catch (err) {
+            res.json({ success: false, message: err.message });
         }
     });
 };

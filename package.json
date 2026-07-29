@@ -1,17 +1,17 @@
 {
   "name": "node-red-nodes",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, OCI Notifications, OCI Logging, OCI Logging Analytics, and the OCI IoT Platform",
   "license": "UPL-1.0",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "oracledb": "^6.10.0",
-    "axios": "1.15.0",
+    "oracledb": "^7.0.1",
+    "axios": "1.17.0",
     "https-proxy-agent": "^7.0.6",
-    "oci-sdk": "^2.129.0",
-    "mqtt": "^5.10.0"
+    "oci-sdk": "2.137.0",
+    "mqtt": "5.15.2"
   },
   "keywords": [
     "node-red",
@@ -48,6 +48,7 @@
       "smo-event": "fusion-scm-nodes/nodes/smo-event.js",
       "manufacturing-work-order": "fusion-scm-nodes/nodes/manufacturing-work-order.js",
       "manufacturing-work-order-child": "fusion-scm-nodes/nodes/manufacturing-work-order-child.js",
+      "manufacturing-production-transaction": "fusion-scm-nodes/nodes/manufacturing-production-transaction.js",
       "maintenance-work-order": "fusion-scm-nodes/nodes/maintenance-work-order.js",
       "maintenance-work-order-child": "fusion-scm-nodes/nodes/maintenance-work-order-child.js",
       "scm-lookup": "fusion-scm-nodes/nodes/scm-lookup.js",

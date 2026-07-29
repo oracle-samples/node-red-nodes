@@ -42,7 +42,7 @@ RED.nodes.registerType("misc-transaction", {
         name: { value: "" },
         server: { type: "scm-server", required: true },
         mode: { value: "custom" },
-        mappings: { value: '[{"scmField":"SourceCode","sourceType":"dequeued","value":""},{"scmField":"SourceHeaderId","sourceType":"dequeued","value":""},{"scmField":"SourceLineId","sourceType":"dequeued","value":""},{"scmField":"TransactionMode","sourceType":"dequeued","value":""},{"scmField":"UseCurrentCostFlag","sourceType":"dequeued","value":""},{"scmField":"TransactionTypeName","sourceType":"dequeued","value":""},{"scmField":"OrganizationId","sourceType":"dequeued","value":""},{"scmField":"ItemNumber","sourceType":"dequeued","value":""},{"scmField":"TransactionQuantity","sourceType":"dequeued","value":""},{"scmField":"TransactionUnitOfMeasure","sourceType":"dequeued","value":""},{"scmField":"TransactionDate","sourceType":"dequeued","value":""},{"scmField":"SubinventoryCode","sourceType":"dequeued","value":""},{"scmField":"serials","sourceType":"msg","value":""}]' }
+        mappings: { value: '[{"scmField":"SourceCode","sourceType":"msg","value":"payload.SourceCode"},{"scmField":"SourceHeaderId","sourceType":"msg","value":"payload.SourceHeaderId"},{"scmField":"SourceLineId","sourceType":"msg","value":"payload.SourceLineId"},{"scmField":"TransactionMode","sourceType":"msg","value":"payload.TransactionMode"},{"scmField":"UseCurrentCostFlag","sourceType":"msg","value":"payload.UseCurrentCostFlag"},{"scmField":"TransactionTypeName","sourceType":"msg","value":"payload.TransactionTypeName"},{"scmField":"OrganizationId","sourceType":"msg","value":"payload.OrganizationId"},{"scmField":"ItemNumber","sourceType":"msg","value":"payload.ItemNumber"},{"scmField":"TransactionQuantity","sourceType":"msg","value":"payload.TransactionQuantity"},{"scmField":"TransactionUnitOfMeasure","sourceType":"msg","value":"payload.TransactionUnitOfMeasure"},{"scmField":"TransactionDate","sourceType":"currentTimestamp","value":""},{"scmField":"SubinventoryCode","sourceType":"msg","value":"payload.SubinventoryCode"},{"scmField":"serials","sourceType":"msg","value":"payload.serials"}]' }
     },
     inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-cubes",
     label: function () {
@@ -50,55 +50,92 @@ RED.nodes.registerType("misc-transaction", {
         var labels = {
             receipt: "miscellaneous receipt",
             issue: "miscellaneous issue",
+            accountAliasReceipt: "account alias receipt",
+            accountAliasIssue: "account alias issue",
             custom: "miscellaneous transaction"
         };
         return labels[this.mode] || "miscellaneous transaction";
     },
     oneditprepare: function () {
         var node = this;
+        function messageMapping(field) {
+            return {scmField:field,sourceType:"msg",value:"payload." + field};
+        }
         var defaultMappingsByMode = {
             custom: [
-                {scmField:"SourceCode",sourceType:"dequeued",value:""},
-                {scmField:"SourceHeaderId",sourceType:"dequeued",value:""},
-                {scmField:"SourceLineId",sourceType:"dequeued",value:""},
-                {scmField:"TransactionMode",sourceType:"dequeued",value:""},
-                {scmField:"UseCurrentCostFlag",sourceType:"dequeued",value:""},
-                {scmField:"TransactionTypeName",sourceType:"dequeued",value:""},
-                {scmField:"OrganizationId",sourceType:"dequeued",value:""},
-                {scmField:"ItemNumber",sourceType:"dequeued",value:""},
-                {scmField:"TransactionQuantity",sourceType:"dequeued",value:""},
-                {scmField:"TransactionUnitOfMeasure",sourceType:"dequeued",value:""},
-                {scmField:"TransactionDate",sourceType:"dequeued",value:""},
-                {scmField:"SubinventoryCode",sourceType:"dequeued",value:""},
-                {scmField:"serials",sourceType:"msg",value:""}
+                messageMapping("SourceCode"),
+                messageMapping("SourceHeaderId"),
+                messageMapping("SourceLineId"),
+                messageMapping("TransactionMode"),
+                messageMapping("UseCurrentCostFlag"),
+                messageMapping("TransactionTypeName"),
+                messageMapping("OrganizationId"),
+                messageMapping("ItemNumber"),
+                messageMapping("TransactionQuantity"),
+                messageMapping("TransactionUnitOfMeasure"),
+                {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+                messageMapping("SubinventoryCode"),
+                messageMapping("serials")
             ],
             receipt: [
-                {scmField:"SourceCode",sourceType:"dequeued",value:""},
-                {scmField:"SourceHeaderId",sourceType:"dequeued",value:""},
-                {scmField:"SourceLineId",sourceType:"dequeued",value:""},
-                {scmField:"TransactionMode",sourceType:"dequeued",value:""},
-                {scmField:"UseCurrentCostFlag",sourceType:"dequeued",value:""},
-                {scmField:"OrganizationId",sourceType:"dequeued",value:""},
-                {scmField:"ItemNumber",sourceType:"dequeued",value:""},
-                {scmField:"TransactionQuantity",sourceType:"dequeued",value:""},
-                {scmField:"TransactionUnitOfMeasure",sourceType:"dequeued",value:""},
-                {scmField:"TransactionDate",sourceType:"dequeued",value:""},
-                {scmField:"SubinventoryCode",sourceType:"dequeued",value:""},
-                {scmField:"serials",sourceType:"msg",value:""}
+                messageMapping("SourceCode"),
+                messageMapping("SourceHeaderId"),
+                messageMapping("SourceLineId"),
+                messageMapping("TransactionMode"),
+                {scmField:"UseCurrentCostFlag",sourceType:"staticBoolean",value:"true"},
+                messageMapping("OrganizationId"),
+                messageMapping("ItemNumber"),
+                messageMapping("TransactionQuantity"),
+                messageMapping("TransactionUnitOfMeasure"),
+                {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+                messageMapping("SubinventoryCode"),
+                messageMapping("serials")
             ],
             issue: [
-                {scmField:"SourceCode",sourceType:"dequeued",value:""},
-                {scmField:"SourceHeaderId",sourceType:"dequeued",value:""},
-                {scmField:"SourceLineId",sourceType:"dequeued",value:""},
-                {scmField:"TransactionMode",sourceType:"dequeued",value:""},
-                {scmField:"UseCurrentCostFlag",sourceType:"dequeued",value:""},
-                {scmField:"OrganizationId",sourceType:"dequeued",value:""},
-                {scmField:"ItemNumber",sourceType:"dequeued",value:""},
-                {scmField:"TransactionQuantity",sourceType:"dequeued",value:""},
-                {scmField:"TransactionUnitOfMeasure",sourceType:"dequeued",value:""},
-                {scmField:"TransactionDate",sourceType:"dequeued",value:""},
-                {scmField:"SubinventoryCode",sourceType:"dequeued",value:""},
-                {scmField:"serials",sourceType:"msg",value:""}
+                messageMapping("SourceCode"),
+                messageMapping("SourceHeaderId"),
+                messageMapping("SourceLineId"),
+                messageMapping("TransactionMode"),
+                {scmField:"UseCurrentCostFlag",sourceType:"staticBoolean",value:"true"},
+                messageMapping("OrganizationId"),
+                messageMapping("ItemNumber"),
+                messageMapping("TransactionQuantity"),
+                messageMapping("TransactionUnitOfMeasure"),
+                {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+                messageMapping("SubinventoryCode"),
+                messageMapping("serials")
+            ],
+            accountAliasReceipt: [
+                messageMapping("SourceCode"),
+                messageMapping("SourceHeaderId"),
+                messageMapping("SourceLineId"),
+                messageMapping("TransactionMode"),
+                {scmField:"UseCurrentCostFlag",sourceType:"staticBoolean",value:"true"},
+                messageMapping("OrganizationId"),
+                messageMapping("ItemNumber"),
+                messageMapping("TransactionQuantity"),
+                messageMapping("TransactionUnitOfMeasure"),
+                {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+                messageMapping("SubinventoryCode"),
+                messageMapping("AccountAliasName"),
+                messageMapping("ReasonName"),
+                messageMapping("serials")
+            ],
+            accountAliasIssue: [
+                messageMapping("SourceCode"),
+                messageMapping("SourceHeaderId"),
+                messageMapping("SourceLineId"),
+                messageMapping("TransactionMode"),
+                {scmField:"UseCurrentCostFlag",sourceType:"staticBoolean",value:"true"},
+                messageMapping("OrganizationId"),
+                messageMapping("ItemNumber"),
+                messageMapping("TransactionQuantity"),
+                messageMapping("TransactionUnitOfMeasure"),
+                {scmField:"TransactionDate",sourceType:"currentTimestamp",value:""},
+                messageMapping("SubinventoryCode"),
+                messageMapping("AccountAliasName"),
+                messageMapping("ReasonName"),
+                messageMapping("serials")
             ]
         };
         var userEditedMappings = false;
@@ -123,7 +160,9 @@ RED.nodes.registerType("misc-transaction", {
         window.scmEndpointPreview.init("inventoryStagedTransactions");
     },
     oneditsave: function () {
-        this.mappings = scmMappingEditor.save();
+        var savedMappings = scmMappingEditor.save();
+        $("#node-input-mappings").val(savedMappings);
+        this.mappings = savedMappings;
     }
 });
 
@@ -131,15 +170,28 @@ RED.nodes.registerType("misc-transaction", {
 // Shared SCM mapping editor (reused across all SCM transaction nodes)
 // Only defined once; safe to include in multiple HTML files.
 // =====================================================================
+function _syncConventionalPath(row, previousType, nextType, fieldSelector, valueSelector) {
+    var field = (row.find(fieldSelector).val() || "").trim();
+    var valueInput = row.find(valueSelector);
+    var value = (valueInput.val() || "").trim();
+    if (!field) return;
+    if (previousType === "msg" && nextType === "dequeued" && value === "payload." + field) {
+        valueInput.val(field);
+    } else if (previousType === "dequeued" && nextType === "msg" && value === field) {
+        valueInput.val("payload." + field);
+    }
+}
+
 if (!window.scmMappingEditor) {
 window.scmMappingEditor = (function () {
+    var _readOnlyFields = [];
     function _escapeHtml(s) {
         return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
 
     var _valueLabelMap = {
-        dequeued: "Field Name",
-        msg: "Property Path",
+        dequeued: "Dequeued path",
+        msg: "Message path",
         static: "Text",
         staticNumber: "Number",
         staticBoolean: "Boolean",
@@ -149,7 +201,7 @@ window.scmMappingEditor = (function () {
 
     var _valuePlaceholderMap = {
         dequeued: "e.g. AssetNumber",
-        msg: "e.g. payload.someField",
+        msg: "e.g. payload.AssetNumber",
         static: "e.g. STANDARD",
         staticNumber: "e.g. 1",
         staticBoolean: "true or false",
@@ -162,12 +214,71 @@ window.scmMappingEditor = (function () {
         return normalized === "false" ? "false" : "true";
     }
 
+    var _fieldTypes = {
+        OrganizationCode:"text", OperatingOrganizationCode:"text", ItemNumber:"text", AssetNumber:"text",
+        Description:"text", CurrentLocationContextCode:"text", MeterCode:"text", MeterUsageCode:"text", Comments:"text",
+        WorkOrderNumber:"text", WorkDefinitionCode:"text", WorkOrderStatusCode:"text", WorkOrderTypeCode:"text",
+        WorkOrderSubTypeCode:"text", WorkOrderDescription:"text", MntWorkDefinitionCode:"text", SourceCode:"text", TransactionMode:"text",
+        TransactionTypeName:"text", TransactionUnitOfMeasure:"text", SubinventoryCode:"text", TransferSubinventory:"text",
+        AccountAliasName:"text", ReasonName:"text", CompletionSubinventoryCode:"text", OperationName:"text",
+        OperationDescription:"text", WorkCenterCode:"text", UOMCode:"text", SupplySubinventory:"text",
+        SupplyLocator:"text", ResourceCode:"text", UsageUOMCode:"text", SerialNumber:"text", WorkOrderProductSerialStatus:"text",
+        InventoryItemNumber:"text", TransactionUOMCode:"text", AssemblyAssetNumber:"text", ComplSubinventoryCode:"text",
+        Quantity:"number", ReadingValue:"number", SourceHeaderId:"number", SourceLineId:"number", OrganizationId:"number",
+        TransactionQuantity:"number", PlannedStartQuantity:"number", WorkOrderPriority:"number",
+        OperationSequenceNumber:"number", WoOperationSequenceNumber:"number", RequiredQuantity:"number", RequiredUsage:"number", AssignedUnits:"number",
+        MaintainableFlag:"boolean", NewWoAllowedFlag:"boolean", UseCurrentCostFlag:"boolean", ExplosionFlag:"boolean",
+        AllowCompletionToInventoryFlag:"boolean", AllowOutOfSequenceOperationCompletionFlag:"boolean",
+        CountPointOperationFlag:"boolean", AutoTransactFlag:"boolean", serials:"json", TransactionSerial:"json", OperationTransactionDetail:"json",
+        ReadingDate:"date", TransactionDate:"date", PlannedStartDate:"date", PlannedCompletionDate:"date"
+    };
+
+    function _rowValue(row, sourceType) {
+        if (sourceType === "staticBoolean") return row.find(".scm-boolean-value").val() || "";
+        if (sourceType === "staticJson") return row.find(".scm-json-value").val() || "";
+        return row.find(".scm-value").val() || "";
+    }
+
+    function _syncRowFeedback(row) {
+        var sourceType = row.find(".scm-source-type").val();
+        var field = row.find(".scm-field").val().trim();
+        var value = _rowValue(row, sourceType).trim();
+        var preview = "";
+        var warning = "";
+        if (sourceType === "msg") {
+            row.find(".scm-value").attr("placeholder", "e.g. payload." + (field || "FieldName"));
+            preview = "Resolves to msg." + (value || "<message path>");
+            if (/^msg\./.test(value)) warning = "Enter a path relative to msg (for example, payload." + (field || "FieldName") + ").";
+        } else if (sourceType === "dequeued") {
+            row.find(".scm-value").attr("placeholder", "e.g. " + (field || "FieldName"));
+            preview = "Resolves to msg.dequeued." + (value || "<dequeued path>");
+            if (/^(msg\.dequeued\.|dequeued\.)/.test(value)) warning = "Enter a path relative to msg.dequeued (for example, " + (field || "FieldName") + ").";
+        }
+        var fieldType = _fieldTypes[field];
+        if (!warning && _readOnlyFields.indexOf(field) !== -1) {
+            warning = field + " is read-only for this operation and must not be sent.";
+        }
+        if (!warning && fieldType && /^static/.test(sourceType)) {
+            var valid = fieldType === "text" ? sourceType === "static" :
+                fieldType === "number" ? (sourceType === "staticNumber" || sourceType === "static") :
+                fieldType === "boolean" ? sourceType === "staticBoolean" :
+                fieldType === "json" ? sourceType === "staticJson" : sourceType === "static";
+            if (!valid) warning = field + " expects static " + fieldType + ". Change the source type to avoid changing the Fusion value.";
+        }
+        if (!warning && fieldType === "date" && sourceType === "static" && value && isNaN(Date.parse(value))) {
+            warning = field + " must be an ISO 8601 date-time or use current timestamp.";
+        }
+        row.find(".scm-resolved-path").text(preview).toggle(!!preview);
+        row.find(".scm-mapping-warning").text(warning).toggle(!!warning);
+    }
+
     function _syncValueControl(row, type) {
         var valueInput = row.find(".scm-value");
         var booleanInput = row.find(".scm-boolean-value");
         var jsonInput = row.find(".scm-json-value");
         row.find(".scm-value-label").text(_valueLabelMap[type] || "Value");
         valueInput.attr("placeholder", _valuePlaceholderMap[type] || "");
+        _syncRowFeedback(row);
 
         if (type === "staticBoolean") {
             valueInput.hide().prop("disabled", true);
@@ -193,7 +304,7 @@ window.scmMappingEditor = (function () {
     }
 
     function _addRow(m) {
-        var srcType = m.sourceType || "dequeued";
+        var srcType = m.sourceType || "static";
         var row = $(
             '<div class="scm-mapping-row" style="border:1px solid #ddd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fafafa;">' +
               '<div style="display:flex;align-items:center;gap:8px;">' +
@@ -220,11 +331,17 @@ window.scmMappingEditor = (function () {
                 '<div style="padding-top:14px;">' +
                   '<button type="button" class="red-ui-button red-ui-button-small" onclick="$(this).closest(\'.scm-mapping-row\').remove();">&times;</button></div>' +
               '</div>' +
+              '<div class="scm-resolved-path" style="display:none;margin:5px 0 0 28px;font-size:11px;color:#555;"></div>' +
+              '<div class="scm-mapping-warning" style="display:none;margin:3px 0 0 28px;font-size:11px;color:#c62828;"></div>' +
             '</div>'
         );
         row.find(".scm-boolean-value").val(_normalizeBooleanValue(m.value));
+        row.data("sourceType", srcType);
         row.find(".scm-source-type").on("change", function () {
             var type = $(this).val();
+            var previousType = row.data("sourceType");
+            _syncConventionalPath(row, previousType, type, ".scm-field", ".scm-value");
+            row.data("sourceType", type);
             if (type === "staticBoolean") {
                 row.find(".scm-boolean-value").val(_normalizeBooleanValue(row.find(".scm-value").val()));
             }
@@ -232,6 +349,9 @@ window.scmMappingEditor = (function () {
                 row.find(".scm-json-value").val(row.find(".scm-value").val());
             }
             _syncValueControl(row, type);
+        });
+        row.find(".scm-field,.scm-value,.scm-boolean-value,.scm-json-value").on("input change", function () {
+            _syncRowFeedback(row);
         });
         _syncValueControl(row, srcType);
         $("#scm-mappings-container").append(row);
@@ -245,6 +365,7 @@ window.scmMappingEditor = (function () {
     }
 
     function init(node) {
+        _readOnlyFields = Array.isArray(node.readOnlyFields) ? node.readOnlyFields : [];
         var mappings = [];
         try { mappings = JSON.parse(node.mappings); } catch(e) { mappings = []; }
         if (!Array.isArray(mappings)) mappings = [];
@@ -257,6 +378,13 @@ window.scmMappingEditor = (function () {
         $("#scm-mappings-container").sortable({
             handle: ".scm-drag-handle", axis: "y", cursor: "grabbing",
             opacity: 0.7, placeholder: "scm-sortable-placeholder", tolerance: "pointer"
+        });
+    }
+
+    function setReadOnlyFields(fields) {
+        _readOnlyFields = Array.isArray(fields) ? fields : [];
+        $("#scm-mappings-container .scm-mapping-row").each(function () {
+            _syncRowFeedback($(this));
         });
     }
 
@@ -275,7 +403,7 @@ window.scmMappingEditor = (function () {
         return JSON.stringify(mappings);
     }
 
-    return { init: init, save: save, renderAll: renderAll };
+    return { init: init, save: save, renderAll: renderAll, setReadOnlyFields: setReadOnlyFields };
 })();
 var scmMappingEditor = window.scmMappingEditor;
 }
@@ -320,6 +448,8 @@ window.scmEndpointPreview = (function () {
             <option value="custom">Custom</option>
             <option value="receipt">Miscellaneous Receipt</option>
             <option value="issue">Miscellaneous Issue</option>
+            <option value="accountAliasReceipt">Account Alias Receipt</option>
+            <option value="accountAliasIssue">Account Alias Issue</option>
         </select>
     </div>
     <hr/>
@@ -339,14 +469,15 @@ window.scmEndpointPreview = (function () {
             <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-scm-mapping">+ Add Mapping</button>
         </div>
     </div>
+    <input type="hidden" id="node-input-mappings">
 </script>
 
 <script type="text/x-red" data-help-name="misc-transaction">
-<p>Creates a Miscellaneous Inventory Transaction in Oracle Fusion SCM. Supports both receipts (+) and issues (-).</p>
+<p>Creates a Miscellaneous Inventory Transaction in Oracle Fusion SCM. Supports miscellaneous and account-alias receipts and issues.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Mode</dt><dd><code>Custom</code> leaves mapped fields unchanged. <code>Miscellaneous Receipt</code> sets <code>TransactionTypeName</code> to <code>Miscellaneous Receipt</code>. <code>Miscellaneous Issue</code> sets <code>TransactionTypeName</code> to <code>Miscellaneous Issue</code>. Receipt and Issue presets use <code>OrganizationId</code> for staged inventory transactions and do not include a <code>TransactionTypeName</code> mapping because the mode supplies it. The node does not alter <code>TransactionQuantity</code>.</dd>
+    <dt>Mode</dt><dd><code>Custom</code> leaves mapped fields unchanged. The receipt and issue presets set <code>TransactionTypeName</code> to the selected transaction type: <code>Miscellaneous Receipt</code>, <code>Miscellaneous Issue</code>, <code>Account Alias Receipt</code>, or <code>Account Alias Issue</code>. Presets use <code>OrganizationId</code> for staged inventory transactions and do not include a <code>TransactionTypeName</code> mapping because the mode supplies it. The node does not alter <code>TransactionQuantity</code>.</dd>
     <dt>Endpoint</dt><dd>Auto-built from server config for this node type.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map SCM API fields to values. Each row specifies:
@@ -364,5 +495,5 @@ window.scmEndpointPreview = (function () {
     <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 <h3>Details</h3>
-<p>Sends a <code>POST</code> request to the Inventory Staged Transactions REST endpoint. Receipt and Issue modes set the transaction type name but leave quantity unchanged; map the quantity expected by your Fusion transaction setup. Use the <code>serials</code> mapping for serialized item receipts or issues.</p>
+<p>Sends a <code>POST</code> request to the Inventory Staged Transactions REST endpoint. Receipt and Issue modes set the transaction type name but leave quantity unchanged; map the quantity expected by your Fusion transaction setup. For account-alias modes, map the account alias field such as <code>AccountAliasName</code> and an optional reason field such as <code>ReasonName</code>. Use the <code>serials</code> mapping for serialized item receipts or issues.</p>
 </script>

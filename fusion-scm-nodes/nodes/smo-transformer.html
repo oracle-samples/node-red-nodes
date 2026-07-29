@@ -149,10 +149,10 @@
     label: function () {
       if (this.name) return this.name;
       var preset = SMO_PRESETS[this.selectedPreset];
-      var label = preset && preset.label ? preset.label : (this.eventTypeCode || "smo transformer");
+      var label = preset && preset.label ? preset.label : (this.eventTypeCode || "smart operations transformer");
       return label + (this.enableComposite ? " (composite)" : "");
     },
-    paletteLabel: "smo transformer",
+    paletteLabel: "smart operations transformer",
 
     oneditprepare: function () {
       var node = this;
@@ -338,23 +338,33 @@
         var val = $(this).find("input").val().trim();
         if (val) entityFields.push(val);
       });
-      this.entityCodeFields = JSON.stringify(entityFields);
+      var savedEntityCodeFields = JSON.stringify(entityFields);
+      $("#node-input-entityCodeFields").val(savedEntityCodeFields);
+      this.entityCodeFields = savedEntityCodeFields;
 
       var eventTimeFields = [];
       $("#event-time-fields-container .event-time-field-row").each(function () {
         var val = $(this).find("input").val().trim();
         if (val) eventTimeFields.push(val);
       });
-      this.eventTimeFields = JSON.stringify(eventTimeFields);
+      var savedEventTimeFields = JSON.stringify(eventTimeFields);
+      $("#node-input-eventTimeFields").val(savedEventTimeFields);
+      this.eventTimeFields = savedEventTimeFields;
       this.defaultEventTime = $("#node-input-defaultEventTime").is(":checked");
       this.outputTarget = $("#node-input-outputTarget").val();
       this.samplePayload = $("#node-input-samplePayload").val();
 
-      this.fieldMappings = JSON.stringify(collectFieldMappingsFromEditor());
+      var savedFieldMappings = JSON.stringify(collectFieldMappingsFromEditor());
+      $("#node-input-fieldMappings").val(savedFieldMappings);
+      this.fieldMappings = savedFieldMappings;
 
-      this.requiredFields = JSON.stringify(collectInputValues("#required-fields-container .required-field-row input"));
+      var savedRequiredFields = JSON.stringify(collectInputValues("#required-fields-container .required-field-row input"));
+      $("#node-input-requiredFields").val(savedRequiredFields);
+      this.requiredFields = savedRequiredFields;
 
-      this.splitFields = JSON.stringify(collectSplitFieldsFromEditor());
+      var savedSplitFields = JSON.stringify(collectSplitFieldsFromEditor());
+      $("#node-input-splitFields").val(savedSplitFields);
+      this.splitFields = savedSplitFields;
 
       var selectedPreset = $("#node-input-selectedPreset").val();
       if (selectedPreset === "__custom__") {
@@ -362,10 +372,14 @@
         if (customVal) {
           this.selectedPreset = customVal;
           this.eventTypeCode = customVal;
+          $("#node-input-selectedPreset").append(
+            $("<option>").val(customVal).text(customVal + " (custom)")
+          ).val(customVal);
           $("#node-input-eventTypeCode").val(customVal);
         } else {
           this.selectedPreset = "";
           this.eventTypeCode = "";
+          $("#node-input-selectedPreset").val("");
           $("#node-input-eventTypeCode").val("");
         }
       } else if (!selectedPreset) {
@@ -1122,6 +1136,11 @@
 
 <script type="text/html" data-template-name="smo-transformer">
   <input type="hidden" id="node-input-eventTypeCode" />
+  <input type="hidden" id="node-input-entityCodeFields" />
+  <input type="hidden" id="node-input-eventTimeFields" />
+  <input type="hidden" id="node-input-fieldMappings" />
+  <input type="hidden" id="node-input-requiredFields" />
+  <input type="hidden" id="node-input-splitFields" />
   <div class="form-row">
     <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
     <input type="text" id="node-input-name" />

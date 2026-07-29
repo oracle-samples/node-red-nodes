@@ -167,6 +167,10 @@ RED.nodes.registerType("db-connection", {
         $("#btn-test-connection").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-connection-result");
+            if (!$("#node-config-input-tnsString").val().trim()) {
+                resultEl.text("TNS String is required").css("color", "#d62728");
+                return;
+            }
             btn.prop("disabled", true);
             resultEl.text("Testing...").css("color", "#888");
             $.ajax({
@@ -304,24 +308,13 @@ RED.nodes.registerType("db-connection", {
         <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
         <div class="form-row">
             <label for="node-config-input-tnsString"><i class="fa fa-server"></i> TNS String</label>
-            <textarea id="node-config-input-tnsString" rows="5" style="width:100%;" placeholder="(description=(address=(protocol=tcps)...))"></textarea>
+            <textarea id="node-config-input-tnsString" rows="5" style="width:100%;" placeholder="TNS alias or connect descriptor"></textarea>
         </div>
         <div class="form-row">
             <label for="node-config-input-walletLocation"><i class="fa fa-folder-open-o"></i> Wallet Path</label>
             <input type="text" id="node-config-input-walletLocation" placeholder="/path/to/wallet_dir">
             <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
                 Wallet and network config directory (required for ADB and TCPS connections). Applies to all auth types.
-            </div>
-        </div>
-        <div class="form-row" style="text-align:center;margin-top:12px;">
-            <button type="button" class="red-ui-button" id="btn-test-connection">
-                <i class="fa fa-plug"></i> Test Connection
-            </button>
-            <span id="test-connection-result" style="margin-left:10px;font-size:12px;"></span>
-        </div>
-        <div class="form-row" style="text-align:center;margin-top:4px;">
-            <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
-                <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
             </div>
         </div>
         </fieldset>
@@ -395,6 +388,19 @@ RED.nodes.registerType("db-connection", {
         </fieldset>
         </div>
 
+    </div>
+    <div class="config-test-actions">
+        <div class="form-row" style="text-align:center;margin-top:12px;">
+            <button type="button" class="red-ui-button" id="btn-test-connection">
+                <i class="fa fa-plug"></i> Test Database Connection
+            </button>
+            <span id="test-connection-result" style="margin-left:10px;font-size:12px;"></span>
+        </div>
+        <div class="form-row" style="text-align:center;margin-top:4px;">
+            <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+                <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+            </div>
+        </div>
     </div>
 </script>
 

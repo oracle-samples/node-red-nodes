@@ -37,11 +37,7 @@
 module.exports = function(RED) {
     const oracledb = require("oracledb");
     const dbError = require("../lib/db-error.js");
-
-    const DELIVERY_MODES = {
-        persistent: oracledb.AQ_MSG_DELIV_MODE_PERSISTENT,
-        buffered:   oracledb.AQ_MSG_DELIV_MODE_BUFFERED
-    };
+    const oracleAq = require("../lib/oracle-aq.js");
 
     function DbEnqueueNode(config) {
         RED.nodes.createNode(this, config);
@@ -75,52 +71,24 @@ module.exports = function(RED) {
                     ownConnection = true;
                 }
 
-                if (node.payloadType === "raw") {
-                    const raw = (node.userPayload && node.userPayload.trim())
-                        ? node.userPayload
-                        : msg.payload;
-                    arr = Array.isArray(raw) ? raw : [raw];
-                } else {
-                    try {
-                        const raw = (node.userPayload && node.userPayload.trim())
-                            ? JSON.parse(node.userPayload)
-                            : msg.payload;
-                        arr = Array.isArray(raw) ? raw : [raw];
-                    } catch (parseErr) {
-                        return dbError.handleNodeError(node, msg, parseErr, done, {
-                            statusText: "invalid payload",
-                            statusShape: "ring"
-                        });
-                    }
+                try {
+                    arr = oracleAq.normalizeEnqueuePayload(node.payloadType, node.userPayload, msg.payload);
+                } catch (parseErr) {
+                    return dbError.handleNodeError(node, msg, parseErr, done, {
+                        statusText: "invalid payload",
+                        statusShape: "ring"
+                    });
                 }
 
-                const queuePayloadType = node.payloadType === "adt" ? node.adtTypeName.toUpperCase()
-                    : node.payloadType === "raw" ? oracledb.DB_TYPE_RAW
-                    : oracledb.DB_TYPE_JSON;
+                const queuePayloadType = oracleAq.resolveQueuePayloadType(oracledb, node.payloadType, node.adtTypeName);
 
                 const queue = await connection.getQueue(node.queueName, {
                     payloadType: queuePayloadType,
                 });
 
-                queue.enqOptions.deliveryMode = DELIVERY_MODES[node.deliveryMode] || oracledb.AQ_MSG_DELIV_MODE_PERSISTENT;
-                if (node.recipients) {
-                    queue.enqOptions.recipients = node.recipients;
-                }
+                oracleAq.configureEnqueueQueue(queue, oracledb, node);
 
-                var messages;
-                if (node.payloadType === "adt") {
-                    messages = arr.map(function(item) {
-                        return { payload: new queue.payloadTypeClass(item) };
-                    });
-                } else if (node.payloadType === "raw") {
-                    messages = arr.map(function(item) {
-                        return { payload: Buffer.isBuffer(item) ? item : Buffer.from(String(item)) };
-                    });
-                } else {
-                    messages = arr.map(function(item) {
-                        return { payload: item };
-                    });
-                }
+                var messages = oracleAq.createEnqueueMessages(node.payloadType, queue, arr);
 
                 await queue.enqMany(messages);
                 if (ownConnection) {
@@ -150,7 +118,7 @@ module.exports = function(RED) {
             } finally {
                 if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {
-                        node.warn(`Failed to close connection: ${e.message}`);
+                        node.warn(`Failed to close connection: ${dbError.redactText(e.message)}`);
                     }
                 }
             }

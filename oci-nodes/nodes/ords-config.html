@@ -70,6 +70,10 @@ RED.nodes.registerType("ords-config", {
         $("#btn-test-ords").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-ords-result");
+            if (!$("#node-config-input-tokenUrl").val().trim()) {
+                resultEl.text("Error Token URL is required").css("color", "#d62728");
+                return;
+            }
             btn.prop("disabled", true);
             resultEl.text("Testing...").css("color", "#888");
             $.ajax({
@@ -140,17 +144,6 @@ RED.nodes.registerType("ords-config", {
             Used only when the token response does not include <code>expires_in</code>.
         </div>
     </div>
-    <div class="form-row" style="text-align:center;">
-        <button type="button" class="red-ui-button" id="btn-test-ords">
-            <i class="fa fa-plug"></i> Test Token
-        </button>
-        <span id="test-ords-result" style="margin-left:10px;font-size:12px;"></span>
-    </div>
-    <div class="form-row" style="text-align:center;margin-top:2px;">
-        <div id="ords-deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
-            <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
-        </div>
-    </div>
     </fieldset>
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Polling Safety Limits</legend>
@@ -166,6 +159,19 @@ RED.nodes.registerType("ords-config", {
         Only used by <code>oci-ords-poll</code> nodes that share this ORDS Config. Regular ORDS request nodes ignore these settings.
     </div>
     </fieldset>
+    <div class="config-test-actions">
+        <div class="form-row" style="text-align:center;">
+            <button type="button" class="red-ui-button" id="btn-test-ords">
+                <i class="fa fa-plug"></i> Test OAuth Token
+            </button>
+            <span id="test-ords-result" style="margin-left:10px;font-size:12px;"></span>
+        </div>
+        <div class="form-row" style="text-align:center;margin-top:2px;">
+            <div id="ords-deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+                <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+            </div>
+        </div>
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="ords-config">
@@ -205,6 +211,6 @@ RED.nodes.registerType("ords-config", {
     <li>Child request nodes use relative paths only; the config node owns the ORDS host/base path.</li>
     <li>ORDS requests retry once with a refreshed token after a 401 response.</li>
     <li>Active ORDS fetches are aborted and queued poll jobs are rejected when the config node closes.</li>
-    <li>Test Token validates OAuth credentials after deploy.</li>
+    <li>Test OAuth Token validates OAuth credentials after deploy.</li>
 </ul>
 </script>

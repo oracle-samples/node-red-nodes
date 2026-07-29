@@ -20,7 +20,7 @@ Defines how Node-RED connects to the Oracle Database. All other DB nodes referen
 | Password | Basic only | Database password |
 | TNS String | Yes | Connect descriptor or TNS alias |
 | Wallet Path | No | Wallet and network config directory. Required for ADB (mTLS) and TCPS connections. Applies to all auth types. Passed as `configDir` and `walletLocation`. |
-| Config File Location | Config File / Session Token | Path to OCI config file (default: `/home/opc/.oci/config`) |
+| Config File Location | Config File / Session Token | Path to OCI config file (default: `~/.oci/config`) |
 | Profile | Config File / Session Token | Profile name in config file (default: `DEFAULT`) |
 | Fingerprint | Simple only | API key fingerprint |
 | Private Key Location | Simple only | Path to private key file |
@@ -51,7 +51,10 @@ Driver mode behavior:
 | Runtime scope | Process-wide after first DB connection initialization | Process-wide after first DB connection initialization |
 | DB Token + Proxy User | Not supported (node fails fast with a clear error) | Allowed to proceed to driver behavior |
 
-> **Important:** Node-oracledb mode is process-wide in a single Node-RED runtime. The first active `db-connection` node to initialize the driver sets the mode. Later nodes requesting a different mode will continue using the already-initialized runtime mode and log a warning. Restart Node-RED to switch modes.
+> **Important:** Node-oracledb mode is process-wide in a single Node-RED runtime. The first
+> `db-connection` to initialize the driver sets the mode.
+> Later nodes requesting a different mode continue using the initialized runtime mode and log a
+> warning. Restart Node-RED to switch modes.
 > In Thick mode, if `ORACLE_CLIENT_LIB` is set it is used as `libDir`; otherwise node-oracledb default platform library lookup is used.
 
 ### begin-transaction
@@ -98,17 +101,17 @@ Dequeues messages from an Oracle AQ queue.
 |-------|----------|-------------|
 | DB Connection | Yes | References a db-connection config node |
 | Mode | No | **Transactional** (default): triggered by an incoming msg, supports begin/end-transaction. **Continuous**: auto-starts on deploy, long-polls with `AQ_DEQ_WAIT_FOREVER`, auto-commits after each batch — no rollback protection. |
-| Enable Retries | Continuous only | Retry after DB errors in continuous mode (default: enabled). |
+| Enable Retries | Continuous only | Retry DB/dequeue errors in continuous mode (default: enabled). A missing Subscriber for a multi-consumer queue stops immediately. |
 | Retry Delay (ms) | Continuous only | Fixed delay before each reconnect attempt (default: `5000`). |
-| Max Retries | Continuous only | Maximum reconnect attempts after a failure. `0` means unlimited (default). |
+| Max Retries | Continuous only | Maximum retry attempts after a failure. `0` means unlimited (default). |
 | Queue Name | Yes | AQ queue name (e.g. `SCHEMA.JSON_QUEUE`) |
-| Subscriber | No | Consumer name for multi-consumer queues |
+| Subscriber | Multi-consumer queues | Consumer name for multi-consumer queues. Leave empty only for single-consumer queues. |
 | Payload Type | No | **JSON** (default): payload parsed as a JS object. **RAW**: payload as a `Buffer` (convert with `.toString()`). **ADT**: payload as a plain JS object converted from an Oracle DbObject — field names are uppercase. |
 | Object Type | ADT only | Schema-qualified Oracle object type name (e.g. `ADMIN.MY_MSG_TYPE`) |
 | Dequeue Mode | No | **Remove** (default): message is permanently removed on commit. **Browse**: message is read but stays in the queue. **Locked**: message is locked but stays in the queue on commit. |
 | Block Indefinitely | No | Waits forever for messages if checked (Transactional mode only) |
 | Blocking Time (seconds) | No | Wait time if not blocking indefinitely (Transactional mode only) |
-| Batch Size | No | Messages per dequeue (default: 1) |
+| Batch Size | No | Messages per dequeue (default: 1, max: 10000) |
 
 **Dequeue modes:**
 
@@ -124,7 +127,7 @@ Dequeues messages from an Oracle AQ queue.
 
 **Standalone mode:** When used without transaction nodes, creates its own connection with auto-commit. A warning is logged: "Dequeue running without transaction."
 
-**Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. On DB errors, the node retries connection/dequeue automatically when retries are enabled. On redeploy/stop, the node interrupts the blocking dequeue call (and any retry wait) so close can finish promptly without timing out.
+**Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. On DB/dequeue errors, the node retries connection/dequeue automatically when retries are enabled and stops after Max Retries is exhausted. On redeploy/stop, the node interrupts the blocking dequeue call (and any retry wait) so close can finish promptly without timing out. If Oracle returns `ORA-25231`, configure **Subscriber** with the AQ consumer name required by the multi-consumer queue; this missing-subscriber error stops immediately.
 
 ### enqueue
 
@@ -135,11 +138,11 @@ Enqueues JSON messages into an Oracle AQ queue.
 | DB Connection | Yes | References a db-connection config node |
 | Queue Name | Yes | AQ queue name |
 | Recipients | No | Comma-separated subscriber names for multi-consumer queues |
-| Delivery Mode | No | **Persistent** (default): written to queue table, survives restarts. **Buffered**: Oracle shared memory only, faster but lost on DB restart — requires thick client mode. |
+| Delivery Mode | No | **Persistent** (default): written to queue table, survives restarts. **Buffered**: Oracle shared memory only, faster but lost on DB restart. Buffered JSON payloads are not supported. |
 | Payload Type | No | **JSON** (default): enqueues JS objects. **RAW**: enqueues strings as UTF-8 Buffers. **ADT**: instantiates Oracle DbObjects from JS objects using the configured object type. |
 | Object Type | ADT only | Schema-qualified Oracle object type name (e.g. `ADMIN.MY_MSG_TYPE`) |
 | User Payload | No | A single object or JSON array. A single object is enqueued as one message; each array element becomes a separate message. If empty, uses `msg.payload` (accepts both shapes). For JSON/ADT payload types, the editor provides a `...` JSON editor button. |
-| Output | No | When enabled (default), sends a msg after successful enqueue. Disable to use as a pure sink. |
+| Pass Message | No | When enabled (default), sends a msg after successful enqueue. Disable to use as a pure sink. |
 
 **Outputs (when enabled):** `msg.count` (number of messages enqueued). All upstream `msg` properties are preserved.
 
@@ -160,6 +163,8 @@ Executes SQL statements against the Oracle Database.
 | Binds Mapping | Editor only | Reorderable bind rows: bind variable + source type (`static text`, `number`, `boolean`, `date`, `msg property`, `JSONata`). JSONata rows include a `...` button to open the expression editor. `date` defaults to `SYSDATE` (current runtime time) but can be edited to any valid date/datetime string. |
 | Max Rows | No | Maximum rows returned (default: 1000, max: 10000) |
 
+Clicking **Done** saves the current Binds Mapping rows; reopening the node restores them.
+
 **Outputs:** `msg.payload` (array of row objects)
 
 Before opening a DB connection, SQL placeholder parity is validated: named placeholders require object binds, positional placeholders require array binds, and missing bind values fail fast with status "binds mismatch".
@@ -176,7 +181,7 @@ All SCM HTTP action/lookup/event nodes apply a 30-second outbound request timeou
 
 ### scm-server (Config Node)
 
-Stores OAuth credentials, hostname, API version, and proxy settings. All SCM nodes reference this config.
+Stores the Fusion hostname, API version, OAuth credentials, and proxy settings. All SCM nodes reference this config.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -185,14 +190,16 @@ Stores OAuth credentials, hostname, API version, and proxy settings. All SCM nod
 | Client Secret | Yes | OAuth client secret |
 | Scope | Yes | Token scope |
 | Token URL | Yes | OAuth token endpoint URL. Must use HTTPS — enforced at deploy time. |
-| Hostname | Yes | Fusion Cloud hostname |
-| Version | Yes | REST API version (e.g. `11.13.18.05`) |
+| Hostname | Yes | Fusion hostname only, without `https://` or a path. |
+| API Version | Yes | Fusion REST API version supplied for the environment. |
+| REST Base | Read-only | Derived preview: `https://<fusion-host>/fscmRestApi/resources/<api-version>`. Resource paths are appended automatically. |
 | Use Expiry Fallback | No | When enabled, uses the configured fallback lifetime when the token response omits `expires_in` |
 | Expiry Fallback (min) | No | Token cache duration in minutes used when `expires_in` is absent. Default: `60`. Ignored when `expires_in` is present — server-reported lifetime minus a 30-second safety buffer is used instead. |
 | Use Proxy | No | Enables proxy for outbound requests |
 | Proxy URL | Proxy only | Proxy URL used by axios |
+| Test Connection | No | Acquires an OAuth token, then verifies that the configured Fusion REST host is reachable. Reports OAuth-only success as a partial failure. |
 
-> **Deploy-time validation:** `Hostname`, `API Version`, `Token URL`, and `Scope` must all be set before deploying. A non-HTTPS Token URL or any missing required field raises a clear error at deploy time.
+> **Deploy-time validation:** Hostname, API Version, Token URL, and Scope must all be valid before deploying. Hostname must not include a protocol or path, and the Token URL must use HTTPS.
 
 Fusion SCM REST nodes keep their normal output success-only. On failures, they route to Catch with `msg.error` shaped as `{ message, code }`; when Fusion returns a validation body, `msg.error.message`, `node.error(...)`, and `done(err).message` use that Fusion text, while `msg.payload` keeps the raw response body.
 
@@ -205,7 +212,7 @@ Unified SCM transaction node. Supports multiple transaction types in a single in
 | SCM Server | Yes | References a scm-server config node |
 | Transaction Type | Yes | Create Asset, Create Meter Reading, Miscellaneous Transaction, Subinventory Transfer, or Custom |
 | Method | Yes | HTTP method (GET, POST, PUT, PATCH, DELETE) |
-| Custom Endpoint | Custom only | Editable base endpoint URL used when Transaction Type is `custom` |
+| Custom Endpoint | Custom only | Editable HTTPS endpoint used when Transaction Type is `custom`. The host must match the configured SCM Server |
 | Payload Mappings | Yes | Structured rows mapping SCM fields to values. `GET` sends mappings as query parameters; `POST`/`PUT`/`PATCH` sends mappings as the JSON body; `DELETE` does not send mappings |
 
 New nodes default to `Transaction Type = Custom` so the workspace label stays `fusion request` until a transaction type is selected.
@@ -221,20 +228,41 @@ Unified SCM lookup node. Supports multiple query types.
 | Field | Required | Description |
 |-------|----------|-------------|
 | SCM Server | Yes | References a scm-server config node |
-| Lookup Type | Yes | Installed Base Asset, Meter Reading, Organization ID, Item, Subinventory, On-Hand Quantity, Work Definition, Manufacturing Work Order, Maintenance Work Order, or Custom |
+| Lookup Type | Yes | Installed Base Asset, Meter Reading, Inventory Organization, Item, Subinventory, On-Hand Quantity, Work Definition, Recipe / Work Definition, Manufacturing Work Order, Batch / Manufacturing Work Order, Batch Operation by Sequence, Batch Material / Ingredient Line, Batch Resource Line, Batch Output Product Line, Batch Material Reservation Status, Maintenance Work Order, or Custom |
+| Find by | Inventory Organization only | Queries by Organization Name, Organization Code, or Organization ID. The output remains the complete Fusion response. |
+| Work Order ID | Manufacturing child lookups only | Fusion `WorkOrderId` resource key used in the child endpoint path. This is not the displayed work order or batch number. |
+| Operation ID | Material, resource, output, and reservation child lookups only | Fusion `WorkOrderOperationId` resource key used in the nested child endpoint path. This is not the operation sequence. |
+| Organization Code | Item, Subinventory, On-Hand Quantity, Work Definition/Recipe, Manufacturing Work Order/Batch, and Maintenance Work Order | Required organization scope for the selected lookup. |
+| Item Number | Installed Base Asset and Work Definition/Recipe | Required second business key for the selected lookup. |
+| Meter Code | Meter Reading only | Required meter identifier used with Asset Number. |
+| Subinventory Code | On-Hand Quantity only | Optional subinventory scope. |
 | Query Value | Yes | The value to search for (e.g. Serial Number, Asset Number) |
-| Additional Filters | No | Optional JSON object appended to the REST `q` expression, such as `{"OrganizationCode":"M1","ItemNumber":"ASSEMBLY-100"}` |
-| Custom Endpoint | Custom only | Editable base endpoint URL used when lookup type is `custom` (query string not allowed) |
+| Additional Filters | No | Optional JSON object appended to the REST `q` expression for extra narrowing. Dedicated fields take precedence over matching keys; values containing `;` are rejected |
+| Custom Endpoint | Custom only | Editable HTTPS base endpoint used when lookup type is `custom`. Query strings are not allowed, and the host must match the configured SCM Server |
 | Query Param | Custom only | Oracle REST field name to filter by (e.g. `ItemNumber`). Required in custom mode — must be paired with a Query Value |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected Lookup Type and SCM Server |
 
-Prerequisite lookup types target `itemsV2` by `ItemNumber`, `subinventories` by `SecondaryInventoryName`, `inventoryOnhandBalances` by `ItemNumber`, `workDefinitions` by `WorkDefinitionName`, manufacturing `workOrders` by `WorkOrderNumber`, and `maintenanceWorkOrders` by `WorkOrderNumber`. Use **Additional Filters** to narrow results by fields such as `OrganizationCode`, `SubinventoryCode`, and `ItemNumber`.
+Prerequisite lookup types target `inventoryOrganizations` by the selected organization field, `itemsV2` by Item Number and Organization Code, `subinventories` by Subinventory Code and Organization Code, `inventoryOnhandBalances` by Item Number and Organization Code, `workDefinitions` by Work Definition Name, Organization Code, and Item Number, manufacturing `workOrders` by Work Order Number and Organization Code, and `maintenanceWorkOrders` by Work Order Number and Organization Code. Installed Base Asset uses Serial Number and Item Number; Meter Reading uses Asset Number and Meter Code. Redwood aliases map to the same resources: Recipe maps to Work Definition, and Batch maps to Manufacturing Work Order.
 
-In custom mode both **Query Param** and **Query Value** are required. The node errors if either is missing. Custom Endpoint must be a base endpoint without query parameters. To hit an endpoint without a query filter, use `fusion-request` instead.
+Manufacturing child lookups target:
+
+| Lookup Type | Required resource IDs | Endpoint pattern | Query field |
+|-------------|-----------------------|------------------|-------------|
+| Batch Operation by Sequence | Work Order ID | `workOrders/{WorkOrderId}/child/WorkOrderOperation` | `OperationSequenceNumber` |
+| Batch Material / Ingredient Line | Work Order ID, Operation ID | `workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationMaterial` | `InventoryItemNumber` |
+| Batch Resource Line | Work Order ID, Operation ID | `workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationResource` | `ResourceCode` |
+| Batch Output Product Line | Work Order ID, Operation ID | `workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationOutput` | `InventoryItemNumber` |
+| Batch Material Reservation Status | Work Order ID, Operation ID | `workOrders/{WorkOrderId}/child/WorkOrderOperation/{WorkOrderOperationId}/child/WorkOrderOperationMaterial` | `InventoryItemNumber` |
+
+To navigate manufacturing children, first look up the Batch / Manufacturing Work Order by its document number and copy the response `WorkOrderId` into **Work Order ID**. For nested material, resource, output, or reservation lookups, look up the operation by sequence and copy its response `WorkOrderOperationId` into **Operation ID**.
+
+In custom mode both **Query Param** and **Query Value** are required. The node errors if either is missing. Custom Endpoint must be an HTTPS base endpoint on the configured SCM Server host and cannot contain query parameters. To hit an endpoint without a query filter, use `fusion-request` instead.
+
+Primary Query Values and Additional Filter values containing `;` are rejected because Fusion uses semicolons to separate `q` filter expressions.
 
 New nodes default to `Lookup Type = Custom` so the workspace label stays `scm lookup` until a lookup type is selected.
 
-**Inputs (runtime overrides):** `msg.queryValue` overrides the Query Value field; `msg.queryFilters` overrides Additional Filters as an object or JSON object string
+**Inputs (runtime overrides):** `msg.queryValue` overrides the Query Value field; `msg.organizationCode`, `msg.itemNumber`, `msg.meterCode`, and `msg.subinventoryCode` override their dedicated lookup fields; `msg.queryFilters` overrides Additional Filters as an object or JSON object string; `msg.workOrderId` overrides Work Order ID for manufacturing child lookups; `msg.workOrderOperationId` overrides Operation ID for material/resource/output/reservation lookups
 
 **Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
@@ -242,7 +270,9 @@ Successful lookup requests that return an empty Fusion collection (`items: []`) 
 
 ### smo-transformer
 
-Transforms incoming telemetry or message data into structured SMO event payloads for Oracle Fusion Cloud.
+Transforms incoming telemetry or message data into structured Smart Operations event payloads for Oracle Fusion Cloud.
+
+Palette label: `smart operations transformer`.
 
 > **Important:** The smo-transformer processes one message at a time. Place a **split** node (fixed length: 1) before it when processing batches.
 
@@ -264,9 +294,11 @@ Transforms incoming telemetry or message data into structured SMO event payloads
 
 **Inputs:** `msg.payload` must be a single object. Arrays and non-object payloads raise an error and can be routed to a Catch node.
 
-**Outputs:** `msg.smoEvent` (structured SMO event object, default) or `msg.payload` when Output Target is set to `msg.payload`.
+**Outputs:** `msg.smoEvent` (structured Smart Operations event object, default) or `msg.payload` when Output Target is set to `msg.payload`.
 
-New nodes start with `Select event type...`, empty mappings, and the generic `smo transformer` workspace label. Select a preset to populate its default mappings, or add a custom event type. Messages are routed to Catch if Event Type is left blank.
+New nodes start with `Select event type...`, empty mappings, and the generic `smart operations transformer` workspace label. Select a preset to populate its default mappings, or add a custom event type. Messages are routed to Catch if Event Type is left blank.
+
+Clicking **Done** persists custom event types, entity/event-time fields, field mappings, and composite required/split fields so the same configuration is restored when the editor reopens.
 
 The preview panel applies mapping, split field, collect-flat, value-map, nesting, and event-time settings to the sample payload. In Composite mode, array samples simulate fragment grouping by `entityCode`, `eventTime`, and `eventTypeCode`, then show merged outputs, pending fragments, and fragment-level errors. Sample payloads populate path suggestions and preview output; they do not validate whether configured paths are valid because production payloads may use aliases or variants that are not present in the pasted samples. Preview is unavailable while JSONata Override is set because JSONata is evaluated by the Node-RED runtime.
 
@@ -275,6 +307,8 @@ When Composite is enabled and a message is incomplete, `entityCode` and `eventTi
 ### smo-event
 
 Sends structured Smart Operations operational events to Oracle Fusion Cloud SCM.
+
+Palette label: `smart operations event`.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -302,7 +336,7 @@ Creates or updates a discrete manufacturing work order header in Oracle Fusion S
 | Endpoint | Editor preview | Read-only endpoint preview based on selected SCM Server and Action |
 | Payload Mappings | Yes | Structured rows mapping Fusion work order fields to values |
 
-Create default mapping rows include `WorkOrderNumber`, `OrganizationCode`, `ItemNumber`, `WorkDefinitionName`, `WorkOrderStatusCode`, `WorkOrderTypeCode`, `PlannedStartQuantity`, `PlannedStartDate`, `PlannedCompletionDate`, and `WorkOrderDescription`. Update default rows include `WorkOrderDescription`, `WorkOrderStatusCode`, `WorkOrderTypeCode`, `PlannedStartQuantity`, `PlannedStartDate`, and `PlannedCompletionDate`. Preset row values start blank and non-static so users can choose the correct source type and path. Required create fields depend on the Fusion Manufacturing setup.
+Create default mapping rows include `WorkOrderNumber`, `OrganizationCode`, `ItemNumber`, `WorkDefinitionCode`, `WorkOrderStatusCode`, `WorkOrderTypeCode`, `PlannedStartQuantity`, `PlannedStartDate`, `PlannedCompletionDate`, `ExplosionFlag`, and `WorkOrderDescription`. Dynamic values default to `msg.payload.*`; status and explosion use typed constants, and the start date uses the current timestamp. `WorkDefinitionName` is read-only for create requests and is rejected before the API call. Update defaults read values from `msg.payload.*`. Required create fields depend on the Fusion Manufacturing setup.
 
 **Inputs (runtime overrides):** `msg.action` overrides the configured Action with `create` or `update`; `msg.workOrderId` supplies the resource ID for Update. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp.
 
@@ -313,6 +347,8 @@ This node manages the work order header resource. Use `manufacturing-work-order-
 ### manufacturing-work-order-child
 
 Manages manufacturing work order child records and operation progress transactions.
+
+Palette label: `manage manufacturing work order details`.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -335,11 +371,43 @@ Resource modes target these Fusion resources:
 | Serial | `workOrders/{WorkOrderId}/child/WorkOrderSerialNumber` |
 | Progress | `operationTransactions` |
 
-Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`. Progress transaction presets default to `OperationTransactionDetail` with `static JSON` so a nested operation transaction detail array can be supplied directly; enter the array value only, not an object that wraps `OperationTransactionDetail` again.
+Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`, read from matching `msg.payload.*` paths. Progress transactions read the nested `OperationTransactionDetail` collection from `msg.payload.OperationTransactionDetail` by default.
 
 **Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` supply IDs when editor fields are blank. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp.
 
 **Outputs:** `msg.payload` (API response), `msg.manufacturingWorkOrderChild` (same successful API response), `msg.workOrderChild` (same successful API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
+
+### manufacturing-production-transaction
+
+Posts Fusion Manufacturing production reporting transactions for batches/work orders. Redwood UI terms map to the same REST model: Batches are manufacturing work orders, ingredients are operation materials, and output products are product completion transactions.
+
+Palette label: `manufacturing production transaction`.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| SCM Server | Yes | References a scm-server config node |
+| Mode | Yes | Operation Complete, Operation Reject, Operation Scrap, Operation Reverse to Ready, Material / Ingredient Issue, Material / Ingredient Return, Output Product Complete, or Output Product Return |
+| Endpoint | Editor preview | Read-only endpoint preview based on selected SCM Server and Mode |
+| Payload Mappings | Yes | Structured rows mapping Fusion production transaction detail fields to values |
+
+Operation modes post to `operationTransactions` and wrap mapped fields in `OperationTransactionDetail`. Material and output modes post to `materialTransactions` and wrap mapped fields in `MaterialTransactionDetail`.
+
+Mode defaults:
+
+| Mode | Defaults |
+|------|----------|
+| Operation Complete | `FromDispatchState=READY`, `ToDispatchState=COMPLETE` |
+| Operation Reject | `FromDispatchState=READY`, `ToDispatchState=REJECT` |
+| Operation Scrap | `FromDispatchState=READY`, `ToDispatchState=SCRAP` |
+| Operation Reverse to Ready | `FromDispatchState=COMPLETE`, `ToDispatchState=READY` |
+| Material / Ingredient Issue | `TransactionTypeCode=MATERIAL_ISSUE` |
+| Material / Ingredient Return | `TransactionTypeCode=MATERIAL_RETURN` |
+| Output Product Complete | `TransactionTypeCode=PRODUCT_COMPLETION`, `OutputTypeCode=PRODUCT` |
+| Output Product Return | `TransactionTypeCode=PRODUCT_RETURN`, `OutputTypeCode=PRODUCT` |
+
+**Inputs (runtime overrides):** `msg.mode` overrides the configured Mode for this message. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp.
+
+**Outputs:** `msg.payload` (API response), `msg.manufacturingProductionTransaction` (same successful API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
 ### maintenance-work-order
 
@@ -353,7 +421,7 @@ Creates or updates a maintenance work order header in Oracle Fusion SCM.
 | Endpoint | Editor preview | Read-only endpoint preview based on selected SCM Server and Action |
 | Payload Mappings | Yes | Structured rows mapping Fusion maintenance work order fields to values |
 
-Create default mapping rows include `WorkOrderNumber`, `OrganizationCode`, `AssetNumber`, `MntWorkDefinitionCode`, `WorkOrderTypeCode`, `WorkOrderSubTypeCode`, `WorkOrderStatusCode`, `PlannedStartQuantity`, `PlannedStartDate`, `WorkOrderDescription`, `AllowCompletionToInventoryFlag`, `CompletionSubinventoryCode`, `AllowOutOfSequenceOperationCompletionFlag`, and `ExplosionFlag`. Update default rows include `WorkOrderDescription`, `WorkOrderStatusCode`, `WorkOrderPriority`, `PlannedStartDate`, `PlannedCompletionDate`, `AllowCompletionToInventoryFlag`, `CompletionSubinventoryCode`, and `AllowOutOfSequenceOperationCompletionFlag`. Preset row values start blank and non-static so users can choose the correct source type and path. Required create fields depend on the Fusion Maintenance setup.
+Create default mapping rows include `WorkOrderNumber`, `OrganizationCode`, `AssetNumber`, `MntWorkDefinitionCode`, `WorkOrderTypeCode`, `WorkOrderSubTypeCode`, `WorkOrderStatusCode`, `PlannedStartQuantity`, `PlannedStartDate`, `WorkOrderDescription`, `AllowCompletionToInventoryFlag`, `CompletionSubinventoryCode`, `AllowOutOfSequenceOperationCompletionFlag`, and `ExplosionFlag`. Dynamic values default to `msg.payload.*`; status and explosion use typed constants, and the start date uses the current timestamp. Update defaults read values from `msg.payload.*`. Required create fields depend on the Fusion Maintenance setup.
 
 **Inputs (runtime overrides):** `msg.action` overrides the configured Action with `create` or `update`; `msg.workOrderId` supplies the resource ID for Update. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp.
 
@@ -364,6 +432,8 @@ This node manages the maintenance work order header resource. Use `maintenance-w
 ### maintenance-work-order-child
 
 Manages maintenance work order child records and cost-impacting maintenance operation transactions.
+
+Palette label: `manage maintenance work order details`.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -385,7 +455,7 @@ Resource modes target these Fusion resources:
 | Resource | `maintenanceWorkOrders/{WorkOrderId}/child/WorkOrderOperation/{WoOperationId}/child/WorkOrderOperationResource` |
 | Cost Transaction | `maintenanceOperationTransactions` |
 
-Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`. Cost Transaction presets default to `OperationTransactionDetail` with `static JSON` so a nested maintenance operation transaction detail array can be supplied directly; enter the array value only, not an object that wraps `OperationTransactionDetail` again.
+Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`, read from matching `msg.payload.*` paths. Cost transactions read the nested `OperationTransactionDetail` collection from `msg.payload.OperationTransactionDetail` by default.
 
 **Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` supply IDs when editor fields are blank. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp.
 
@@ -395,13 +465,15 @@ Operation presets include `OperationSequenceNumber`, `OperationName`, `Operation
 
 Individual SCM transaction nodes. Each targets a specific REST endpoint.
 
+The `create-asset` node appears in the palette as `create installed base asset`.
+
 | Field | Required | Description |
 |-------|----------|-------------|
 | SCM Server | Yes | References a scm-server config node |
-| Mode | `misc-transaction` only | Custom, Miscellaneous Receipt, or Miscellaneous Issue. Receipt/Issue modes set `TransactionTypeName`; Custom leaves mapped fields unchanged |
+| Mode | `misc-transaction` only | Custom, Miscellaneous Receipt, Miscellaneous Issue, Account Alias Receipt, or Account Alias Issue. Receipt/Issue modes set `TransactionTypeName`; Custom leaves mapped fields unchanged |
 | Payload Mappings | Yes | Structured rows mapping SCM fields to values |
 
-For `misc-transaction`, `msg.mode` can override the configured Mode with `custom`, `receipt`, or `issue`. Receipt and Issue modes set `TransactionTypeName`, so their preset mappings omit that field and use `OrganizationId` for the staged transaction organization. They do not alter `TransactionQuantity`; map the positive or negative quantity required by the Fusion transaction setup. `misc-transaction` and `subinventory-quantity-transfer` include a `serials` mapping row for serialized inventory transactions. `subinventory-quantity-transfer` presets include `SubinventoryCode` for the source subinventory and `TransferSubinventory` for the destination.
+For `misc-transaction`, `msg.mode` can override the configured Mode with `custom`, `receipt`, `issue`, `accountAliasReceipt`, or `accountAliasIssue`. Receipt and Issue modes set `TransactionTypeName`, so their preset mappings omit that field and use `OrganizationId` for the staged transaction organization. Account Alias modes set `TransactionTypeName` to `Account Alias Receipt` or `Account Alias Issue`; map the alias field expected by your Fusion setup, such as `AccountAliasName`, plus an optional reason such as `ReasonName`. The node does not alter `TransactionQuantity`; map the positive or negative quantity required by the Fusion transaction setup. `misc-transaction` and `subinventory-quantity-transfer` include a `serials` mapping row for serialized inventory transactions. `subinventory-quantity-transfer` presets include `SubinventoryCode` for the source subinventory and `TransferSubinventory` for the destination.
 
 **Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 These typed nodes always call their canonical SCM endpoint. To target a different endpoint, use `fusion-request` with `Transaction Type = custom`.
@@ -410,19 +482,21 @@ These typed nodes always call their canonical SCM endpoint. To target a differen
 
 Deletes an SCM resource by identifier using the selected mode endpoint.
 
+Palette label: `delete scm record`.
+
 | Field | Required | Description |
 |-------|----------|-------------|
 | SCM Server | Yes | References a scm-server config node |
 | Delete Type | Yes | Asset, Meter, Misc, Subinventory, or Custom |
 | Resource ID | No | If empty, reads from `msg.resourceId` |
-| Custom Endpoint | Custom only | Editable base endpoint URL used when Delete Type is `custom` (query string not allowed) |
+| Custom Endpoint | Custom only | Editable HTTPS base endpoint used when Delete Type is `custom`. Query strings are not allowed, and the host must match the configured SCM Server |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected Delete Type and SCM Server |
 
-New nodes default to `Delete Type = Custom` so the workspace label stays `delete transaction` until a delete type is selected.
+New nodes default to `Delete Type = Custom` so the workspace label stays `delete scm record` until a delete type is selected.
 
 **Inputs (runtime overrides):** `msg.resourceId` overrides the Resource ID field; `msg.mode` overrides the Delete Type (`asset`, `meter`, `misc`, `subinventory`, `custom`)
 
-In custom mode, the node uses the configured Custom Endpoint as the base endpoint. Query parameters in Custom Endpoint are rejected. The resource ID is URL-encoded before path append, and delete requests time out after 30 seconds.
+In custom mode, the node uses the configured Custom Endpoint as the base endpoint. It must use HTTPS and match the configured SCM Server host; query parameters are rejected. The resource ID is URL-encoded before path append, and delete requests time out after 30 seconds.
 
 ### get-ib-asset / get-meter-reading / get-organization-id
 
@@ -578,6 +652,8 @@ Pushes log records to OCI Logging Custom Logs using the Logging Ingestion API (`
 | Payload Source | No | `Payload Mappings` (default) or `msg.payload` |
 | Payload Mappings | No | Mapping rows from dequeued data, msg property, or static value |
 
+Clicking **Done** saves the current Payload Mappings rows; reopening the node restores them.
+
 **Runtime inputs:** `msg.logId` (used when node Log OCID is blank), `msg.logSource`, `msg.logType`, `msg.logSubject`, `msg.severity`
 
 **Outputs:** `msg.payload.opcRequestId`, `msg.payload.statusCode`, `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
@@ -596,6 +672,8 @@ Uploads log events to OCI Log Analytics using `uploadLogEventsFile`.
 | Default Severity | No | Injected as `level` when payload object has no `level` field. Overridden by `msg.severity` |
 | Payload Source | No | `Payload Mappings` (default) or `msg.payload` |
 | Payload Mappings | No | Mapping rows from dequeued data, msg property, or static value |
+
+Clicking **Done** saves the current Payload Mappings rows; reopening the node restores them.
 
 **Runtime overrides:** `msg.namespace`, `msg.logGroupOcid`, `msg.logSourceName`, `msg.entityOcid`, `msg.severity`
 
@@ -732,7 +810,9 @@ All SCM nodes that use payload mappings support structured mapping rows:
 | **static JSON** | Parsed JSON | JSON array/object/value for nested fields such as `serials` |
 | **current timestamp** | Runtime clock | Leave blank; generated as an ISO timestamp at runtime |
 
-`static JSON` values are parsed at runtime and routed to Catch if the editor value is blank or invalid JSON.
+Message and dequeued paths are relative to their source. Enter `payload.AssetNumber`, not `msg.payload.AssetNumber`; enter `AssetNumber`, not `msg.dequeued.AssetNumber`. Each row previews the resolved path. Switching between Message property and Dequeued data converts the conventional `payload.<SCMField>` and `<SCMField>` forms automatically; custom paths are preserved. Known Fusion fields show inline type warnings, and runtime validation routes duplicate prefixes, destructive static-type mismatches, invalid ISO date-times, and invalid static JSON to Catch before an API request is sent. Unknown custom fields keep all source options without field-type restrictions.
+
+Clicking **Done** persists the current mapping rows for preset and Custom modes. Reopening the node restores the saved rows rather than regenerating defaults or clearing Custom mappings.
 
 ## Typical Flows
 

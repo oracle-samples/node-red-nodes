@@ -139,11 +139,11 @@ RED.nodes.registerType("oci-config", {
     <div class="auth-section auth-simple">
         <div class="form-row">
             <label for="node-config-input-tenancyOcid"><i class="fa fa-building"></i> Tenancy OCID</label>
-            <input type="text" id="node-config-input-tenancyOcid" placeholder="ocid1.tenancy.oc1...">
+            <input type="text" id="node-config-input-tenancyOcid" placeholder="<tenancy-ocid>">
         </div>
         <div class="form-row">
             <label for="node-config-input-userOcid"><i class="fa fa-user"></i> User OCID</label>
-            <input type="text" id="node-config-input-userOcid" placeholder="ocid1.user.oc1...">
+            <input type="text" id="node-config-input-userOcid" placeholder="<user-ocid>">
         </div>
         <div class="form-row">
             <label for="node-config-input-fingerprint"><i class="fa fa-fingerprint"></i> Fingerprint</label>
@@ -167,21 +167,23 @@ RED.nodes.registerType("oci-config", {
     </div>
     <div class="form-row">
         <label for="node-config-input-compartmentOcid"><i class="fa fa-folder-o"></i> Compartment OCID</label>
-        <input type="text" id="node-config-input-compartmentOcid" placeholder="ocid1.compartment.oc1...">
+        <input type="text" id="node-config-input-compartmentOcid" placeholder="<compartment-ocid>">
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Default compartment for child nodes (can be overridden per node).</div>
     </div>
-    <div class="form-row" style="text-align:center;">
-        <button type="button" class="red-ui-button" id="btn-test-oci">
-            <i class="fa fa-plug"></i> Test Connection
-        </button>
-        <span id="test-oci-result" style="margin-left:10px;font-size:12px;"></span>
-    </div>
-    <div class="form-row" style="text-align:center;margin-top:2px;">
-        <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
-            <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+    </fieldset>
+    <div class="config-test-actions">
+        <div class="form-row" style="text-align:center;">
+            <button type="button" class="red-ui-button" id="btn-test-oci">
+                <i class="fa fa-plug"></i> Test OCI Credentials
+            </button>
+            <span id="test-oci-result" style="margin-left:10px;font-size:12px;"></span>
+        </div>
+        <div class="form-row" style="text-align:center;margin-top:2px;">
+            <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+                <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+            </div>
         </div>
     </div>
-    </fieldset>
 </script>
 
 <script type="text/x-red" data-help-name="oci-config">

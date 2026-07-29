@@ -1,3 +1,5 @@
+var fieldMetadata = require("./scm-field-metadata.js");
+
 function parseMappings(raw) {
     if (Array.isArray(raw)) return raw;
     try {
@@ -13,6 +15,7 @@ function resolvePayload(mappings, msg, RED) {
     for (var i = 0; i < mappings.length; i++) {
         var mapping = mappings[i];
         if (!mapping.scmField) continue;
+        fieldMetadata.validateMappingDefinition(mapping);
         payload[mapping.scmField] = resolveMappingValue(mapping, msg, RED);
     }
     return payload;

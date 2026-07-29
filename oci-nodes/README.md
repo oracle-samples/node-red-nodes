@@ -17,18 +17,11 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | Node | Category | Description |
 |------|----------|-------------|
 | **oci-notification** | oci | Publishes messages to OCI Notifications topics (email, Slack, PagerDuty, webhook, SMS, OCI Functions). |
-| **oci-logging** | oci | Pushes log entries to OCI Logging (Custom Logs) using the Logging Ingestion API (`putLogs`). |
 | **oci-log-analytics** | oci | Uploads log events to OCI Log Analytics for search, parsing, and analytics workflows. |
+| **oci-logging** | oci | Pushes log entries to OCI Logging (Custom Logs) using the Logging Ingestion API (`putLogs`). |
 | **oci-object-storage** | oci | Uploads and downloads objects to/from OCI Object Storage using payloads or local file paths. |
 | **oci-ords-request** | oci | Sends one-shot ORDS HTTP requests using custom relative paths, with IoT Data API presets as shortcuts. |
 | **oci-ords-poll** | oci | Polls ORDS endpoints, including command delivery/response status through Raw Command Data. |
-
-### IoT — Device Side (MQTT via iot-config)
-
-| Node | Category | Description |
-|------|----------|-------------|
-| **iot-telemetry** | oci | Publishes telemetry data to the IoT Platform. |
-| **iot-subscribe** | oci | Subscribes to OCI IoT MQTT topics and emits incoming messages. |
 
 ### IoT — Cloud Side (REST API via oci-config)
 
@@ -37,6 +30,13 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | **iot-send-command** | oci | Sends commands to devices via the OCI REST API. |
 | **iot-get-content** | oci | Reads digital twin instance content via the OCI REST API. |
 | **iot-update-relationship** | oci | Updates digital twin relationship content via the OCI REST API. |
+
+### IoT — Device Side (MQTT via iot-config)
+
+| Node | Category | Description |
+|------|----------|-------------|
+| **iot-subscribe** | oci | Subscribes to OCI IoT MQTT topics and emits incoming messages. |
+| **iot-telemetry** | oci | Publishes telemetry data to the IoT Platform. |
 
 ## Installation
 
@@ -51,8 +51,8 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 Inside your Node-RED user directory (`~/.node-red`):
 
 ```bash
-npm install oci-sdk    # OCI Notifications, Logging, Log Analytics, Object Storage, IoT control-plane nodes
-npm install mqtt       # IoT Telemetry, IoT MQTT In
+npm install oci-sdk@2.137.0  # OCI Notifications, Logging, Log Analytics, Object Storage, IoT control-plane nodes
+npm install mqtt@5.15.2      # IoT Telemetry, IoT MQTT In
 ```
 
 ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
@@ -145,7 +145,7 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 `subscribe` → `debug` (message received on device-side subscription)
 
 **Closed-loop IoT to Fusion SCM:**
-`subscribe` / `inject` → `smo transformer` → `smo event`; fault branch → `maintenance work order` and `iot send command`
+`subscribe` / `inject` → `smart operations transformer` → `smart operations event`; fault branch → `maintenance work order` and `iot send command`
 
 ## Contributing
 

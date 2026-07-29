@@ -1,6 +1,6 @@
 {
   "name": "oci-nodes",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Oracle Cloud Infrastructure (OCI) nodes for Node-RED",
   "keywords": [
     "node-red",
@@ -11,8 +11,8 @@
   ],
   "license": "UPL-1.0",
   "dependencies": {
-    "oci-sdk": "^2.129.0",
-    "mqtt": "^5.10.0"
+    "oci-sdk": "2.137.0",
+    "mqtt": "5.15.2"
   },
   "node-red": {
     "nodes": {
