@@ -195,6 +195,10 @@ module.exports = function (RED) {
         return /^\s*(begin|declare)\b[\s\S]*\bend\s*;?\s*$/i.test(sql || "");
     }
 
+    function hasSqlclTerminator(sql) {
+        return /(?:^|[\r\n])\s*\/\s*$/.test(sql || "");
+    }
+
     function hasEditorStatementChain(sql) {
         if (!sql || typeof sql !== "string") return false;
         if (isAnonymousPlsqlBlock(sql)) return false;
@@ -390,6 +394,14 @@ module.exports = function (RED) {
                 }
                 sql = sql.trim();
 
+                if (node.sqlSource === "editor" && hasSqlclTerminator(sql)) {
+                    const err = new Error("SQLcl/SQL*Plus terminator \"/\" is not supported. Remove the trailing \"/\" and execute the PL/SQL block ending with END;");
+                    return dbError.handleNodeError(node, msg, err, done, {
+                        statusText: "invalid sql",
+                        statusShape: "ring"
+                    });
+                }
+
                 if (node.sqlSource === "editor" && hasEditorStatementChain(sql)) {
                     const err = new Error("Editor SQL must contain exactly one statement (semicolon statement chains are not allowed)");
                     return dbError.handleNodeError(node, msg, err, done, {
@@ -458,11 +470,26 @@ module.exports = function (RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "executing..." });
                 const res = await connection.execute(sql, binds, options);
-                const rows = res.rows || [];
+                const hasRows = Array.isArray(res.rows);
+                const rows = hasRows ? res.rows : [];
+                const rowsAffected = typeof res.rowsAffected === "number"
+                    ? res.rowsAffected
+                    : null;
+                var statusText = "completed";
+                if (hasRows) {
+                    statusText = `rows: ${rows.length}`;
+                } else if (rowsAffected !== null) {
+                    statusText = `affected: ${rowsAffected}`;
+                }
 
-                node.status({ fill: "green", shape: "dot", text: `rows: ${rows.length}` });
+                node.status({ fill: "green", shape: "dot", text: statusText });
                 var outMsg = Object.assign({}, msg, {
-                    payload: rows
+                    payload: rows,
+                    dbResult: {
+                        success: true,
+                        rowsReturned: rows.length,
+                        rowsAffected: rowsAffected
+                    }
                 });
                 if (msg.transaction) {
                     Object.defineProperty(outMsg, "transaction", {

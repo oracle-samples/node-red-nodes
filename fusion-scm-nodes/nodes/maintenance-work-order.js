@@ -58,7 +58,7 @@ module.exports = function(RED) {
         node.on("input", async function(msg, send, done) {
             try {
                 var action = resolveAction(config, msg);
-                var payload = scmMapping.resolvePayload(mappings, msg, RED);
+                var payload = scmMapping.resolveRequestPayload(config.payloadSource, mappings, msg, RED);
                 var workOrdersUrl = node.server.buildUrl("maintenanceWorkOrders");
                 var url = resolveRequestUrl(workOrdersUrl, action, config, msg);
                 ensureHttps(url);
@@ -79,7 +79,9 @@ module.exports = function(RED) {
                 send(outMsg);
                 done();
             } catch (err) {
-                var validationError = err && err.maintenanceWorkOrderValidationError;
+                var validationError = err && (
+                    err.maintenanceWorkOrderValidationError || err.scmPayloadValidationError
+                );
                 node.status({
                     fill: "red",
                     shape: validationError ? "ring" : "dot",

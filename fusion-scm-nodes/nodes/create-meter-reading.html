@@ -41,13 +41,21 @@ RED.nodes.registerType("create-meter-reading", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
+        payloadSource: { value: "mappings" },
         mappings: { value: '[{"scmField":"AssetNumber","sourceType":"msg","value":"payload.AssetNumber"},{"scmField":"MeterCode","sourceType":"msg","value":"payload.MeterCode"},{"scmField":"ReadingDate","sourceType":"currentTimestamp","value":""},{"scmField":"MeterUsageCode","sourceType":"static","value":"ORA_ASSET"},{"scmField":"ReadingValue","sourceType":"msg","value":"payload.ReadingValue"},{"scmField":"Comments","sourceType":"msg","value":"payload.Comments"}]' }
     },
     inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-tachometer",
     label: function () { return this.name || "create meter reading"; },
     oneditprepare: function () {
+        function syncPayloadSource() {
+            var useMappings = ($("#node-input-payloadSource").val() || "mappings") === "mappings";
+            $(".scm-payload-mappings").toggle(useMappings);
+            $(".scm-direct-payload-hint").toggle(!useMappings);
+        }
         scmMappingEditor.init(this);
         window.scmEndpointPreview.init("meterReadings");
+        $("#node-input-payloadSource").on("change", syncPayloadSource);
+        syncPayloadSource();
     },
     oneditsave: function () {
         var savedMappings = scmMappingEditor.save();
@@ -336,20 +344,35 @@ window.scmEndpointPreview = (function () {
     <div class="form-row">
         <label><i class="fa fa-link"></i> Endpoint</label>
         <span id="scm-url-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
-    </div>    <hr/>
+    </div>
+    <hr/>
     <div class="form-row">
-        <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
-            Map SCM API fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
+        <label for="node-input-payloadSource"><i class="fa fa-sign-in"></i> Payload Source</label>
+        <select id="node-input-payloadSource" style="width:200px;">
+            <option value="mappings">Mapped fields</option>
+            <option value="msgPayload">Entire msg.payload</option>
+        </select>
+    </div>
+    <div class="form-row scm-direct-payload-hint" style="display:none;">
+        <div style="margin-left:105px;font-size:11px;color:#888;">
+            Uses the complete <code>msg.payload</code> object. Saved mappings are retained but ignored.
         </div>
     </div>
-    <div class="form-row">
-        <div id="scm-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
-        <div style="margin-left:20px;margin-top:4px;">
-            <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-scm-mapping">+ Add Mapping</button>
+    <div class="scm-payload-mappings">
+        <div class="form-row">
+            <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+                Map SCM API fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
+            </div>
         </div>
+        <div class="form-row">
+            <div id="scm-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
+            <div style="margin-left:20px;margin-top:4px;">
+                <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-scm-mapping">+ Add Mapping</button>
+            </div>
+        </div>
+        <input type="hidden" id="node-input-mappings">
     </div>
-    <input type="hidden" id="node-input-mappings">
 </script>
 
 <script type="text/x-red" data-help-name="create-meter-reading">
@@ -358,6 +381,7 @@ window.scmEndpointPreview = (function () {
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Endpoint</dt><dd>Auto-built from server config for this node type.</dd>
+    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map SCM API fields to values. Each row specifies:
         <ul>
@@ -374,5 +398,5 @@ window.scmEndpointPreview = (function () {
     <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 <h3>Details</h3>
-<p>Sends a <code>POST</code> request to the Meter Readings REST endpoint. The payload is built from the configured mappings. Authentication is handled automatically via the selected SCM Server.</p>
+<p>Sends a <code>POST</code> request to the Meter Readings REST endpoint. Authentication is handled automatically via the selected SCM Server.</p>
 </script>

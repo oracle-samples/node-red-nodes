@@ -7,8 +7,8 @@ This project provides a set of custom Node-RED nodes that integrate Oracle Fusio
 | Node type | Palette label | Description |
 |-----------|---------------|-------------|
 | **scm-server** | Not in palette | Oracle Fusion Cloud SCM authentication, connection, and proxy config. |
-| **fusion-request** | `fusion request` | Unified transaction node that starts in Custom mode and supports Create Asset, Meter Reading, Miscellaneous Transaction, and Subinventory Transfer presets. |
-| **scm-lookup** | `scm lookup` | Unified lookup node that starts in Custom mode and supports Asset, Meter Reading, Inventory Organization, Item, Subinventory, On-Hand Quantity, Recipe/Work Definition, Batch/Manufacturing Work Order, manufacturing child-resource lookups with explicit parent resource IDs, and Maintenance Work Order presets. |
+| **fusion-request** | `fusion request` | Unified transaction node that starts in Custom mode, supports guarded Resource Item, ADF Action, JSON, and ADF Batch media types, and includes Create Asset, Meter Reading, Miscellaneous Transaction, and Subinventory Transfer presets. |
+| **scm-lookup** | `scm lookup` | Unified lookup node that starts in Custom mode, accepts normalized complete Fusion GET URLs, and supports Asset, Meter Reading by asset-meter finder, Inventory Organization, Item, Subinventory, On-Hand Quantity, Recipe/Work Definition, Batch/Manufacturing Work Order, manufacturing child-resource lookups with explicit parent resource IDs, and Maintenance Work Order presets. |
 | **smo-transformer** | `smart operations transformer` | Transforms telemetry data into structured Smart Operations event payloads after an event type preset or custom event type is selected. |
 | **smo-event** | `smart operations event` | Sends structured Smart Operations operational events to Fusion SCM. |
 | **manufacturing-work-order** | `manufacturing work order` | Creates or updates discrete manufacturing work order headers. |
@@ -22,7 +22,7 @@ This project provides a set of custom Node-RED nodes that integrate Oracle Fusio
 | **subinventory-quantity-transfer** | `subinventory quantity transfer` | Creates a Subinventory Transfer. |
 | **delete-transaction** | `delete scm record` | Deletes an SCM resource by mode-specific ID; starts in Custom mode and supports Asset, Meter, Misc, and Subinventory presets. |
 | **get-ib-asset** | `get installed base asset` | Retrieves an asset by Serial Number. |
-| **get-meter-reading** | `get meter reading` | Retrieves meter readings by Asset Number. |
+| **get-meter-reading** | `get meter reading` | Retrieves complete meter history by Asset Number and Meter Code. |
 | **get-organization-id** | `get organization id` | Retrieves an organization by name. |
 
 ## Installation
@@ -63,7 +63,16 @@ npm install axios@1.17.0
 npm install https-proxy-agent@^7.0.6
 ```
 
-## Payload Mappings
+## Payload Sources and Mappings
+
+Mapped Fusion action nodes provide two mutually exclusive payload sources:
+
+- **Mapped fields** (default) builds the request only from the mapping table and never falls back to `msg.payload`.
+- **Entire msg.payload** validates and deep-copies the complete `msg.payload` object. Saved mappings are retained but ignored until the node is switched back to Mapped fields.
+
+Mapped fields requires at least one usable mapping for operations that send a request body. An empty table is rejected before OAuth token acquisition even when the input contains an object in `msg.payload`. Parameterless `GET` and `DELETE` operations remain valid without mappings; use Entire msg.payload when a `GET` should use the input object as query parameters.
+
+Entire msg.payload mode requires a plain JSON-compatible object. Invalid root values, unsupported nested values, circular references, custom object prototypes, and prototype-pollution keys are rejected before OAuth token acquisition. Nodes apply their documented mode defaults and Fusion wrappers to the copied object without mutating the incoming payload.
 
 All SCM nodes that use payload mappings support structured mapping rows with typed source options:
 
@@ -86,11 +95,22 @@ Clicking **Done** saves the current mapping rows for both preset and Custom mode
 
 ## SCM Server
 
-Enter the Fusion hostname without a protocol or path, then enter the API version supplied for the environment. The editor previews the derived `https://<fusion-host>/fscmRestApi/resources/<api-version>` root; the fixed REST segment and resource paths are appended automatically. Test Connection obtains an OAuth token and then verifies that the configured Fusion REST host is reachable; OAuth-only success is reported as a partial failure.
+Enter the Fusion hostname without a protocol or path, then enter the API version supplied for the environment. The editor previews the derived `https://<fusion-host>/fscmRestApi/resources/<api-version>` root; the fixed REST segment and resource paths are appended automatically. **Test SCM Connection** obtains an OAuth token and then verifies that the configured Fusion REST host is reachable; OAuth-only success is reported as a partial failure.
 
 The `scm-lookup` Inventory Organization mode can search by Organization Name, Organization Code, or Organization ID. The selected field controls the Fusion query only; `msg.payload` still contains the complete matching organization response.
 
-Other predefined lookup modes expose all required business keys directly: organization-scoped item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups require **Organization Code**; asset and work definition lookups also show **Item Number** where required; meter readings require **Meter Code**. On-Hand Quantity optionally accepts **Subinventory Code**. Use Additional Filters only for extra narrowing criteria.
+Other predefined lookup modes expose all required business keys directly: organization-scoped item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups require **Organization Code**; asset and work definition lookups also show **Item Number** where required; meter readings require **Meter Code** and use Fusion's asset-meter business-key finder. On-Hand Quantity optionally accepts **Subinventory Code**. Use Additional Filters only for extra narrowing criteria; filter names may contain letters, numbers, underscores, and dots.
+
+Meter lookups follow all Fusion pages. Multi-page results are combined into one collection with complete `items` and `count`, `hasMore: false`, `offset: 0`, the original Fusion page-size `limit`, and no page-specific `links`.
+
+Custom lookup mode accepts either a complete Fusion GET URL or a base resource
+endpoint with optional ordered **Query Parameters**. Pasted query strings are
+normalized into editable rows; `q`, `finder`, field selection, paging, empty
+values, and repeated names all use the same mechanism. Parameterless GETs are
+valid. Custom URLs must use the configured Fusion origin and API-version
+resource root, cannot contain credentials or fragments, and do not follow
+redirects. Custom rows are static configuration; use `fusion-request` GET
+mappings for per-message parameter values.
 
 Manufacturing child lookups expose **Work Order ID** and, for nested lines, **Operation ID**. These fields take Fusion `WorkOrderId` and `WorkOrderOperationId` resource IDs from parent lookup responses; they are distinct from the displayed batch number and operation sequence.
 
@@ -110,7 +130,10 @@ The smo-transformer converts incoming telemetry or message data into structured 
 
 **Typical flow:** `dequeue` → `split` (fixed length: 1) → `smart operations transformer` → `smart operations event`
 
-See [Node Reference](../docs/node-reference.md) for full configuration details.
+See [Node Reference](../docs/node-reference.md) for full configuration details
+and [Fusion SCM API Contract Audit](../docs/fusion-scm-api-contracts.md) for the
+endpoint, method, query, media-type, and required-input matrix covering every
+Fusion SCM node.
 
 ## Documentation
 

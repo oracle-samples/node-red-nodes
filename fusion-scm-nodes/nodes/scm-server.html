@@ -88,12 +88,13 @@ RED.nodes.registerType("scm-server", {
         $("#btn-test-scm").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-scm-result");
-            if (!$("#node-config-input-hostname").val().trim()) {
-                resultEl.text("\u2717 Hostname is required").css("color", "#d62728");
+            var hostname = $("#node-config-input-hostname").val().trim();
+            if (!hostname) {
+                resultEl.text("✗ Configure a Hostname in the Connection section.").css("color", "#d62728");
                 return;
             }
             if (!$("#node-config-input-tokenUrl").val().trim()) {
-                resultEl.text("\u2717 Token URL is required").css("color", "#d62728");
+                resultEl.text("✗ Configure a Token URL in the Authentication section.").css("color", "#d62728");
                 return;
             }
             btn.prop("disabled", true);
@@ -183,7 +184,7 @@ RED.nodes.registerType("scm-server", {
     </div>
     </fieldset>
     <div class="config-test-actions">
-        <div class="form-row" style="text-align:center;">
+        <div class="form-row" style="text-align:center;margin-top:12px;">
             <button type="button" class="red-ui-button" id="btn-test-scm">
                 <i class="fa fa-plug"></i> Test SCM Connection
             </button>
@@ -218,7 +219,7 @@ RED.nodes.registerType("scm-server", {
     <dd>OAuth scope string required by your Fusion tenant.</dd>
     <dt>Expiry Fallback (min)</dt>
     <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer.</dd>
-    <dt>Test Connection</dt>
+    <dt>Test SCM Connection</dt>
     <dd>Tests OAuth token acquisition and Fusion REST host reachability with the deployed configuration. Click <strong>Update</strong> then <strong>Deploy</strong> after changing fields, then test.</dd>
 </dl>
 

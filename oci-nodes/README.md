@@ -76,6 +76,8 @@ Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-sto
 
 > **Note:** Instance Principal and Resource Principal only work inside OCI. Config File and API Key work from any machine.
 
+Use **Test OCI Credentials** after deploy to validate the selected authentication mode.
+
 ### iot-config (MQTT Device Authentication)
 
 Used by: `iot-telemetry`, `iot-subscribe`
@@ -87,6 +89,8 @@ Used by: `iot-telemetry`, `iot-subscribe`
 
 `iot-config` also provides advanced MQTT connection settings: `clean` session mode (default `false`), `keepalive` (default `60s`), `reconnectPeriod` (default `5000ms`), and `connectTimeout` (default `30000ms`).
 
+Use **Test MQTT Connection** after deploy to validate the Device Host and selected authentication mode.
+
 ### ords-config (ORDS OAuth Authentication)
 
 Used by: `oci-ords-request`, `oci-ords-poll`
@@ -94,6 +98,8 @@ Used by: `oci-ords-request`, `oci-ords-poll`
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
 | **OAuth Client Credentials** | ORDS / IoT Data API HTTP access | Base URL, Token URL, Client ID, Client Secret; Scope is optional when required by the ORDS resource |
+
+Use **Test OAuth Token** after deploy to validate token acquisition independently of an ORDS resource request.
 
 ## IoT Platform Setup
 

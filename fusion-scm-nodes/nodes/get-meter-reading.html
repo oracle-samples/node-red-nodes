@@ -41,7 +41,8 @@ RED.nodes.registerType("get-meter-reading", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
-        assetNumber: { value: "" }
+        assetNumber: { value: "" },
+        meterCode: { value: "" }
     },
     inputs: 1, outputs: 1,
     color: "#4F7D7B",
@@ -59,13 +60,21 @@ RED.nodes.registerType("get-meter-reading", {
                 return;
             }
             var base = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint;
-            var queryValue = $("#node-input-assetNumber").val().trim();
-            $endpoint.text(queryValue ? base + "?q=AssetNumber=" + queryValue : base);
+            var assetNumber = $("#node-input-assetNumber").val().trim();
+            var meterCode = $("#node-input-meterCode").val().trim();
+            if (!assetNumber || !meterCode) {
+                $endpoint.text(base);
+                return;
+            }
+            var finder = "MetersByAssetMeterUserKey;MntAssetNumber=" +
+                assetNumber + ",MntMeterCode=" + meterCode;
+            $endpoint.text(base + "?finder=" + encodeURIComponent(finder));
         }
 
         updateEndpointPreview();
         $("#node-input-server").on("change", updateEndpointPreview);
         $("#node-input-assetNumber").on("input", updateEndpointPreview);
+        $("#node-input-meterCode").on("input", updateEndpointPreview);
     }
 });
 </script>
@@ -87,17 +96,23 @@ RED.nodes.registerType("get-meter-reading", {
     <hr/>
     <div class="form-row">
         <label for="node-input-assetNumber" style="width:140px;"><i class="fa fa-hashtag"></i> Asset Number</label>
-        <input type="text" id="node-input-assetNumber">
+        <input type="text" id="node-input-assetNumber" style="width:calc(100% - 147px);">
         <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.assetNumber</code>.</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-meterCode" style="width:140px;"><i class="fa fa-tachometer"></i> Meter Code</label>
+        <input type="text" id="node-input-meterCode" style="width:calc(100% - 147px);">
+        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.meterCode</code>.</div>
     </div>
 </script>
 
 <script type="text/x-red" data-help-name="get-meter-reading">
-<p>Retrieves meter readings for an asset from Oracle Fusion SCM.</p>
+<p>Retrieves the complete reading history for one asset meter from Oracle Fusion SCM.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Asset Number</dt><dd>The value to query by. If left blank, reads from <code>msg.assetNumber</code>.</dd>
+    <dt>Asset Number</dt><dd>Required asset identifier. If left blank, reads from <code>msg.assetNumber</code>.</dd>
+    <dt>Meter Code</dt><dd>Required meter identifier. If left blank, reads from <code>msg.meterCode</code>.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint URL derived from the selected SCM Server.</dd>
 </dl>
 <h3>Outputs</h3>
@@ -109,7 +124,8 @@ RED.nodes.registerType("get-meter-reading", {
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
     <dt>msg.assetNumber <span class="property-type">string</span></dt><dd>Overrides the Asset Number for this message.</dd>
+    <dt>msg.meterCode <span class="property-type">string</span></dt><dd>Overrides the Meter Code for this message.</dd>
 </dl>
 <h3>Details</h3>
-<p>Sends a <code>GET</code> request to the Meter Readings endpoint, filtering by <code>AssetNumber</code>. Returns the matching reading(s) in <code>msg.payload</code>. To query a different endpoint or use a custom query parameter, use the <b>scm lookup</b> node in custom mode instead.</p>
+<p>Sends a <code>GET</code> request to the Meter Readings endpoint with the documented <code>MetersByAssetMeterUserKey</code> finder. Both business-key values are required. Single-page responses are returned as provided by Fusion. For multi-page history, the node combines all <code>items</code>, sets <code>count</code> to the combined count, <code>hasMore</code> to false, and <code>offset</code> to zero, keeps the Fusion page-size <code>limit</code>, and omits page-specific <code>links</code>. To use a broader collection filter or another query parameter, use the <b>scm lookup</b> node in Custom mode.</p>
 </script>

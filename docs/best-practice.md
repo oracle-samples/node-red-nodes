@@ -37,7 +37,13 @@ In Continuous mode, enable retry controls to survive transient DB outages withou
 **Dynamic SQL:** When SQL Source is set to `msg.sql`, the query is read from the incoming message and executed as-is, with the configured DB user's privileges. The editor's single-statement guard does **not** apply to `msg.sql` (so it can run anonymous PL/SQL blocks). Only feed `msg.sql` from trusted flow logic — never from unvalidated HTTP, MQTT, or other external input — and pair it with least-privileged DB users.
 **Bind parity checks:** The SQL node fails fast when SQL placeholders and bind values do not match, with status `binds mismatch` before DB execute.
 
-## SCM Payload Mappings
+## SCM Payload Sources and Mappings
+
+Use **Mapped fields** when the flow should explicitly select, rename, type, or default individual Fusion attributes. Use **Entire msg.payload** when an upstream node already produces the complete Fusion request object. The modes are mutually exclusive: Mapped fields never falls back to the injected payload, and direct mode retains but ignores the mapping table so switching back does not lose its configuration.
+
+Mapped fields requires at least one usable mapping for create, update, and other body-producing operations. An empty mapping table fails before OAuth token acquisition even when `msg.payload` contains an object. Parameterless `GET` and `DELETE` requests remain valid without mappings; use Entire msg.payload when a `GET` needs query parameters.
+
+Direct payload mode validates and deep-copies a plain JSON-compatible object before OAuth token acquisition. Do not use it as a pass-through for arbitrary untrusted input; validate externally supplied data against the target Fusion API contract before it reaches the node. Node-specific mode defaults and required wrappers are added only to the copy.
 
 All SCM nodes that use payload mappings support structured mapping rows with typed source options:
 

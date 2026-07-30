@@ -57,13 +57,13 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             try {
+                const payload = scmMapping.resolveRequestPayload(config.payloadSource, mappings, msg, RED);
+
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
                 const url = node.server.buildUrl("meterReadings");
                 ensureHttps(url);
-
-                const payload = scmMapping.resolvePayload(mappings, msg, RED);
 
                 node.status({ fill: "yellow", shape: "dot", text: "creating..." });
                 const response = await axios.post(url, payload, {
@@ -95,7 +95,11 @@ module.exports = function(RED) {
     }
 
     function handleError(node, msg, err, done) {
-        scmError.handleNodeError(node, msg, err, done, { statusText: "create failed" });
+        const validationError = err && err.scmPayloadValidationError;
+        scmError.handleNodeError(node, msg, err, done, {
+            statusText: validationError ? "invalid payload" : "create failed",
+            statusShape: validationError ? "ring" : "dot"
+        });
     }
 
     RED.nodes.registerType("create-meter-reading", CreateMeterReading);

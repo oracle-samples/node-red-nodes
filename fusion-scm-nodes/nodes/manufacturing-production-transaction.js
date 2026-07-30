@@ -131,7 +131,7 @@ module.exports = function(RED) {
         node.on("input", async function(msg, send, done) {
             try {
                 var mode = resolveMode(msg.mode || config.mode || "operationComplete");
-                var detail = scmMapping.resolvePayload(mappings, msg, RED);
+                var detail = scmMapping.resolveRequestPayload(config.payloadSource, mappings, msg, RED);
                 applyModeDefaults(detail, mode);
                 var payload = wrapDetail(detail, mode);
                 var url = node.server.buildUrl(mode.endpoint);
@@ -162,7 +162,9 @@ module.exports = function(RED) {
                 send(outMsg);
                 done();
             } catch (err) {
-                var validationError = err && err.productionTransactionValidationError;
+                var validationError = err && (
+                    err.productionTransactionValidationError || err.scmPayloadValidationError
+                );
                 scmError.handleNodeError(node, msg, err, done, {
                     statusText: validationError ? "invalid input" : "transaction failed",
                     statusShape: validationError ? "ring" : "dot"

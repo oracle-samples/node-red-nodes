@@ -37,9 +37,9 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps, ensureAllowedHost } = require("../lib/url.js");
     const scmMapping = require("../lib/scm-mapping.js");
     const scmError = require("../lib/scm-error.js");
+    const fusionRequestValidation = require("../lib/fusion-request-validation.js");
 
     const ENDPOINT_MAP = {
         createAsset: "installedBaseAssets",
@@ -47,7 +47,6 @@ module.exports = function(RED) {
         subinventoryQuantityTransfer: "inventoryStagedTransactions",
         miscTransaction: "inventoryStagedTransactions"
     };
-
     function FusionRequestNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -66,11 +65,8 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             try {
-                node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
-                const token = await node.server.getToken();
-
                 const txType = config.transactionType || "custom";
-                const method = (msg.method || config.method || "POST").toUpperCase();
+                const method = msg.method || config.method || "POST";
 
                 let url;
                 if (txType === "custom") {
@@ -79,44 +75,88 @@ module.exports = function(RED) {
                     url = node.server.buildUrl(ENDPOINT_MAP[txType] || "");
                 }
                 if (!url) {
-                    const err = new Error("No URL configured");
-                    node.status({ fill: "red", shape: "ring", text: "no custom URL" });
-                    node.error(err.message, msg);
-                    return done(err);
-                }
-                if (txType === "custom") {
-                    ensureAllowedHost(url, node.server.hostname);
-                } else {
-                    ensureHttps(url);
+                    const err = fusionRequestValidation.createValidationError("No URL configured");
+                    err.fusionRequestStatusText = "no custom URL";
+                    throw err;
                 }
 
-                const payload = scmMapping.resolvePayload(mappings, msg, RED);
+                const normalizedMethod = String(method).trim().toUpperCase();
+                const payload = scmMapping.resolveRequestPayload(
+                    config.payloadSource,
+                    mappings,
+                    msg,
+                    RED,
+                    {
+                        allowEmptyMappedPayload:
+                            normalizedMethod !== "POST" &&
+                            normalizedMethod !== "PUT" &&
+                            normalizedMethod !== "PATCH"
+                    }
+                );
+                const request = fusionRequestValidation.validateFusionRequest({
+                    url: url,
+                    allowedHostname: node.server.hostname,
+                    apiVersion: node.server.version,
+                    custom: txType === "custom",
+                    method: method,
+                    requestMediaType: config.requestMediaType,
+                    payload: payload
+                });
+
+                node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
+                const token = await node.server.getToken();
 
                 node.status({ fill: "yellow", shape: "dot", text: "requesting..." });
                 const response = await axios({
-                    method: method.toLowerCase(),
-                    url,
+                    method: request.method.toLowerCase(),
+                    url: request.url,
                     timeout: 30000,
-                    data: (method !== "GET" && method !== "DELETE") ? payload : undefined,
-                    params: (method === "GET") ? payload : undefined,
+                    data: (request.method !== "GET" && request.method !== "DELETE")
+                        ? request.payload
+                        : undefined,
+                    params: request.method === "GET" ? request.payload : undefined,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
+                    maxRedirects: txType === "custom" ? 0 : undefined,
                     headers: {
                         "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/vnd.oracle.adf.resourceitem+json"
+                        "Content-Type": request.contentType
                     }
                 });
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "sent" });
+                node.status({
+                    fill: "green",
+                    shape: "dot",
+                    text: successStatusText(request.method)
+                });
                 send(msg);
                 done();
             } catch (err) {
-                scmError.handleNodeError(node, msg, err, done, { statusText: "request failed" });
+                const validationError = err && (
+                    err.fusionRequestValidationError || err.scmPayloadValidationError
+                );
+                scmError.handleNodeError(node, msg, err, done, {
+                    statusText: validationError
+                        ? (err.fusionRequestStatusText || (err.scmPayloadValidationError ? "invalid payload" : "invalid request"))
+                        : "request failed",
+                    statusShape: validationError ? "ring" : "dot"
+                });
             }
         });
     }
 
     RED.nodes.registerType("fusion-request", FusionRequestNode);
+
+    function successStatusText(method) {
+        switch (method) {
+            case "GET": return "read";
+            case "POST": return "submitted";
+            case "PUT":
+            case "PATCH": return "updated";
+            case "DELETE": return "deleted";
+        }
+        return "sent";
+    }
 };

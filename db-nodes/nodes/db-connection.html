@@ -65,6 +65,46 @@ function validateAdvancedInitSqlInput(rawSql) {
     return { ok: true };
 }
 
+function validateTnsStringInput(value) {
+    var tnsString = String(value || "").trim();
+    if (!tnsString) {
+        return { ok: false, message: "TNS String is required." };
+    }
+    if (/^[A-Za-z0-9_$#.-]+\s*=/.test(tnsString)) {
+        return {
+            ok: false,
+            message: "Enter either a TNS alias or only the descriptor after the alias assignment."
+        };
+    }
+    return { ok: true };
+}
+
+function validateWalletDirectoryInput(value) {
+    var walletDirectory = String(value || "").trim();
+    if (!walletDirectory) return { ok: true };
+    if (/\.(?:ora|zip)$/i.test(walletDirectory)) {
+        return {
+            ok: false,
+            message: "Wallet Directory must be a directory, not a ZIP file or tnsnames.ora."
+        };
+    }
+    return { ok: true };
+}
+
+function validateBasicProxyInput(authType, username, sessionUser) {
+    var separateSessionUser = String(sessionUser || "").trim();
+    if (authType !== "basic" || !separateSessionUser) return { ok: true };
+
+    var bracketMatch = String(username || "").match(/^(.*)\[([^\[\]]+)\]$/);
+    if (bracketMatch && bracketMatch[2].toLowerCase() !== separateSessionUser.toLowerCase()) {
+        return {
+            ok: false,
+            message: "Session User does not match the bracketed session user in Username."
+        };
+    }
+    return { ok: true };
+}
+
 RED.nodes.registerType("db-connection", {
     category: "config",
     color: "#4C825C",
@@ -73,8 +113,19 @@ RED.nodes.registerType("db-connection", {
         usePool: { value: false },
         authType: { value: "basic" },
         driverMode: { value: "thick" },
-        tnsString: { value: "" },
-        walletLocation: { value: "" },
+        tnsString: {
+            value: "",
+            required: true,
+            validate: function (value) {
+                return validateTnsStringInput(value).ok;
+            }
+        },
+        walletLocation: {
+            value: "",
+            validate: function (value) {
+                return validateWalletDirectoryInput(value).ok;
+            }
+        },
         externalAuth: { value: true },
         scope: { value: "" },
         configFileLocation: { value: "" },
@@ -130,13 +181,17 @@ RED.nodes.registerType("db-connection", {
             var usePool = $("#node-config-input-usePool").is(":checked");
             $(".auth-section").hide();
             $(".external-auth").hide();
+            $(".basic-session-user-hint, .token-session-user-hint").hide();
             $(".pool-options").toggle(usePool);
-            if (type === "basic") $(".auth-basic").show();
-            if (type === "config") { $(".auth-config").show(); $(".external-auth").show(); $("#profile-caption").text(""); }
-            if (type === "instancePrincipal") { $(".auth-ip").show(); $(".external-auth").show(); }
-            if (type === "resourcePrincipal") { $(".auth-rp").show(); $(".external-auth").show(); }
-            if (type === "sessionToken") { $(".auth-session").show(); $(".auth-session-scope").show(); $(".external-auth").show(); $("#profile-caption").text("Enter the profile name you used when running oci session authenticate."); }
-            if (type === "simple") { $(".auth-simple").show(); $(".external-auth").show(); }
+            if (type === "basic") {
+                $(".auth-basic").show();
+                $(".basic-session-user-hint").show();
+            }
+            if (type === "config") { $(".auth-config").show(); $(".external-auth").show(); $(".token-session-user-hint").show(); $("#profile-caption").text(""); }
+            if (type === "instancePrincipal") { $(".auth-ip").show(); $(".external-auth").show(); $(".token-session-user-hint").show(); }
+            if (type === "resourcePrincipal") { $(".auth-rp").show(); $(".external-auth").show(); $(".token-session-user-hint").show(); }
+            if (type === "sessionToken") { $(".auth-session").show(); $(".auth-session-scope").show(); $(".external-auth").show(); $(".token-session-user-hint").show(); $("#profile-caption").text("Enter the profile name you used when running oci session authenticate."); }
+            if (type === "simple") { $(".auth-simple").show(); $(".external-auth").show(); $(".token-session-user-hint").show(); }
         }
         updateAuthFields();
         $("#node-config-input-authType").on("change", updateAuthFields);
@@ -167,8 +222,25 @@ RED.nodes.registerType("db-connection", {
         $("#btn-test-connection").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-connection-result");
-            if (!$("#node-config-input-tnsString").val().trim()) {
-                resultEl.text("TNS String is required").css("color", "#d62728");
+            var tnsValidation = validateTnsStringInput($("#node-config-input-tnsString").val());
+            if (!tnsValidation.ok) {
+                resultEl.text("✗ " + tnsValidation.message).css("color", "#d62728");
+                return;
+            }
+            var walletValidation = validateWalletDirectoryInput(
+                $("#node-config-input-walletLocation").val()
+            );
+            if (!walletValidation.ok) {
+                resultEl.text("✗ " + walletValidation.message).css("color", "#d62728");
+                return;
+            }
+            var proxyValidation = validateBasicProxyInput(
+                $("#node-config-input-authType").val(),
+                $("#node-config-input-username").val(),
+                $("#node-config-input-proxyUser").val()
+            );
+            if (!proxyValidation.ok) {
+                resultEl.text("✗ " + proxyValidation.message).css("color", "#d62728");
                 return;
             }
             btn.prop("disabled", true);
@@ -193,10 +265,21 @@ RED.nodes.registerType("db-connection", {
         });
     },
     oneditsave: function () {
-        var result = validateAdvancedInitSqlInput($("#node-config-input-sessionInitSql").val());
-        if (!result.ok) {
-            RED.notify(result.message, "error");
-            return false;
+        var validations = [
+            validateAdvancedInitSqlInput($("#node-config-input-sessionInitSql").val()),
+            validateTnsStringInput($("#node-config-input-tnsString").val()),
+            validateWalletDirectoryInput($("#node-config-input-walletLocation").val()),
+            validateBasicProxyInput(
+                $("#node-config-input-authType").val(),
+                $("#node-config-input-username").val(),
+                $("#node-config-input-proxyUser").val()
+            )
+        ];
+        for (var i = 0; i < validations.length; i += 1) {
+            if (!validations[i].ok) {
+                RED.notify(validations[i].message, "error");
+                return false;
+            }
         }
         return true;
     }
@@ -207,7 +290,7 @@ RED.nodes.registerType("db-connection", {
     <div class="form-row node-config-tabs-row">
         <ul id="node-config-tabs" class="red-ui-tabs"></ul>
     </div>
-    <div id="node-config-tabs-content" class="red-ui-stack" style="min-height:360px;">
+    <div id="node-config-tabs-content" class="red-ui-stack">
 
         <div id="tab-auth" class="red-ui-tab-content">
         <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
@@ -295,10 +378,19 @@ RED.nodes.registerType("db-connection", {
                 <input type="text" id="node-config-input-scope">
             </div>
         </div>
-        <div class="auth-section auth-config auth-ip auth-rp auth-session auth-simple">
+        <div class="auth-section auth-basic auth-config auth-ip auth-rp auth-session auth-simple">
             <div class="form-row">
-                <label for="node-config-input-proxyUser"><i class="fa fa-user-circle-o"></i> Proxy User</label>
+                <label for="node-config-input-proxyUser"><i class="fa fa-user-circle-o"></i> Session User</label>
                 <input type="text" id="node-config-input-proxyUser" placeholder="optional">
+                <div class="basic-session-user-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+                    Optional proxy target. Username authenticates and appears as <code>PROXY_USER</code>;
+                    Session User is the effective schema and appears as <code>SESSION_USER</code>.
+                    Existing <code>USERNAME[SESSION_USER]</code> values remain supported when Session User is empty.
+                </div>
+                <div class="token-session-user-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+                    Optional proxy target. The IAM identity authenticates; Session User is the effective
+                    schema and appears as <code>SESSION_USER</code>.
+                </div>
             </div>
         </div>
         </fieldset>
@@ -307,14 +399,18 @@ RED.nodes.registerType("db-connection", {
         <div id="tab-connection" class="red-ui-tab-content">
         <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
         <div class="form-row">
-            <label for="node-config-input-tnsString"><i class="fa fa-server"></i> TNS String</label>
-            <textarea id="node-config-input-tnsString" rows="5" style="width:100%;" placeholder="TNS alias or connect descriptor"></textarea>
+            <label for="node-config-input-tnsString" style="width:120px;vertical-align:top;margin-top:2px;"><i class="fa fa-server"></i> TNS String</label>
+            <textarea id="node-config-input-tnsString" rows="5" style="width:calc(100% - 127px);" placeholder="TNS alias or connect descriptor"></textarea>
+            <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
+                Required. Enter a TNS alias, or paste only the descriptor after <code>&lt;alias&gt; =</code> from <code>tnsnames.ora</code>.
+            </div>
         </div>
         <div class="form-row">
-            <label for="node-config-input-walletLocation"><i class="fa fa-folder-open-o"></i> Wallet Path</label>
-            <input type="text" id="node-config-input-walletLocation" placeholder="/path/to/wallet_dir">
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-                Wallet and network config directory (required for ADB and TCPS connections). Applies to all auth types.
+            <label for="node-config-input-walletLocation" style="width:120px;"><i class="fa fa-folder-open-o"></i> Wallet Directory</label>
+            <input type="text" id="node-config-input-walletLocation" placeholder="/path/to/extracted_wallet">
+            <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
+                Enter the extracted wallet directory. Do not enter a ZIP file or <code>tnsnames.ora</code>.
+                Optional unless the database connection requires a wallet.
             </div>
         </div>
         </fieldset>
@@ -407,10 +503,10 @@ RED.nodes.registerType("db-connection", {
 <script type="text/html" data-help-name="db-connection">
 <p>Shared configuration node for connecting to Oracle Database. All DB nodes (sql, enqueue, dequeue, begin-transaction) reference this config node.</p>
 
-<h3>Authentication</h3>
-<dl class="message-properties">
-    <dt>Basic</dt>
-    <dd>Direct database username and password. Does not use OCI IAM. Suitable for on-premises databases or environments where IAM is not available.</dd>
+    <h3>Authentication</h3>
+    <dl class="message-properties">
+        <dt>Basic</dt>
+        <dd>Direct database username and password. To open a proxy session, enter the authenticating proxy user in <b>Username</b> and the effective schema user in <b>Session User</b>. Oracle reports these as <code>PROXY_USER</code> and <code>SESSION_USER</code>, respectively. Existing <code>USERNAME[SESSION_USER]</code> values remain supported when Session User is blank.</dd>
 
     <dt>DB Token — Config File</dt>
     <dd>Uses an OCI config file with an API key to obtain a DB-scoped IAM token. The config file must contain <code>tenancy</code>, <code>user</code>, <code>fingerprint</code>, <code>key_file</code>, and <code>region</code>. Defaults to <code>~/.oci/config</code> with the <code>DEFAULT</code> profile.</dd>
@@ -428,20 +524,20 @@ RED.nodes.registerType("db-connection", {
     <dd>Explicit API key authentication using tenancy OCID, user OCID, fingerprint, private key path, and region. Equivalent to Config File auth but with credentials entered directly in the node editor rather than read from a file.</dd>
 </dl>
 
-<h3>Connection</h3>
-<dl class="message-properties">
-    <dt>TNS String</dt>
-    <dd>Oracle connect descriptor for the target database. Obtain this from the OCI Console under your Autonomous Database → Database Connection, or from your DBA.</dd>
-    <dt>Wallet Path</dt>
-    <dd>Optional directory path used for Oracle wallet and network config lookup. This is passed as node-oracledb connection <code>configDir</code> and <code>walletLocation</code> so both Thick and Thin mode can resolve wallet-based connections.</dd>
+    <h3>Connection</h3>
+    <dl class="message-properties">
+        <dt>TNS String</dt>
+        <dd>Required. Enter a TNS alias or an Oracle connect descriptor. When copying from <code>tnsnames.ora</code>, enter only the descriptor after <code>&lt;alias&gt; =</code>, not the complete assignment.</dd>
+        <dt>Wallet Directory</dt>
+        <dd>Optional unless the connection uses an Oracle wallet, such as wallet-based Autonomous Database or TCPS. Enter the extracted wallet directory, not the wallet ZIP or its <code>tnsnames.ora</code> file. In Thick mode, a TNS alias is resolved from this directory and the wallet is applied to the resolved descriptor. Thin mode uses the directory as its network and wallet configuration location.</dd>
     <dt>External Auth</dt>
     <dd>Must be enabled for all DB Token auth types. Instructs the driver to use externally-provided IAM credentials rather than a username and password.</dd>
     <dt>Driver Mode</dt>
     <dd>Select <code>Thick</code> to use Oracle Client libraries, or <code>Thin</code> to use the pure JavaScript driver. This setting is process-wide in Node-RED and must be the same across all active db-connection nodes.</dd>
     <dt>Scope</dt>
     <dd>Optional. Restricts the DB token to a specific compartment or database. Leave blank to allow access to all databases in the tenancy (<code>urn:oracle:db::id::*</code>).</dd>
-    <dt>Proxy User</dt>
-    <dd>Optional. Specifies a database proxy user for DB Token auth. Proxy User with DB Token auth is not supported in Thick mode; use Thin mode or leave Proxy User empty.</dd>
+        <dt>Session User</dt>
+        <dd>Optional proxy target for Basic or DB Token authentication. This is the effective schema reported by Oracle as <code>SESSION_USER</code>. With Basic auth, Username authenticates and is reported as <code>PROXY_USER</code>. With DB Token auth, the IAM identity authenticates with the token. Supported in Thin and Thick modes with node-oracledb 7.</dd>
 </dl>
 
 <h3>Connection Pool</h3>
@@ -461,6 +557,6 @@ RED.nodes.registerType("db-connection", {
 </dl>
 <p>Pool connections: NLS settings are applied only when a pooled connection does not already carry the correct session tag. Warm connections that were already configured are reused with no overhead.</p>
 
-<h3>Test Connection</h3>
+<h3>Test Database Connection</h3>
 <p>Executes <code>SELECT 1 FROM DUAL</code> to verify connectivity. The node must be deployed before the test button becomes active — click <b>Update</b> then <b>Deploy</b> first.</p>
 </script>

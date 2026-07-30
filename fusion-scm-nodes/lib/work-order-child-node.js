@@ -23,7 +23,9 @@ function registerWorkOrderChildNode(RED, nodeType, options) {
             try {
                 var resource = resolveResource(config, msg, options);
                 var action = resolveAction(config, msg, resource);
-                var payload = actionNeedsPayload(action) ? scmMapping.resolvePayload(mappings, msg, RED) : undefined;
+                var payload = actionNeedsPayload(action)
+                    ? scmMapping.resolveRequestPayload(config.payloadSource, mappings, msg, RED)
+                    : undefined;
                 var url = resolveUrl(node.server, resource, action, config, msg);
                 ensureHttps(url);
 
@@ -45,7 +47,9 @@ function registerWorkOrderChildNode(RED, nodeType, options) {
                 send(outMsg);
                 done();
             } catch (err) {
-                var validationError = err && err.workOrderChildValidationError;
+                var validationError = err && (
+                    err.workOrderChildValidationError || err.scmPayloadValidationError
+                );
                 node.status({
                     fill: "red",
                     shape: validationError ? "ring" : "dot",

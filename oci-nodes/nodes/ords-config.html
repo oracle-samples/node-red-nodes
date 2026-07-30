@@ -70,8 +70,9 @@ RED.nodes.registerType("ords-config", {
         $("#btn-test-ords").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-ords-result");
-            if (!$("#node-config-input-tokenUrl").val().trim()) {
-                resultEl.text("Error Token URL is required").css("color", "#d62728");
+            var tokenUrl = $("#node-config-input-tokenUrl").val().trim();
+            if (!tokenUrl) {
+                resultEl.text("Error Configure a Token URL in the Authentication section.").css("color", "#d62728");
                 return;
             }
             btn.prop("disabled", true);
@@ -160,7 +161,7 @@ RED.nodes.registerType("ords-config", {
     </div>
     </fieldset>
     <div class="config-test-actions">
-        <div class="form-row" style="text-align:center;">
+        <div class="form-row" style="text-align:center;margin-top:12px;">
             <button type="button" class="red-ui-button" id="btn-test-ords">
                 <i class="fa fa-plug"></i> Test OAuth Token
             </button>

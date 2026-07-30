@@ -101,8 +101,9 @@ RED.nodes.registerType("iot-config", {
         $("#btn-test-iot").on("click", function () {
             var btn = $(this);
             var resultEl = $("#test-iot-result");
-            if (!$("#node-config-input-deviceHost").val().trim()) {
-                resultEl.text("\u2717 Device Host is required").css("color", "#d62728");
+            var deviceHost = $("#node-config-input-deviceHost").val().trim();
+            if (!deviceHost) {
+                resultEl.text("\u2717 Configure a Device Host in the Connection section.").css("color", "#d62728");
                 return;
             }
             btn.prop("disabled", true);
@@ -219,7 +220,7 @@ RED.nodes.registerType("iot-config", {
     </div>
     </fieldset>
     <div class="config-test-actions">
-        <div class="form-row" style="text-align:center;">
+        <div class="form-row" style="text-align:center;margin-top:12px;">
             <button type="button" class="red-ui-button" id="btn-test-iot">
                 <i class="fa fa-plug"></i> Test MQTT Connection
             </button>
@@ -257,7 +258,7 @@ RED.nodes.registerType("iot-config", {
     <dd>Auto-reconnect interval in milliseconds. Default: <code>5000</code>.</dd>
     <dt>Connect Timeout</dt>
     <dd>MQTT connection timeout in milliseconds. Default: <code>30000</code>.</dd>
-    <dt>Test Connection</dt>
+    <dt>Test MQTT Connection</dt>
     <dd>Creates a temporary MQTT connection to validate host/auth settings.</dd>
 </dl>
 
