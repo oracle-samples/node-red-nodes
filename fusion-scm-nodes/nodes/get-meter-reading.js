@@ -38,6 +38,7 @@ module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps } = require("../lib/url.js");
+    const scmQuery = require("../lib/scm-query.js");
     const scmError = require("../lib/scm-error.js");
 
     function GetMeterReading(config) {
@@ -56,25 +57,35 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             try {
-                const paramValue = msg.assetNumber || config.assetNumber;
-                if (!paramValue) {
-                    node.status({ fill: "red", shape: "ring", text: "no asset number" });
+                const assetNumber = msg.assetNumber || config.assetNumber;
+                if (!hasValue(assetNumber)) {
                     const err = new Error("No AssetNumber provided");
-                    node.error(err.message, msg);
-                    return done(err);
+                    return finishValidationError(node, msg, done, err, "no asset number");
                 }
+                const meterCode = msg.meterCode || config.meterCode;
+                if (!hasValue(meterCode)) {
+                    const err = new Error("No MeterCode provided");
+                    return finishValidationError(node, msg, done, err, "no meter code");
+                }
+
+                let finder;
+                try {
+                    finder = scmQuery.buildMeterReadingFinder(assetNumber, meterCode);
+                } catch (finderErr) {
+                    return finishValidationError(node, msg, done, finderErr, "invalid finder");
+                }
+
+                const baseUrl = node.server.buildUrl("meterReadings");
+                const parsed = new URL(baseUrl);
+                parsed.searchParams.set("finder", finder);
+                const finalUrl = parsed.toString();
+                ensureHttps(finalUrl);
 
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                const baseUrl = node.server.buildUrl("meterReadings");
-                const parsed = new URL(baseUrl);
-                parsed.searchParams.set("q", `AssetNumber=${paramValue}`);
-                const finalUrl = parsed.toString();
-                ensureHttps(finalUrl);
-
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
-                const response = await axios.get(finalUrl, {
+                const requestOptions = {
                     timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
@@ -82,7 +93,13 @@ module.exports = function(RED) {
                         "Authorization": `Bearer ${token}`,
                         "Content-Type": "application/json"
                     }
-                });
+                };
+                const response = await scmQuery.fetchAllCollectionPages(
+                    finalUrl,
+                    function (url) {
+                        return axios.get(url, requestOptions);
+                    }
+                );
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
@@ -99,9 +116,23 @@ module.exports = function(RED) {
         });
     }
 
+    function finishValidationError(node, msg, done, err, statusText) {
+        node.status({ fill: "red", shape: "ring", text: statusText });
+        msg.error = {
+            message: err.message,
+            code: null
+        };
+        node.error(err.message, msg);
+        return done(err);
+    }
+
     RED.nodes.registerType("get-meter-reading", GetMeterReading);
 
     function isEmptyCollection(data) {
         return data && Array.isArray(data.items) && data.items.length === 0;
+    }
+
+    function hasValue(value) {
+        return value !== undefined && value !== null && String(value).trim() !== "";
     }
 };

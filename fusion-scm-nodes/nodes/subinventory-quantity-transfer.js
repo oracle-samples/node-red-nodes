@@ -57,15 +57,15 @@ module.exports = function(RED) {
 
         node.on("input", async (msg, send, done) => {
             try {
+                const payload = scmMapping.resolveRequestPayload(config.payloadSource, mappings, msg, RED);
+
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
                 const url = node.server.buildUrl("inventoryStagedTransactions");
                 ensureHttps(url);
 
-                const payload = scmMapping.resolvePayload(mappings, msg, RED);
-
-                node.status({ fill: "yellow", shape: "dot", text: "transferring..." });
+                node.status({ fill: "yellow", shape: "dot", text: "submitting transfer..." });
                 const response = await axios.post(url, payload, {
                     timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
@@ -78,7 +78,7 @@ module.exports = function(RED) {
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
-                node.status({ fill: "green", shape: "dot", text: "transferred" });
+                node.status({ fill: "green", shape: "dot", text: "submitted" });
                 send(msg);
                 done();
             } catch (err) {
@@ -95,7 +95,11 @@ module.exports = function(RED) {
     }
 
     function handleError(node, msg, err, done) {
-        scmError.handleNodeError(node, msg, err, done, { statusText: "transfer failed" });
+        const validationError = err && err.scmPayloadValidationError;
+        scmError.handleNodeError(node, msg, err, done, {
+            statusText: validationError ? "invalid payload" : "transfer failed",
+            statusShape: validationError ? "ring" : "dot"
+        });
     }
 
     RED.nodes.registerType("subinventory-quantity-transfer", SubinventoryQuantityTransfer);

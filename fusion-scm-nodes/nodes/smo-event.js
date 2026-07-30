@@ -69,7 +69,7 @@ module.exports = function(RED) {
                 const url = node.server.buildSmartOperationsUrl("events");
                 ensureHttps(url);
 
-                node.status({ fill: "yellow", shape: "dot", text: "sending event..." });
+                node.status({ fill: "yellow", shape: "dot", text: "submitting event..." });
                 const response = await axios.post(url, eventPayload, {
                     timeout: 30000,
                     httpsAgent: proxyAgent || undefined,
@@ -88,7 +88,7 @@ module.exports = function(RED) {
                 });
                 reattachTransaction(msg, outMsg);
 
-                node.status({ fill: "green", shape: "dot", text: "sent" });
+                node.status({ fill: "green", shape: "dot", text: "submitted" });
                 send(outMsg);
                 done();
             } catch (err) {

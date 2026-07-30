@@ -6,7 +6,7 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 
 | Node | Description |
 |------|-------------|
-| **db-connection** | Oracle Database authentication and connection config. Includes Test Connection button. |
+| **db-connection** | Oracle Database authentication and connection config. Supports Basic and DB Token proxy users, TNS aliases or descriptors, and optional extracted wallet directories. Includes a Test Database Connection action directly below the visible fields on every editor tab. |
 | **begin-transaction** | Opens a managed connection with optional timeout for leak protection. |
 | **end-transaction** | Commits and closes the connection. Shows elapsed time. |
 | **dequeue** | Retrieves messages from Oracle AQ. Supports transactional mode and continuous mode with optional reconnect/retry controls. |

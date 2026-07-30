@@ -41,14 +41,7 @@ module.exports = function (RED) {
     const { generateKeyPair } = require("crypto");
     const os = require("os");
     const path = require("path");
-    const TOKEN_AUTH_TYPES = new Set([
-        "config",
-        "instancePrincipal",
-        "resourcePrincipal",
-        "sessionToken",
-        "simple"
-    ]);
-
+    const oracleAuth = require("../lib/oracle-auth");
     // Required so oracledb recognises tokenAuthConfigOci on connection options.
     require('oracledb/plugins/token/extensionOci');
     const MAX_ADVANCED_INIT_SQL_LENGTH = 1000;
@@ -116,14 +109,6 @@ module.exports = function (RED) {
             oracledb.initOracleClient(thickInitArgs);
         }
         return initializedDriverMode;
-    }
-
-    function validateModeSpecificAuth(node, effectiveMode) {
-        if (effectiveMode === "thick" && TOKEN_AUTH_TYPES.has(node.authType) && node.proxyUser) {
-            throw new Error(
-                "Proxy User is not supported with DB Token authentication while runtime is using Thick mode. Use Thin mode after a Node-RED restart, or clear Proxy User."
-            );
-        }
     }
 
     function parseOptionalNumber(value) {
@@ -283,20 +268,24 @@ module.exports = function (RED) {
             for (const sql of node._extraInitStmts) { await connection.execute(sql); }
         }
 
-        function buildAuthTypes() {
-            const connectString = getConnectString();
-            const options = { connectString };
+        function buildAuthTypes(effectiveMode) {
             const walletPath = String(node.walletLocation || "").trim();
+            const options = {
+                connectString: oracleAuth.prepareConnectString(
+                    getConnectString(),
+                    walletPath,
+                    effectiveMode
+                )
+            };
 
-            if (walletPath) {
-                // Use wallet directory for Oracle Net config and wallet lookup.
+            if (walletPath && effectiveMode === "thin") {
                 options.configDir = walletPath;
                 options.walletLocation = walletPath;
             }
 
             switch (node.authType) {
                 case "basic":
-                    options.user = node.username;
+                    options.user = oracleAuth.buildBasicUsername(node.username, node.proxyUser);
                     options.password = node.password;
                     break;
                 case "config":
@@ -369,8 +358,7 @@ module.exports = function (RED) {
             try {
                 if (node._nlsTag === null) { _computeNlsInit(); }
                 const effectiveMode = ensureDriverMode(node);
-                validateModeSpecificAuth(node, effectiveMode);
-                const options = buildAuthTypes();
+                const options = buildAuthTypes(effectiveMode);
                 const conn = await oracledb.getConnection(options);
                 try {
                     await _applyNlsToConnection(conn);
@@ -394,8 +382,7 @@ module.exports = function (RED) {
             if (pool) return pool;
             if (poolPromise) return poolPromise;
             const effectiveMode = ensureDriverMode(node);
-            validateModeSpecificAuth(node, effectiveMode);
-            const options = buildAuthTypes();
+            const options = buildAuthTypes(effectiveMode);
             if (node.poolMin !== undefined) options.poolMin = node.poolMin;
             if (node.poolMax !== undefined) options.poolMax = node.poolMax;
             if (node.poolIncrement !== undefined) options.poolIncrement = node.poolIncrement;

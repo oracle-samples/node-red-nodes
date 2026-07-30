@@ -5,14 +5,14 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 ## What's Included
 
 - **db-nodes**
-  - Database connection (with Test Connection)
+  - Database connection (with Test Database Connection)
   - SQL execution (Editor or msg.sql)
   - AQ enqueue / dequeue (configurable dequeue mode, continuous retry/reconnect controls)
   - Transactional processing (begin / end transaction with commit or rollback)
 
 - **fusion-scm-nodes**
   - General transaction node (fusion-request)
-  - General lookup node (scm-lookup), including subinventory, on-hand quantity, recipe/batch, and manufacturing child-resource lookups
+  - General lookup node (scm-lookup), including normalized complete Fusion GET URLs, subinventory, on-hand quantity, recipe/batch, and manufacturing child-resource lookups
   - `smart operations transformer`
   - `smart operations event` (submit operational events)
   - Manufacturing work order create/update

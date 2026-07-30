@@ -37,7 +37,8 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps, ensureAllowedHost } = require("../lib/url.js");
+    const { ensureHttps, ensureAllowedScmResourceUrl } = require("../lib/url.js");
+    const scmQuery = require("../lib/scm-query.js");
     const scmError = require("../lib/scm-error.js");
 
     const LOOKUP_TYPES = {
@@ -49,7 +50,7 @@ module.exports = function(RED) {
         },
         meterReading: {
             endpoint: "meterReadings",
-            queryParam: "AssetNumber",
+            queryParam: "finder",
             configField: "queryValue",
             queryFields: [requiredQueryField("MeterCode", "meterCode", "Meter Code", "no meter code")]
         },
@@ -160,20 +161,20 @@ module.exports = function(RED) {
                 const lookup = LOOKUP_TYPES[lookupType] || LOOKUP_TYPES.custom;
 
                 const queryValue = hasValue(msg.queryValue) ? msg.queryValue : config.queryValue;
-                let queryFilters;
-                try {
-                    queryFilters = parseQueryFilters(msg.queryFilters !== undefined ? msg.queryFilters : config.queryFilters);
-                } catch (filterErr) {
-                    node.status({ fill: "red", shape: "ring", text: "invalid filters" });
-                    node.error(filterErr.message, msg);
-                    return done(filterErr);
+                let queryFilters = {};
+                if (lookupType !== "custom") {
+                    try {
+                        queryFilters = parseQueryFilters(
+                            msg.queryFilters !== undefined ? msg.queryFilters : config.queryFilters
+                        );
+                    } catch (filterErr) {
+                        return finishValidationError(node, msg, done, filterErr, "invalid filters");
+                    }
                 }
 
                 if (!hasValue(queryValue) && lookupType !== "custom") {
-                    node.status({ fill: "red", shape: "ring", text: "no query value" });
                     const err = new Error("No query value provided");
-                    node.error(err.message, msg);
-                    return done(err);
+                    return finishValidationError(node, msg, done, err, "no query value");
                 }
 
                 let lookupRequest;
@@ -181,62 +182,103 @@ module.exports = function(RED) {
                     try {
                         lookupRequest = buildLookupRequest(lookup, queryFilters, config, msg);
                     } catch (pathErr) {
-                        node.status({ fill: "red", shape: "ring", text: pathErr.statusText || "invalid lookup ID" });
-                        msg.error = { message: pathErr.message, code: null };
-                        node.error(pathErr.message, msg);
-                        return done(pathErr);
+                        return finishValidationError(
+                            node,
+                            msg,
+                            done,
+                            pathErr,
+                            pathErr.statusText || "invalid lookup ID"
+                        );
                     }
+                }
+
+                let finalUrl;
+                try {
+                    if (lookupType === "custom") {
+                        const base = config.customUrl || "";
+                        if (!hasValue(base)) {
+                            throw new Error("No Custom Endpoint provided");
+                        }
+                        const customParams = parseCustomQueryParams(config.customQueryParams);
+                        const parsed = ensureAllowedScmResourceUrl(
+                            base,
+                            node.server.hostname,
+                            node.server.version
+                        );
+                        if (parsed.search && customParams.length > 0) {
+                            throw new Error(
+                                "Use either the URL query string or Query Parameters, not both"
+                            );
+                        }
+                        if (!parsed.search) {
+                            customParams.forEach(function (param) {
+                                parsed.searchParams.append(param.name, param.value);
+                            });
+                        }
+                        finalUrl = parsed.toString();
+                    } else {
+                        const baseUrl = node.server.buildUrl(lookupRequest.endpoint);
+                        const params = new URLSearchParams();
+                        const queryParam = lookupType === "organizationId"
+                            ? getOrganizationQueryField(config.organizationQueryField)
+                            : lookup.queryParam;
+                        if (lookupType === "meterReading") {
+                            const meterFilters = Object.assign({}, lookupRequest.queryFilters);
+                            const meterCode = meterFilters.MeterCode;
+                            delete meterFilters.MeterCode;
+                            params.set(
+                                "finder",
+                                scmQuery.buildMeterReadingFinder(
+                                    queryValue,
+                                    meterCode
+                                )
+                            );
+                            const meterQuery = buildQueryExpression("", undefined, meterFilters);
+                            if (meterQuery) {
+                                params.set("q", meterQuery);
+                            }
+                        } else {
+                            params.set("q", buildQueryExpression(queryParam, queryValue, lookupRequest.queryFilters));
+                        }
+                        finalUrl = `${baseUrl}?${params.toString()}`;
+                    }
+
+                    if (lookupType !== "custom") {
+                        ensureHttps(finalUrl);
+                    }
+                } catch (requestErr) {
+                    const isFinderError = lookupType === "meterReading";
+                    return finishValidationError(
+                        node,
+                        msg,
+                        done,
+                        requestErr,
+                        isFinderError ? "invalid finder" : "invalid query"
+                    );
                 }
 
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
 
-                let finalUrl;
-                if (lookupType === "custom") {
-                    const base = config.customUrl || "";
-                    if (hasValue(queryValue) && config.customQueryParam) {
-                        const parsed = new URL(base);
-                        if (parsed.search) {
-                            const err = new Error("Custom URL must not include query parameters in custom lookup mode");
-                            node.status({ fill: "red", shape: "ring", text: "invalid custom URL" });
-                            node.error(err.message, msg);
-                            return done(err);
-                        }
-                        parsed.searchParams.set("q", buildQueryExpression(config.customQueryParam, queryValue, queryFilters));
-                        finalUrl = parsed.toString();
-                    } else {
-                        const err = new Error("Custom lookup requires both Query Param and Query Value");
-                        node.status({ fill: "red", shape: "ring", text: "config error" });
-                        node.error(err.message, msg);
-                        return done(err);
-                    }
-                } else {
-                    const baseUrl = node.server.buildUrl(lookupRequest.endpoint);
-                    // URLSearchParams encodes special characters in queryValue.
-                    const params = new URLSearchParams();
-                    const queryParam = lookupType === "organizationId"
-                        ? getOrganizationQueryField(config.organizationQueryField)
-                        : lookup.queryParam;
-                    params.set("q", buildQueryExpression(queryParam, queryValue, lookupRequest.queryFilters));
-                    finalUrl = `${baseUrl}?${params.toString()}`;
-                }
-
-                if (lookupType === "custom") {
-                    ensureAllowedHost(finalUrl, node.server.hostname);
-                } else {
-                    ensureHttps(finalUrl);
-                }
-
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
-                const response = await axios.get(finalUrl, {
+                const requestOptions = {
                     timeout: 30000,
+                    maxRedirects: lookupType === "custom" ? 0 : undefined,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
                         "Authorization": `Bearer ${token}`,
                         "Content-Type": "application/json"
                     }
-                });
+                };
+                const response = lookupType === "meterReading"
+                    ? await scmQuery.fetchAllCollectionPages(
+                        finalUrl,
+                        function (url) {
+                            return axios.get(url, requestOptions);
+                        }
+                    )
+                    : await axios.get(finalUrl, requestOptions);
 
                 msg.statusCode = response.status;
                 msg.payload = response.data;
@@ -260,7 +302,7 @@ module.exports = function(RED) {
     }
 
     function hasValue(value) {
-        return value !== undefined && value !== null && value !== "";
+        return value !== undefined && value !== null && String(value).trim() !== "";
     }
 
     function parseQueryFilters(value) {
@@ -286,6 +328,9 @@ module.exports = function(RED) {
             if (key === "__proto__" || key === "constructor" || key === "prototype") {
                 throw new Error("Additional Filters JSON contains a reserved key: " + key);
             }
+            if (!/^[A-Za-z][A-Za-z0-9_.]*$/.test(key)) {
+                throw new Error("Additional Filters JSON contains an invalid field name: " + key);
+            }
             const value = filters[key];
             if (hasValue(value)) {
                 parsed[key] = value;
@@ -294,9 +339,52 @@ module.exports = function(RED) {
         return parsed;
     }
 
+    function parseCustomQueryParams(value) {
+        if (!hasValue(value)) {
+            return [];
+        }
+        let params = value;
+        if (typeof value === "string") {
+            try {
+                params = JSON.parse(value);
+            } catch (err) {
+                throw new Error("Custom Query Parameters JSON is invalid: " + err.message);
+            }
+        }
+        if (!Array.isArray(params)) {
+            throw new Error("Custom Query Parameters must be an array");
+        }
+        return params.map(function (param, index) {
+            if (!param || typeof param !== "object" || Array.isArray(param)) {
+                throw new Error("Custom Query Parameter " + (index + 1) + " must be an object");
+            }
+            var name = String(param.name || "").trim();
+            if (!/^[A-Za-z][A-Za-z0-9_.-]*$/.test(name)) {
+                throw new Error(
+                    "Custom Query Parameter " + (index + 1) + " has an invalid query parameter name"
+                );
+            }
+            if (typeof param.value !== "string") {
+                throw new Error(
+                    "Custom Query Parameter " + (index + 1) + " must have a string value"
+                );
+            }
+            return {
+                name: name,
+                value: param.value
+            };
+        });
+    }
+
+    function finishValidationError(node, msg, done, err, statusText) {
+        node.status({ fill: "red", shape: "ring", text: statusText });
+        msg.error = { message: err.message, code: null };
+        node.error(err.message, msg);
+        return done(err);
+    }
+
     function assertSafeQueryValue(value) {
-        // ";" separates filters in a Fusion q expression; a value containing it
-        // would inject an extra filter, so reject it (field names are code-controlled).
+        // ";" separates filters in a Fusion q expression.
         if (String(value).indexOf(";") !== -1) {
             throw new Error("Query value must not contain ';' (Fusion query filter separator)");
         }

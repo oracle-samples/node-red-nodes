@@ -6,15 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.6.0] - 2026-07-29
+## [0.6.0] - 2026-07-30
 
 ### Added
 - `scm-server` Test Connection validates OAuth token acquisition and Fusion REST reachability, and the editor shows a derived REST base preview.
 - `scm-lookup` adds Redwood Recipe/Batch aliases and manufacturing operation, material, resource, output, and reservation lookups with dedicated Work Order ID and Operation ID fields.
 - `manufacturing-production-transaction` posts Fusion Manufacturing operation complete, reject, scrap, and reverse-to-ready transactions; material issue/return transactions; and output product completion/return transactions.
+- `fusion-request` Media Type setting supports Oracle ADF Resource Item, ADF Action, JSON, and ADF Batch requests, including Fusion-compatible normalization of slashless standard Batch paths and parameterless invoke parts.
+- `Fusion SCM mapped action nodes` Payload Source setting supports either nonempty configured mappings or a validated copy of the complete `msg.payload` object while retaining saved mappings; bodyless GET and DELETE operations may omit mappings.
 
 ### Changed
 - `oracledb` updated to `^7.0.1`; `mqtt` updated to `5.15.2`; `oci-sdk`, `oci-common`, and `oci-identitydataplane` updated to `2.137.0`; `axios` updated to `1.17.0`.
+- `db-connection` now allows DB Token proxy session users in Thick mode with node-oracledb 7.
+- `db-connection` now exposes Session User for Basic and DB Token proxy authentication while preserving bracketed usernames, clearly distinguishes Oracle `SESSION_USER` from `PROXY_USER`, and resolves Thick-mode wallet TNS aliases and descriptors without changing the process-wide Oracle Client configuration.
+- `sql` now adds `msg.dbResult` success metadata and reports `rows`, `affected`, or `completed` status according to the Oracle execution result while preserving the existing payload array.
+- `db-connection`, `oci-config`, `ords-config`, `iot-config`, and `scm-server` now place their tailored test action immediately after the visible configuration fields and report missing connection targets before testing.
+- `smo-event`, `fusion-request`, and `subinventory-quantity-transfer` now use operation-specific success statuses such as `submitted`, `read`, `updated`, and `deleted` instead of ambiguous completion text.
+- `fusion-request` Custom requests now validate the exact configured Fusion SCM origin and API version before authentication, disable redirects, and enforce method, endpoint, and payload rules for ADF Action and ADF Batch.
+- `scm-lookup` Custom mode now accepts complete Fusion GET URLs, normalizes query strings into an ordered multi-parameter table with repeated-name support, permits parameterless requests, and no longer uses the predefined Query Value or Additional Filters fields.
+- `scm-lookup` Custom requests now require the configured Fusion origin and API-version resource path, reject credentials and fragments, and do not follow redirects.
 - `create-asset`, `manufacturing-work-order-child`, `maintenance-work-order-child`, `delete-transaction`, `smo-event`, and `smo-transformer` now use the expanded palette labels `create installed base asset`, `manage manufacturing work order details`, `manage maintenance work order details`, `delete scm record`, `smart operations event`, and `smart operations transformer`.
 - `Fusion SCM payload-mapping editors` now show resolved message paths, source-specific placeholders, inline field-type guidance, and realistic `msg.payload`/timestamp/typed-constant presets; runtime validation rejects duplicate path prefixes, incompatible typed constants, invalid dates, and invalid JSON before sending requests.
 - `scm-lookup` Inventory Organization queries can select organization name, code, or ID while returning the complete Fusion organization response.
@@ -26,14 +36,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `scm-server` now validates the configured hostname and API version as a Fusion REST base before deploy.
 
 ### Fixed
+- `sql` now identifies a trailing SQLcl/SQL*Plus `/` terminator with removal guidance instead of reporting it as a semicolon statement chain.
 - `Fusion SCM payload-mapping editors` present in `v0.5.0`, plus `sql`, `oci-logging`, and `oci-log-analytics`, now persist mapping rows and Smart Operations custom configuration after Done.
+- `get-meter-reading` and `scm-lookup` Meter Reading mode now use Fusion's asset-meter business-key finder, require both Asset Number and Meter Code, aggregate paginated history into one normalized collection, and preserve optional additional filters as a separate `q` parameter.
+- `scm-lookup` now validates Additional Filter field names before authentication.
 - `db-connection` now detects and reuses an already-initialized process-wide Thick driver, preventing `NJS-090` when initialization arguments differ.
 - `dequeue` Continuous mode now increments retry attempts across repeated dequeue-time failures, honors Max Retries, and stops immediately with `subscriber required` when a multi-consumer queue needs a Subscriber.
 - `begin-transaction`/`end-transaction` no longer leak timeout handles across completed transactions, and a redeploy during an active transaction now rolls back and closes the open connection.
 - `smo-transformer` actively evicts incomplete composite entries at the maximum pending age even when no further messages arrive.
 - `Fusion SCM payload-mapping editors` now translate conventional paths when switching between Message property and Dequeued data while preserving custom paths.
 - `sql`, `enqueue`, `dequeue`, `begin-transaction`, and `end-transaction` Catch-path errors redact labeled tokens, passwords, private keys, wallet/config paths, and connect descriptors before reporting them; Continuous dequeue applies the same redaction to retry errors.
-- `fusion-request`, `delete-transaction`, and `scm-lookup` custom URLs are now restricted to the configured SCM host, so the Fusion OAuth bearer token cannot be sent to an arbitrary host.
+- `delete-transaction` custom URLs are now restricted to the configured SCM host, so the Fusion OAuth bearer token cannot be sent to an arbitrary host.
 - `scm-lookup` rejects primary and Additional Filter values containing `;` (the Fusion query filter separator) to prevent filter injection.
 
 ---

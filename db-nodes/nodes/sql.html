@@ -291,7 +291,8 @@ var sqlBindsMappingEditor = (function () {
     <dt>SQL Source</dt>
     <dd><code>Editor</code> — uses the SQL written in the textarea below.
     <code>msg.sql</code> — reads the SQL statement from <code>msg.sql</code> at runtime,
-    allowing dynamic queries from upstream nodes. Editor mode blocks semicolon-chained multi-statement SQL and accepts a single statement (anonymous PL/SQL blocks are allowed).</dd>
+    allowing dynamic queries from upstream nodes. Editor mode blocks semicolon-chained multi-statement SQL and accepts a single statement (anonymous PL/SQL blocks are allowed).
+    Omit the trailing <code>/</code> command used by SQLcl and SQL*Plus; a PL/SQL block should end with <code>END;</code>.</dd>
     <dt>SQL</dt><dd>The SQL statement (when SQL Source is Editor).</dd>
     <dt>Binds Source</dt>
     <dd><code>Editor</code> — uses the Binds Mapping rows below.
@@ -304,7 +305,9 @@ var sqlBindsMappingEditor = (function () {
 <h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">array</span></dt>
-    <dd>Array of row objects for SELECT queries.</dd>
+    <dd>Array of row objects for SELECT queries. Successful statements without rows preserve this as an empty array.</dd>
+    <dt>dbResult <span class="property-type">object</span></dt>
+    <dd>Successful execution metadata: <code>{ success, rowsReturned, rowsAffected }</code>. <code>rowsAffected</code> is <code>null</code> when Oracle does not report an affected-row count.</dd>
     <dt>error <span class="property-type">object</span></dt>
     <dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
@@ -315,4 +318,5 @@ var sqlBindsMappingEditor = (function () {
 work as expected. DML statements (INSERT, UPDATE, DELETE) are <b>not committed</b>
 and will be rolled back when a standalone connection closes. To commit DML, use a PL/SQL block
 with an explicit <code>COMMIT</code>, or wire through the begin/end transaction nodes.</p>
+<p>Successful SELECT queries show <code>rows: N</code>, DML shows <code>affected: N</code>, and PL/SQL or DDL without a row count shows <code>completed</code>.</p>
 </script>

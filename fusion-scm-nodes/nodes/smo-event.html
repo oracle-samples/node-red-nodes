@@ -132,7 +132,7 @@ RED.nodes.registerType("smo-event", {
 
 <h3>Outputs</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object</span></dt><dd>API response body on success, error details on failure.</dd>
+    <dt>payload <span class="property-type">object|string</span></dt><dd>Raw API response body on success, error details on failure.</dd>
     <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
     <dt>smoEvent <span class="property-type">object</span></dt><dd>The Smart Operations event body submitted to Fusion.</dd>
     <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
@@ -140,4 +140,8 @@ RED.nodes.registerType("smo-event", {
 
 <h3>Details</h3>
 <p>This node only submits Smart Operations events. Use the <b>smo-transformer</b> node upstream to map raw telemetry, camera, PLC, scanner, or MQTT data into the expected event shape.</p>
+<p>A successful request sets the node status to <code>submitted</code>. This confirms receipt of the
+submission, not the outcome of downstream Smart Operations processing. Fusion can return an empty
+response body; in that case <code>msg.payload</code> is an empty string while
+<code>msg.statusCode</code> and <code>msg.smoEvent</code> remain available.</p>
 </script>

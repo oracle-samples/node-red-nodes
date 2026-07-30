@@ -172,7 +172,7 @@ RED.nodes.registerType("oci-config", {
     </div>
     </fieldset>
     <div class="config-test-actions">
-        <div class="form-row" style="text-align:center;">
+        <div class="form-row" style="text-align:center;margin-top:12px;">
             <button type="button" class="red-ui-button" id="btn-test-oci">
                 <i class="fa fa-plug"></i> Test OCI Credentials
             </button>
@@ -207,13 +207,13 @@ RED.nodes.registerType("oci-config", {
     <dd>Optional default OCI region for child nodes.</dd>
     <dt>Compartment OCID</dt>
     <dd>Optional default compartment OCID used by child nodes unless overridden.</dd>
-    <dt>Test Connection</dt>
+    <dt>Test OCI Credentials</dt>
     <dd>Validates the current configuration and credentials against OCI after deploy.</dd>
 </dl>
 
 <h3>Notes</h3>
 <ul>
-    <li>After changing config values, click <b>Update</b> and then <b>Deploy</b> before using Test Connection.</li>
+    <li>After changing config values, click <b>Update</b> and then <b>Deploy</b> before using Test OCI Credentials.</li>
     <li>Child nodes can override region/compartment values at node level when needed.</li>
 </ul>
 </script>

@@ -28,6 +28,31 @@ function ensureAllowedHost(urlString, allowedHostname) {
     return parsedUrl;
 }
 
+function ensureAllowedScmResourceUrl(urlString, allowedHostname, apiVersion) {
+    var parsedUrl;
+    var configuredBase;
+    try {
+        parsedUrl = ensureHttps(urlString);
+        configuredBase = new URL(formatFusionRestBaseUrl(allowedHostname, apiVersion));
+    } catch (err) {
+        throw new Error("Custom URL must target the configured Fusion REST origin and API version");
+    }
+
+    var resourceRoot = configuredBase.pathname.replace(/\/$/, "");
+    var isResourcePath = parsedUrl.pathname === resourceRoot ||
+        parsedUrl.pathname.startsWith(resourceRoot + "/");
+    if (
+        parsedUrl.username ||
+        parsedUrl.password ||
+        parsedUrl.hash ||
+        parsedUrl.origin !== configuredBase.origin ||
+        !isResourcePath
+    ) {
+        throw new Error("Custom URL must target the configured Fusion REST origin and API version");
+    }
+    return parsedUrl;
+}
+
 function invalidFusionRestBaseUrl() {
     return new Error("Invalid Fusion REST Base URL. Expected: " + FUSION_REST_BASE_URL_FORMAT);
 }
@@ -80,6 +105,7 @@ function formatFusionRestBaseUrl(hostname, version) {
 module.exports = {
     ensureHttps,
     ensureAllowedHost,
+    ensureAllowedScmResourceUrl,
     parseFusionRestBaseUrl,
     formatFusionRestBaseUrl,
     FUSION_REST_BASE_URL_FORMAT

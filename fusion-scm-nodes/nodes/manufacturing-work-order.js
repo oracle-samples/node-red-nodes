@@ -58,8 +58,8 @@ module.exports = function(RED) {
         node.on("input", async function(msg, send, done) {
             try {
                 var action = resolveAction(config, msg);
-                validateMappingsForAction(mappings, action);
-                var payload = scmMapping.resolvePayload(mappings, msg, RED);
+                var payload = scmMapping.resolveRequestPayload(config.payloadSource, mappings, msg, RED);
+                validatePayloadForAction(payload, action);
                 var workOrdersUrl = node.server.buildUrl("workOrders");
                 var url = resolveRequestUrl(workOrdersUrl, action, config, msg);
                 ensureHttps(url);
@@ -80,7 +80,9 @@ module.exports = function(RED) {
                 send(outMsg);
                 done();
             } catch (err) {
-                var validationError = err && err.manufacturingWorkOrderValidationError;
+                var validationError = err && (
+                    err.manufacturingWorkOrderValidationError || err.scmPayloadValidationError
+                );
                 node.status({
                     fill: "red",
                     shape: validationError ? "ring" : "dot",
@@ -102,10 +104,8 @@ module.exports = function(RED) {
         return action;
     }
 
-    function validateMappingsForAction(mappings, action) {
-        if (action === "create" && mappings.some(function(mapping) {
-            return mapping.scmField === "WorkDefinitionName";
-        })) {
+    function validatePayloadForAction(payload, action) {
+        if (action === "create" && Object.prototype.hasOwnProperty.call(payload, "WorkDefinitionName")) {
             throwValidationError("WorkDefinitionName is read-only when creating a manufacturing work order; use WorkDefinitionCode");
         }
     }

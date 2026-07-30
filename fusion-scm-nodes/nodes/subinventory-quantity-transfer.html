@@ -41,13 +41,21 @@ RED.nodes.registerType("subinventory-quantity-transfer", {
     defaults: {
         name: { value: "" },
         server: { type: "scm-server", required: true },
+        payloadSource: { value: "mappings" },
         mappings: { value: '[{"scmField":"SourceCode","sourceType":"msg","value":"payload.SourceCode"},{"scmField":"SourceHeaderId","sourceType":"msg","value":"payload.SourceHeaderId"},{"scmField":"SourceLineId","sourceType":"msg","value":"payload.SourceLineId"},{"scmField":"TransactionMode","sourceType":"msg","value":"payload.TransactionMode"},{"scmField":"UseCurrentCostFlag","sourceType":"staticBoolean","value":"true"},{"scmField":"TransactionTypeName","sourceType":"msg","value":"payload.TransactionTypeName"},{"scmField":"OrganizationId","sourceType":"msg","value":"payload.OrganizationId"},{"scmField":"ItemNumber","sourceType":"msg","value":"payload.ItemNumber"},{"scmField":"TransactionQuantity","sourceType":"msg","value":"payload.TransactionQuantity"},{"scmField":"TransactionUnitOfMeasure","sourceType":"msg","value":"payload.TransactionUnitOfMeasure"},{"scmField":"TransactionDate","sourceType":"currentTimestamp","value":""},{"scmField":"SubinventoryCode","sourceType":"msg","value":"payload.SubinventoryCode"},{"scmField":"TransferSubinventory","sourceType":"msg","value":"payload.TransferSubinventory"},{"scmField":"serials","sourceType":"msg","value":"payload.serials"}]' }
     },
     inputs: 1, outputs: 1, color: "#4F7D7B", icon: "font-awesome/fa-exchange",
     label: function () { return this.name || "subinventory quantity transfer"; },
     oneditprepare: function () {
+        function syncPayloadSource() {
+            var useMappings = ($("#node-input-payloadSource").val() || "mappings") === "mappings";
+            $(".scm-payload-mappings").toggle(useMappings);
+            $(".scm-direct-payload-hint").toggle(!useMappings);
+        }
         scmMappingEditor.init(this);
         window.scmEndpointPreview.init("inventoryStagedTransactions");
+        $("#node-input-payloadSource").on("change", syncPayloadSource);
+        syncPayloadSource();
     },
     oneditsave: function () {
         var savedMappings = scmMappingEditor.save();
@@ -336,20 +344,35 @@ window.scmEndpointPreview = (function () {
     <div class="form-row">
         <label><i class="fa fa-link"></i> Endpoint</label>
         <span id="scm-url-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
-    </div>    <hr/>
+    </div>
+    <hr/>
     <div class="form-row">
-        <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
-            Map SCM API fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
+        <label for="node-input-payloadSource"><i class="fa fa-sign-in"></i> Payload Source</label>
+        <select id="node-input-payloadSource" style="width:200px;">
+            <option value="mappings">Mapped fields</option>
+            <option value="msgPayload">Entire msg.payload</option>
+        </select>
+    </div>
+    <div class="form-row scm-direct-payload-hint" style="display:none;">
+        <div style="margin-left:105px;font-size:11px;color:#888;">
+            Uses the complete <code>msg.payload</code> object. Saved mappings are retained but ignored.
         </div>
     </div>
-    <div class="form-row">
-        <div id="scm-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
-        <div style="margin-left:20px;margin-top:4px;">
-            <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-scm-mapping">+ Add Mapping</button>
+    <div class="scm-payload-mappings">
+        <div class="form-row">
+            <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
+            <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+                Map SCM API fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
+            </div>
         </div>
+        <div class="form-row">
+            <div id="scm-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
+            <div style="margin-left:20px;margin-top:4px;">
+                <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-scm-mapping">+ Add Mapping</button>
+            </div>
+        </div>
+        <input type="hidden" id="node-input-mappings">
     </div>
-    <input type="hidden" id="node-input-mappings">
 </script>
 
 <script type="text/x-red" data-help-name="subinventory-quantity-transfer">
@@ -358,6 +381,7 @@ window.scmEndpointPreview = (function () {
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Endpoint</dt><dd>Auto-built from server config for this node type.</dd>
+    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map SCM API fields to values. Each row specifies:
         <ul>
@@ -375,4 +399,7 @@ window.scmEndpointPreview = (function () {
 </dl>
 <h3>Details</h3>
 <p>Sends a <code>POST</code> request to the Inventory Staged Transactions REST endpoint. The <code>OrganizationId</code> can be looked up using the <b>get organization id</b> or <b>scm lookup</b> node. Map <code>SubinventoryCode</code> as the source subinventory and <code>TransferSubinventory</code> as the destination subinventory.</p>
+<p>A successful request sets the node status to <code>submitted</code> because Fusion processes the
+staged inventory transaction after accepting the request. The output payload remains the raw Fusion
+response body.</p>
 </script>
