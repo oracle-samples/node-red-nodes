@@ -182,8 +182,6 @@ When `msg.transaction.connection` exists, the SQL executes on that shared transa
 ## SCM Nodes
 
 All SCM HTTP action/lookup/event nodes apply a 30-second outbound request timeout.
-The audited endpoint, method, query, media-type, and input matrix for every
-Fusion SCM node is in [Fusion SCM API Contract Audit](fusion-scm-api-contracts.md).
 
 ### scm-server (Config Node)
 
