@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.6.0] - 2026-07-30
+## [0.6.0] - 2026-07-31
 
 ### Added
 - `scm-server` Test Connection validates OAuth token acquisition and Fusion REST reachability, and the editor shows a derived REST base preview.

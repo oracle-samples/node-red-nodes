@@ -130,10 +130,7 @@ The smo-transformer converts incoming telemetry or message data into structured 
 
 **Typical flow:** `dequeue` → `split` (fixed length: 1) → `smart operations transformer` → `smart operations event`
 
-See [Node Reference](../docs/node-reference.md) for full configuration details
-and [Fusion SCM API Contract Audit](../docs/fusion-scm-api-contracts.md) for the
-endpoint, method, query, media-type, and required-input matrix covering every
-Fusion SCM node.
+See [Node Reference](../docs/node-reference.md) for full configuration details.
 
 ## Documentation
 
