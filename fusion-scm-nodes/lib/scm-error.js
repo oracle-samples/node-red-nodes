@@ -36,7 +36,7 @@ function handleNodeError(node, msg, err, done, options) {
         doneErr.statusCode = normalized.statusCode;
     }
 
-    node.error(normalized.message, msg);
+    doneErr.code = normalized.code;
     done(doneErr);
 }
 

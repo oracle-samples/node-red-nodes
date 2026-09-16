@@ -80,35 +80,43 @@ module.exports = function (RED) {
         if (node.iotDevice.isConnected()) {
             node.status({ fill: "green", shape: "dot", text: "connected" });
         } else {
-            node.status({ fill: "yellow", shape: "ring", text: "connecting" });
+            node.status({ fill: "yellow", shape: "dot", text: "connecting" });
         }
 
         node.on("input", function (msg, send, done) {
             if (!node.iotDevice.isConnected()) {
-                node.status({ fill: "red", shape: "ring", text: "not connected" });
                 var err = new Error("Not connected to IoT Platform");
-                node.error(err.message, msg);
-                return done(err);
+                return ociError.handleNodeError(node, msg, err, done, {
+                    statusText: "not connected", statusShape: "ring", setPayload: false
+                });
             }
 
             var payload = msg.payload;
-            if (typeof payload !== "object") {
-                payload = { value: payload };
-            }
+            var payloadStr;
+            try {
+                if (node.addTimestamp && payload === null) {
+                    throw new Error("Cannot add a timestamp to a null telemetry payload");
+                }
+                if (typeof payload !== "object") {
+                    payload = { value: payload };
+                }
 
-            // Add timestamp if missing.
-            // OCI IoT expects timestamps in microseconds, not milliseconds.
-            if (node.addTimestamp && payload.time == null) {
-                payload.time = Math.floor(Date.now() * 1000);
+                // OCI IoT expects timestamps in microseconds, not milliseconds.
+                if (node.addTimestamp && payload.time == null) {
+                    payload.time = Math.floor(Date.now() * 1000);
+                }
+                payloadStr = JSON.stringify(payload);
+            } catch (payloadErr) {
+                return ociError.handleNodeError(node, msg, payloadErr, done, {
+                    statusText: "invalid payload", statusShape: "ring", setPayload: false
+                });
             }
-
-            var payloadStr = JSON.stringify(payload);
             var msgTopic = (msg.topic !== undefined && msg.topic !== null) ? String(msg.topic).trim() : "";
             var topic = node.topic || (msgTopic !== "" ? msgTopic : null);
             if (!topic) {
-                node.status({ fill: "red", shape: "ring", text: "no topic" });
-                node.error("No topic configured and msg.topic not set", msg);
-                return done(new Error("No topic"));
+                return ociError.handleNodeError(node, msg, new Error("No topic configured and msg.topic not set"), done, {
+                    statusText: "no topic", statusShape: "ring", setPayload: false
+                });
             }
             var opts = { qos: node.qos };
             if (msg.qos !== undefined && msg.qos !== null) {

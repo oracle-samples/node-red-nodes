@@ -2,21 +2,21 @@
     {
         "id": "5b7105f00c7c8bff",
         "type": "tab",
-        "label": "Alert and Shutdown on Threshold",
+        "label": "Device Telemetry and Commands",
         "disabled": false,
-        "info": "",
+        "info": "Configure the MQTT device connection, OCI credentials, notification topic OCID, and digital twin instance OCID before running. Use a non-production device and services. The sample intentionally alerts below 30 degrees: a successful telemetry publish is checked locally, then notification success triggers a shutdown command request. Configure the command endpoint to match the device subscription. The subscriber receives commands, not the published telemetry. Receiving or accepting the request does not demonstrate physical shutdown; the device must implement the command and any response. Change sample temperature to 30 or above to exercise the no-action branch.",
         "env": []
     },
     {
         "id": "e406a6d8a8e61748",
         "type": "iot-telemetry",
         "z": "5b7105f00c7c8bff",
-        "name": "",
+        "name": "Publish device telemetry",
         "iotDevice": "a1fbb2cfb60372b7",
         "topic": "iot/v1/telemetry",
         "qos": "1",
         "addTimestamp": true,
-        "x": 360,
+        "x": 420,
         "y": 220,
         "wires": [
             [
@@ -28,7 +28,7 @@
         "id": "e32c941932fdf824",
         "type": "inject",
         "z": "5b7105f00c7c8bff",
-        "name": "",
+        "name": "Send sample telemetry",
         "props": [
             {
                 "p": "payload"
@@ -41,7 +41,7 @@
         "topic": "",
         "payload": "{\"sht_temperature\":24.3,\"qmp_temperature\":25.1,\"humidity\":58.7,\"pressure\":1013.4,\"count\":1}",
         "payloadType": "json",
-        "x": 190,
+        "x": 150,
         "y": 220,
         "wires": [
             [
@@ -53,14 +53,14 @@
         "id": "820fee6a4923ee06",
         "type": "switch",
         "z": "5b7105f00c7c8bff",
-        "name": "",
+        "name": "Temperature below 30?",
         "property": "payload.sht_temperature",
         "propertyType": "msg",
         "rules": [
             {
                 "t": "lt",
                 "v": "30",
-                "vt": "str"
+                "vt": "num"
             },
             {
                 "t": "else"
@@ -69,7 +69,7 @@
         "checkall": "true",
         "repair": false,
         "outputs": 2,
-        "x": 530,
+        "x": 710,
         "y": 220,
         "wires": [
             [
@@ -84,31 +84,32 @@
         "id": "c69e16d009792cf9",
         "type": "debug",
         "z": "5b7105f00c7c8bff",
-        "name": "debug 78",
+        "name": "No low-temperature action",
         "active": true,
         "tosidebar": true,
         "console": false,
         "tostatus": false,
-        "complete": "false",
+        "complete": "payload",
         "statusVal": "",
         "statusType": "auto",
-        "x": 700,
-        "y": 260,
-        "wires": []
+        "x": 1000,
+        "y": 280,
+        "wires": [],
+        "targetType": "msg"
     },
     {
         "id": "d2bfbbb82d54a920",
         "type": "iot-send-command",
         "z": "5b7105f00c7c8bff",
-        "name": "",
-        "ociConfig": "",
+        "name": "Send shutdown command",
+        "ociConfig": "8d8f1b07836c5568",
         "digitalTwinOcid": "",
         "requestEndpoint": "iot/v1/cmd/shutdown",
         "responseEndpoint": "iot/v1/rsp/shutdown",
         "requestDuration": "PT10M",
         "responseDuration": "PT10M",
         "waitForResponse": true,
-        "x": 920,
+        "x": 1530,
         "y": 180,
         "wires": [
             [
@@ -120,16 +121,16 @@
         "id": "c669a64b7bb10333",
         "type": "oci-notification",
         "z": "5b7105f00c7c8bff",
-        "name": "",
+        "name": "Notify low temperature",
         "ociConfig": "8d8f1b07836c5568",
         "topicOcid": "",
         "msgTitle": "sht_temperature under threshold",
         "msgBody": "sending shutdown command",
-        "x": 710,
+        "x": 980,
         "y": 180,
         "wires": [
             [
-                "d2bfbbb82d54a920"
+                "iot-example-build-command"
             ]
         ]
     },
@@ -137,38 +138,39 @@
         "id": "f8b942a8efdd5d9a",
         "type": "debug",
         "z": "5b7105f00c7c8bff",
-        "name": "debug 79",
+        "name": "Command request result",
         "active": true,
         "tosidebar": true,
         "console": false,
         "tostatus": false,
-        "complete": "false",
+        "complete": "payload",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1120,
+        "x": 1820,
         "y": 180,
-        "wires": []
+        "wires": [],
+        "targetType": "msg"
     },
     {
         "id": "d80a31dec71f8077",
         "type": "comment",
         "z": "5b7105f00c7c8bff",
-        "name": "mqtt in node listens for the shutdown topic",
-        "info": "",
-        "x": 310,
-        "y": 420,
+        "name": "Receive device commands",
+        "info": "Configure the same device/digital twin and matching command endpoint on both command nodes. This branch displays commands delivered to the device; it does not implement shutdown or send a device response.",
+        "x": 210,
+        "y": 400,
         "wires": []
     },
     {
         "id": "41ddba2826b91017",
         "type": "iot-subscribe",
         "z": "5b7105f00c7c8bff",
-        "name": "",
+        "name": "Receive shutdown command",
         "iotDevice": "a1fbb2cfb60372b7",
         "topic": "iot/v1/cmd/shutdown",
         "qos": "1",
-        "x": 180,
-        "y": 480,
+        "x": 210,
+        "y": 460,
         "wires": [
             [
                 "779ed5b02484b64d"
@@ -179,17 +181,18 @@
         "id": "779ed5b02484b64d",
         "type": "debug",
         "z": "5b7105f00c7c8bff",
-        "name": "debug 80",
+        "name": "Received device command",
         "active": true,
         "tosidebar": true,
         "console": false,
         "tostatus": false,
-        "complete": "false",
+        "complete": "payload",
         "statusVal": "",
         "statusType": "auto",
-        "x": 360,
-        "y": 480,
-        "wires": []
+        "x": 530,
+        "y": 460,
+        "wires": [],
+        "targetType": "msg"
     },
     {
         "id": "a1fbb2cfb60372b7",
@@ -219,7 +222,73 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.6.0"
+            "node-red-nodes": "0.7.0"
         }
+    },
+    {
+        "id": "iot-example-catch-errors",
+        "type": "catch",
+        "z": "5b7105f00c7c8bff",
+        "name": "Catch device workflow errors",
+        "scope": [
+            "e406a6d8a8e61748",
+            "820fee6a4923ee06",
+            "d2bfbbb82d54a920",
+            "c669a64b7bb10333",
+            "41ddba2826b91017",
+            "iot-example-build-command"
+        ],
+        "uncaught": false,
+        "x": 210,
+        "y": 600,
+        "wires": [
+            [
+                "iot-example-debug-error"
+            ]
+        ]
+    },
+    {
+        "id": "iot-example-debug-error",
+        "type": "debug",
+        "z": "5b7105f00c7c8bff",
+        "name": "Device workflow error",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "error",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 510,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "iot-example-build-command",
+        "type": "change",
+        "z": "5b7105f00c7c8bff",
+        "name": "Build shutdown command",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "{\"command\":\"shutdown\",\"reason\":\"temperature below threshold\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1250,
+        "y": 180,
+        "wires": [
+            [
+                "d2bfbbb82d54a920"
+            ]
+        ]
     }
 ]

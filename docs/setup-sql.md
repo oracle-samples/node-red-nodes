@@ -12,6 +12,8 @@ In this guide you will:
 >
 > **Important:** Subscribers are case-sensitive!
 
+The SQL blocks below use SQLcl/SQL*Plus `/` terminators. When pasting a block into a Node-RED SQL node, omit the final `/` line.
+
 ## Creating a multi-consumer queue and subscriber
 
 ### Step 1 — Create a queue table and queue
@@ -74,7 +76,7 @@ END;
 ### Step 3 - How to use these in Node-RED nodes
 
 #### Entering queue name
-When configuring nodes (Enqueue/Dequeue/SQL) you'll need to reference the queue inside the `Queue Name` field using:
+In Enqueue and Dequeue, set `Queue Name` to the schema-qualified queue name. In a SQL node, reference the queue in the SQL statement instead:
 - `SCHEMA.JSON_QUEUE`
 
 #### Enter subscriber (consumer) name

@@ -51,7 +51,10 @@ RED.nodes.registerType("enqueue", {
         name: { value: "" },
         connection: { type: "db-connection", required: true },
         queueName: { value: "" },
-        recipients: { value: "" },
+        recipients: { value: "", validate: function (value) {
+            return typeof value === "string" && !/[\x00-\x1f\x7f]/.test(value) &&
+                (!value.trim() || value.split(",").every(function (name) { return !!name.trim(); }));
+        } },
         userPayload: { value: "" },
         deliveryMode: { value: "persistent" },
         payloadType: { value: "json" },
@@ -137,7 +140,7 @@ RED.nodes.registerType("enqueue", {
     <div class="form-row">
         <label for="node-input-recipients"><i class="fa fa-users"></i> Recipients</label>
         <input type="text" id="node-input-recipients">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Optional recipients for multi-consumer queues.</div>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Comma-separated subscriber names, applied to every message. Leave blank to use the queue's subscriptions.</div>
     </div>
     <div class="form-row">
         <label for="node-input-deliveryMode"><i class="fa fa-tachometer"></i> Delivery Mode</label>
@@ -150,7 +153,7 @@ RED.nodes.registerType("enqueue", {
         Messages are written to the queue table and committed to disk — durable across database restarts.
     </div>
     <div id="enqueue-buffered-warning" style="margin-left:105px;font-size:11px;color:#c47a00;margin-top:-6px;display:none;">
-        Buffered messages live in Oracle shared memory only and are lost on DB restart. Requires Thick mode; JSON payloads are not supported.
+        Buffered messages require immediate visibility and do not support JSON payloads. This node does not configure immediate visibility; use Persistent for the documented workflow.
     </div>
     <hr/>
     <div class="form-row">
@@ -194,10 +197,10 @@ RED.nodes.registerType("enqueue", {
 <dl class="message-properties">
     <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
     <dt>Queue Name</dt><dd>Name of the AQ to enqueue into.</dd>
-    <dt>Recipients</dt><dd>Optional recipients for multi-consumer queues.</dd>
+    <dt>Recipients</dt><dd>Optional comma-separated subscriber names for multi-consumer queues, applied to each message in the batch. Surrounding spaces are removed; names retain their case. Empty list entries and control characters are rejected. Leave blank to use the queue's subscriptions.</dd>
     <dt>Delivery Mode</dt>
     <dd><strong>Persistent</strong> (default): messages are written to the queue table and committed to disk — durable across database restarts.
-    <strong>Buffered</strong>: messages are stored in Oracle shared memory only — faster, but lost on DB restart. The current node implementation requires Thick mode, and JSON payloads do not support buffered delivery.</dd>
+    <strong>Buffered</strong>: in-memory messages requiring immediate visibility; JSON payloads are not supported. This node uses <code>enqMany</code> and does not configure immediate visibility, so buffered delivery may fail with <code>ORA-25298</code>. Thin mode also does not support immediate visibility with <code>enqMany</code>. Use Persistent for the documented workflow; switching driver mode alone does not configure visibility.</dd>
     <dt>Payload Type</dt>
     <dd><strong>JSON</strong> (default): payload is a JS object enqueued as <code>DB_TYPE_JSON</code>.
     <strong>RAW</strong>: payload is a string encoded to a UTF-8 Buffer.
@@ -218,7 +221,8 @@ RED.nodes.registerType("enqueue", {
 </dl>
 
 <h3>Details</h3>
+<p>If <code>msg.transaction</code> is timed out, ended, or has no connection, the node reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Handle the error and start a new transaction before retrying. Messages with no transaction context keep their normal standalone behavior.</p>
 <p>When <code>msg.transaction.connection</code> exists (from <code>begin-transaction</code>), enqueue uses that shared connection and does not auto-commit. The enqueue is finalized by <code>end-transaction</code> commit/rollback.</p>
-<p>Without a transaction connection, enqueue opens its own connection, enqueues, commits, and closes.</p>
+<p>Without a transaction context, enqueue opens its own connection, enqueues, commits, and closes.</p>
 <p>Each element of the JSON array is enqueued as a separate AQ message with <code>DB_TYPE_JSON</code> payload type.</p>
 </script>

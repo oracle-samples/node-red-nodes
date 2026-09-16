@@ -121,7 +121,8 @@ module.exports = function (RED) {
                     msg.error = { message: err.message, code: null };
                     msg.statusCode = 0;
                     msg.payload = err.message;
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
@@ -132,7 +133,8 @@ module.exports = function (RED) {
                     msg.error = { message: err.message, code: null };
                     msg.statusCode = 0;
                     msg.payload = err.message;
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
                 const requestDuration = normalizeDuration(node.requestDuration, "Request Duration");
@@ -162,7 +164,8 @@ module.exports = function (RED) {
                         msg.error = { message: err.message, code: null };
                         msg.statusCode = 0;
                         msg.payload = err.message;
-                        node.error(err.message, msg);
+                        err.code = err.code ? String(err.code) : null;
+                        msg.error = { message: err.message, code: err.code };
                         return done(err);
                     }
                     responseDuration = normalizeDuration(node.responseDuration, "Response Duration");
@@ -198,11 +201,6 @@ module.exports = function (RED) {
                 node.status({ fill: "green", shape: "dot", text: "sent" });
                 send(msg);
                 done();
-
-                setTimeout(function () {
-                    node.status({});
-                }, 3000);
-
             } catch (err) {
                 ociError.handleNodeError(node, msg, err, done, { statusText: "send failed" });
             }

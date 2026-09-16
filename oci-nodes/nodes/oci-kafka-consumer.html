@@ -1,0 +1,119 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-kafka-consumer", {
+    category: "oci",
+    paletteLabel: "kafka consumer",
+    defaults: {
+        name: { value: "" },
+        kafkaConfig: { type: "oci-kafka-config", required: true },
+        topic: { value: "", required: true },
+        consumerGroupId: { value: "", required: true },
+        fromBeginning: { value: false },
+        autoCommit: { value: true },
+        outputMode: { value: "individual" },
+        batchLimit: { value: 32, validate: function (value) {
+            if (this.outputMode !== "batch") return true;
+            var limit = Number(value);
+            return Number.isInteger(limit) && limit >= 1 && limit <= 2147483647;
+        } }
+    },
+    inputs: 0,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-arrow-circle-o-down",
+    label: function () { return this.name || "kafka consumer"; },
+    oneditprepare: function () {
+        function updateBatchFields() {
+            $("#node-kafka-batch-settings").toggle($("#node-input-outputMode").val() === "batch");
+        }
+        $("#node-input-outputMode").on("change", updateBatchFields);
+        updateBatchFields();
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-kafka-consumer">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-kafkaConfig" style="width:120px;"><i class="fa fa-cloud"></i> Kafka Config</label>
+        <input type="text" id="node-input-kafkaConfig">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-topic" style="width:155px;"><i class="fa fa-exchange"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="Existing topic to consume" style="width:calc(100% - 162px);">
+        <div style="margin-left:160px;font-size:11px;color:#888;margin-top:2px;">Each node subscribes to one topic that already exists.</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-consumerGroupId" style="width:155px;"><i class="fa fa-users"></i> Consumer Group ID</label>
+        <input type="text" id="node-input-consumerGroupId" placeholder="Stable group identifier" style="width:calc(100% - 162px);">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-outputMode" style="width:155px;"><i class="fa fa-list"></i> Output Mode</label>
+        <select id="node-input-outputMode" style="width:200px;">
+            <option value="individual">Individual</option>
+            <option value="batch">Batch array</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-kafka-batch-settings">
+        <label for="node-input-batchLimit" style="width:155px;"><i class="fa fa-list-ol"></i> Batch Limit</label>
+        <input type="number" id="node-input-batchLimit" min="1" max="2147483647" style="width:100px;">
+        <div style="margin-left:160px;font-size:11px;color:#888;margin-top:2px;">Maximum records per partition batch; available records are emitted without waiting for a full batch.</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-autoCommit" style="width:155px;"><i class="fa fa-check-circle"></i> Commit Mode</label>
+        <select id="node-input-autoCommit" style="width:200px;">
+            <option value="true">Automatic</option>
+            <option value="false">Manual</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-fromBeginning" style="width:155px;"><i class="fa fa-step-backward"></i> Read From Beginning</label>
+        <input type="checkbox" id="node-input-fromBeginning" style="width:auto;">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-kafka-consumer">
+<p>Consumes records from one OCI Managed Kafka (OCI Streaming with Apache Kafka) topic and emits individual records or batch arrays.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>Kafka Config</dt><dd>References an OCI Kafka Config node for broker authentication and connection settings.</dd>
+    <dt>Topic</dt><dd>The single existing topic this node consumes. The node does not create topics.</dd>
+    <dt>Consumer Group ID</dt><dd>A required stable Kafka group identifier. Consumers using the same group share topic partitions; use a different group when each consumer must receive every record.</dd>
+    <dt>Read From Beginning</dt><dd>Starts a group without a committed offset at the earliest available record. An existing committed offset always takes precedence.</dd>
+    <dt>Commit Mode</dt><dd><b>Automatic</b> lets the Kafka client commit delivered offsets. <b>Manual</b> waits for a Kafka Commit node after successful downstream processing.</dd>
+    <dt>Output Mode</dt><dd><b>Individual</b> emits one message per Kafka record. <b>Batch array</b> emits available records from one topic partition as one message.</dd>
+    <dt>Batch Limit</dt><dd>Batch array only. Maximum records per output, default 32, from 1 to 2147483647. Smaller batches are normal. Large limits increase memory use; no full-batch fill delay is added.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Parsed JSON when valid, UTF-8 text otherwise, or a Buffer for binary data. Batch array mode returns an array of decoded values. An array inside one record remains one value, not a delivery batch.</dd>
+    <dt class="optional">msg.kafka.records <span class="property-type">array</span></dt><dd>Batch array only. Metadata aligned with payload entries: topic, partition, offset, key, headers, and timestamp.</dd>
+    <dt class="optional">msg.kafka.messageCount <span class="property-type">number</span></dt><dd>Batch array only. Number of Kafka records in this delivery.</dd>
+    <dt>msg.kafka.topic <span class="property-type">string</span></dt><dd>The source topic.</dd>
+    <dt>msg.kafka.partition <span class="property-type">number</span></dt><dd>The source partition.</dd>
+    <dt class="optional">msg.kafka.offset <span class="property-type">string</span></dt><dd>Individual mode only. The record offset. Batch records carry their offsets in <code>msg.kafka.records</code>.</dd>
+    <dt class="optional">msg.kafka.key <span class="property-type">string | Buffer | null</span></dt><dd>Individual mode only. The record key decoded as UTF-8 text when valid; binary keys remain Buffers.</dd>
+    <dt class="optional">msg.kafka.headers <span class="property-type">object</span></dt><dd>Individual mode only. Record headers decoded as UTF-8 text when valid; binary header values remain Buffers.</dd>
+    <dt class="optional">msg.kafka.timestamp <span class="property-type">string | null</span></dt><dd>Individual mode only. The record timestamp supplied by Kafka.</dd>
+    <dt>msg.kafka.consumerGroupId <span class="property-type">string</span></dt><dd>The configured Consumer Group ID.</dd>
+    <dt>msg.kafka.autoCommit <span class="property-type">boolean</span></dt><dd>Whether the source uses automatic commits.</dd>
+    <dt class="optional">msg.kafka.commitToken <span class="property-type">string</span></dt><dd>Manual mode only. Runtime token consumed by Kafka Commit.</dd>
+    <dt class="optional">msg.kafka.consumerNodeId <span class="property-type">string</span></dt><dd>Manual mode only. Identifies the active source that owns the commit token.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On a startup or consumption failure, <code>{ message, code }</code> is sent to a Catch node.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Commit a manual batch only after every record succeeds. Its token commits the entire original batch, even if the payload has been split or edited. Preserve <code>msg.kafka.commitToken</code> and <code>msg.kafka.consumerNodeId</code> for Kafka Commit.</p>
+<p>While a batch awaits commit, its partition pauses, but polling and other partitions continue. Batches may contain fewer records than Batch Limit; the consumer does not wait to fill them. Shutdown or ownership loss discards queued work without committing it.</p>
+<p>Automatic mode records source-node delivery, not completion of downstream Node-RED processing. Manual mode pauses only the record's partition until Kafka Commit succeeds. The client continues polling and other assigned partitions can progress. A restart or ownership change invalidates affected commit tokens and can replay records from the group's last committed offset. Wire processing before Kafka Commit and do not reuse tokens after redeploy or reassignment.</p>
+<p>Kafka commits the next offset and therefore confirms every earlier offset in that partition. Manual delivery preserves partition order, but at-least-once processing can still create duplicates after a downstream side effect succeeds and its commit does not. Keep downstream handling idempotent.</p>
+<p>The installed native client represents offsets as JavaScript numbers. Record offsets must be between 0 and 9007199254740990 so that both the record and its next offset are safe integers. Larger offsets are unsupported and reported as errors; they are not emitted to downstream nodes.</p>
+</script>

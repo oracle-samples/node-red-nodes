@@ -79,14 +79,16 @@ for use by downstream nodes (dequeue, sql, etc.).</p>
     <dt>DB Connection</dt><dd>Database configuration for authentication and connection.</dd>
     <dt>Timeout (seconds)</dt>
     <dd>Optional safety timeout. If the end-transaction node is not reached within this time,
-    the connection is automatically rolled back and closed. Set to <code>0</code> for no timeout.
-    This prevents connection leaks from stalled or errored flows.</dd>
+    rollback and close are requested after active DB work settles. Set to <code>0</code> for no timeout.
+    This is a cleanup safeguard, not a hard execution deadline.</dd>
 </dl>
 
 <h3>Outputs</h3>
 <dl class="message-properties">
+    <dt>msg._dbTransaction <span class="property-type">string</span></dt>
+    <dd>Opaque runtime-local reference. Preserve it unchanged through processing and Catch paths; do not log, publish, or persist it.</dd>
     <dt>msg.transaction.connection <span class="property-type">object</span></dt>
-    <dd>The live Oracle DB connection, passed downstream for use by other nodes.</dd>
+    <dd>Private non-enumerable connection handle. DB nodes recover it from the reference after message cloning. Do not operate on it directly or construct transaction objects manually.</dd>
     <dt>msg.transaction.startedAt <span class="property-type">number</span></dt>
     <dd>Timestamp (ms) when the transaction was opened.</dd>
     <dt>msg.transaction.timedOut <span class="property-type">boolean</span></dt>
@@ -96,13 +98,16 @@ for use by downstream nodes (dequeue, sql, etc.).</p>
 </dl>
 
 <h3>Details</h3>
+<p>Unknown, timed-out, closing, or ended references report <code>DB_TRANSACTION_INACTIVE</code>. References belonging to a different DB Connection report <code>DB_TRANSACTION_CONFIG_MISMATCH</code>. Neither case starts standalone work. References cannot resume a transaction after restart or in another process.</p>
+<p>Timeout and shutdown stop new work, wait for active DB work, then roll back and close once. Cleanup cannot interrupt a stuck database call. Use finite AQ waits and database/network execution limits; a pool acquisition timeout limits waiting for a connection, not SQL execution. Connections received after shutdown starts are closed without forwarding a message.</p>
 <p>Use this node <b>before</b> a <b>dequeue</b> node to create a managed transaction.
 The connection stays open until the <b>end transaction</b> node commits and closes it.
-If the downstream flow fails before reaching end-transaction, the dequeued message is
-never committed and remains available on the queue (automatic rollback on disconnect).</p>
-<p>If <code>msg.transaction.connection</code> already exists (e.g. from an upstream
-begin-transaction), the existing connection is reused. When timeout is enabled, reuse refreshes
+If downstream processing fails, route a scoped Catch to End Transaction configured for Rollback.
+Dequeued messages stay locked until rollback or connection cleanup completes.</p>
+<p>An active reference for the same DB Connection reuses the existing connection. When timeout is enabled, reuse refreshes
 the timeout window so active looping flows do not expire on a stale timer.</p>
+<p>DB operations sharing a transaction are serialized. Join all transaction branches before End;
+it cannot wait for work that has not arrived yet. External API operations are not part of the database transaction.</p>
 
 <h3>Typical Flows</h3>
 <p><code>begin transaction</code> → <code>dequeue</code> → <i>(processing nodes)</i> → <code>end transaction</code></p>

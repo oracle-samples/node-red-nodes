@@ -1,0 +1,111 @@
+<!--
+ Copyright (c) 2026 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-monitoring-publish", {
+    category: "oci",
+    paletteLabel: "monitoring publish",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        compartmentOcid: { value: "" },
+        namespace: { value: "", required: true },
+        metricName: { value: "", required: true },
+        resourceGroup: { value: "" },
+        dimensions: { value: "{}" },
+        metadata: { value: "{}" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-line-chart",
+    label: function () {
+        return this.name || "monitoring publish";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-monitoring-publish">
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-compartmentOcid"><i class="fa fa-folder-o"></i> Compartment OCID</label>
+        <input type="text" id="node-input-compartmentOcid" placeholder="Uses OCI Config default when blank">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
+            May be overridden by <code>msg.payload.compartmentId</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-namespace"><i class="fa fa-cubes"></i> Namespace</label>
+        <input type="text" id="node-input-namespace" placeholder="application_metrics">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-metricName"><i class="fa fa-line-chart"></i> Metric Name</label>
+        <input type="text" id="node-input-metricName" placeholder="dispatchDurationSeconds">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-resourceGroup"><i class="fa fa-object-group"></i> Resource Group</label>
+        <input type="text" id="node-input-resourceGroup" placeholder="Optional metric grouping">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;vertical-align:top;margin-top:2px;" for="node-input-dimensions"><i class="fa fa-tags"></i> Dimensions</label>
+        <textarea id="node-input-dimensions" rows="4" style="width:calc(100% - 137px);font-family:monospace;" placeholder="{}"></textarea>
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
+            JSON object containing string values, for example <code>{"environment":"production"}</code>.
+        </div>
+    </div>
+    <div class="form-row">
+        <label style="width:130px;vertical-align:top;margin-top:2px;" for="node-input-metadata"><i class="fa fa-info-circle"></i> Metadata</label>
+        <textarea id="node-input-metadata" rows="4" style="width:calc(100% - 137px);font-family:monospace;" placeholder="{}"></textarea>
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
+            Optional JSON object containing string values such as a display unit.
+        </div>
+    </div>
+    <div class="form-tips" style="margin-left:135px;">
+        <b>Required input:</b> Set <code>msg.payload</code> to a finite number or an object containing a finite numeric <code>value</code>, for example <code>{&quot;value&quot;: 1}</code>. The number is the observation published to OCI Monitoring.
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-monitoring-publish">
+<p>Publishes one custom metric data point to OCI Monitoring for each input message.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt><dd>Shared OCI authentication and region.</dd>
+    <dt>Compartment OCID</dt><dd>Metric compartment. Uses the OCI Config default when blank.</dd>
+    <dt>Namespace</dt><dd>Custom Monitoring namespace.</dd>
+    <dt>Metric Name</dt><dd>Name of the numeric metric.</dd>
+    <dt>Resource Group</dt><dd>Optional grouping within the namespace.</dd>
+    <dt>Dimensions</dt><dd>JSON object of string dimension values.</dd>
+    <dt>Metadata</dt><dd>JSON object of string metadata values.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>Publication result containing <code>failedMetricsCount</code>, <code>failedMetrics</code>, <code>opcRequestId</code>, and <code>statusCode</code>.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code, normally <code>200</code>.</dd>
+    <dt>opcRequestId <span class="property-type">string</span></dt><dd>OCI request trace identifier.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>On failure: <code>{ message, code }</code>. If OCI rejects the metric, the message is routed through Catch and <code>msg.payload</code> contains the rejection details.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<p><code>msg.payload</code> may be a finite number, or an object containing:</p>
+<dl class="message-properties">
+    <dt>value <span class="property-type">number</span></dt><dd>Required numeric metric value.</dd>
+    <dt>timestamp <span class="property-type">string | Date</span></dt><dd>Optional observation time; defaults to now.</dd>
+    <dt>count <span class="property-type">number</span></dt><dd>Optional positive occurrence count.</dd>
+    <dt>compartmentId, namespace, name, resourceGroup</dt><dd>Override the configured metric identity.</dd>
+    <dt>dimensions, metadata <span class="property-type">object</span></dt><dd>Replace the configured maps for this message.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>The node uses OCI's regional <code>telemetry-ingestion</code> endpoint. Publish selected operational measurements such as latency, queue depth, availability, and failure counts; send detailed diagnostic events to OCI Logging.</p>
+</script>

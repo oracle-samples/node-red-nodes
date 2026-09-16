@@ -1,3 +1,12 @@
+function assertActiveTransaction(transaction) {
+    if (transaction === undefined || transaction === null) return;
+    if (typeof transaction !== "object" || transaction.timedOut || transaction._ended || !transaction.connection) {
+        var err = new Error("Transaction is inactive; start a new transaction before retrying");
+        err.code = "DB_TRANSACTION_INACTIVE";
+        throw err;
+    }
+}
+
 function redactText(value) {
     var text = String(value || "");
     text = text.replace(
@@ -35,11 +44,15 @@ function normalizeError(err) {
 
 function handleNodeError(node, msg, err, done, options) {
     options = options || {};
+    var referenceError = err && (err.code === "DB_TRANSACTION_INACTIVE" || err.code === "DB_TRANSACTION_CONFIG_MISMATCH");
+    if (!referenceError && msg.transaction && (msg.transaction._state === "active" || msg.transaction._state === "ending")) {
+        msg.transaction._rollbackOnly = true;
+    }
     var normalized = normalizeError(err);
     node.status({
         fill: "red",
-        shape: options.statusShape || "dot",
-        text: redactText(options.statusText || "query failed")
+        shape: err && err.code === "DB_TRANSACTION_INACTIVE" ? "ring" : options.statusShape || "dot",
+        text: err && err.code === "DB_TRANSACTION_INACTIVE" ? "inactive transaction" : redactText(options.statusText || "query failed")
     });
     msg.error = {
         message: normalized.message,
@@ -54,7 +67,7 @@ function handleNodeError(node, msg, err, done, options) {
         doneErr.stack = redactText(doneErr.stack);
     }
 
-    node.error(normalized.message, msg);
+    doneErr.code = normalized.code;
     done(doneErr);
 }
 
@@ -64,6 +77,7 @@ function resolveErrorCode(err) {
 }
 
 module.exports = {
+    assertActiveTransaction: assertActiveTransaction,
     redactText: redactText,
     normalizeError: normalizeError,
     handleNodeError: handleNodeError

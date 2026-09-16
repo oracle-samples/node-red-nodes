@@ -37,6 +37,7 @@
 module.exports = function(RED) {
     const oracledb = require("oracledb");
     const dbError = require("../lib/db-error.js");
+    var transactions = require("../lib/db-transaction.js")(RED);
     const oracleAq = require("../lib/oracle-aq.js");
 
     function DbEnqueueNode(config) {
@@ -44,7 +45,7 @@ module.exports = function(RED) {
         const node = this;
 
         node.queueName = config.queueName;
-        node.recipients = config.recipients || null;
+        node.recipients = config.recipients;
         node.userPayload = config.userPayload;
         node.enableOutput = config.enableOutput !== false;
         node.deliveryMode = config.deliveryMode || "persistent";
@@ -53,6 +54,7 @@ module.exports = function(RED) {
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
+            node.status({ fill: "red", shape: "ring", text: "no DB connection" });
             node.error("No DB Connection configured");
             return;
         }
@@ -61,8 +63,12 @@ module.exports = function(RED) {
             let connection;
             let ownConnection = false;
             let arr;
+            var lease;
 
             try {
+                lease = await transactions.acquire(msg, config.connection);
+                dbError.assertActiveTransaction(msg.transaction);
+                var recipients = oracleAq.normalizeRecipients(node.recipients);
                 node.status({ fill: "yellow", shape: "dot", text: "enqueueing..." });
                 if (msg.transaction && msg.transaction.connection) {
                     connection = msg.transaction.connection;
@@ -88,7 +94,7 @@ module.exports = function(RED) {
 
                 oracleAq.configureEnqueueQueue(queue, oracledb, node);
 
-                var messages = oracleAq.createEnqueueMessages(node.payloadType, queue, arr);
+                var messages = oracleAq.createEnqueueMessages(node.payloadType, queue, arr, recipients);
 
                 await queue.enqMany(messages);
                 if (ownConnection) {
@@ -116,6 +122,7 @@ module.exports = function(RED) {
             } catch (err) {
                 dbError.handleNodeError(node, msg, err, done, { statusText: "enqueue failed" });
             } finally {
+                if (lease) lease.release();
                 if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {
                         node.warn(`Failed to close connection: ${dbError.redactText(e.message)}`);

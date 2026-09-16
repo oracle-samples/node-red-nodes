@@ -206,5 +206,7 @@ RED.nodes.registerType("oci-ords-poll", {
 </dl>
 
 <h3>Details</h3>
+<p>After this node closes or redeploys, late responses cannot produce successful output. Pending polls detect closure with <code>ORDS_NODE_CLOSED</code>. Already-issued HTTP requests may finish; other nodes using the shared ORDS config are unaffected.</p>
 <p>Command Status mode waits on a Raw Command Data record, commonly the <code>msg.recordId</code> emitted by <b>iot send command</b>. Custom mode repeatedly requests the configured relative ORDS path until its stop condition matches or timeout expires.</p>
+<p>Status uses an active dot while <code>polling</code>, then reports <code>poll completed</code> or <code>poll timed out</code>.</p>
 </script>

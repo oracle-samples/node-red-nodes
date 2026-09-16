@@ -275,7 +275,9 @@ module.exports = function (RED) {
                 var requestOptions = Object.assign({}, options, {
                     signal: controller.signal
                 });
-                return await fetch(url, requestOptions);
+                var response = await fetch(url, requestOptions);
+                var data = await readResponseBody(response);
+                return { response: response, data: data };
             } catch (err) {
                 if (controller.signal.aborted) {
                     if (closing) {
@@ -299,7 +301,7 @@ module.exports = function (RED) {
                 body.set("scope", node.scope);
             }
 
-            const response = await fetchWithTimeout(node.tokenUrl, {
+            const result = await fetchWithTimeout(node.tokenUrl, {
                 method: "POST",
                 headers: {
                     Authorization: "Basic " + Buffer.from(node.clientId + ":" + node.clientSecret).toString("base64"),
@@ -309,7 +311,8 @@ module.exports = function (RED) {
                 body: body.toString()
             }, node.requestTimeoutMs);
 
-            const data = await readResponseBody(response);
+            const response = result.response;
+            const data = result.data;
             if (!response.ok) {
                 const err = new Error("ORDS token request failed with status " + response.status);
                 err.statusCode = response.status;
@@ -424,12 +427,13 @@ module.exports = function (RED) {
                 var headers = mergeHeaders(baseHeaders, {
                     Authorization: "Bearer " + token
                 });
-                var response = await fetchWithTimeout(url, {
+                var result = await fetchWithTimeout(url, {
                     method: method,
                     headers: headers,
                     body: body
                 }, node.requestTimeoutMs);
-                var data = await readResponseBody(response);
+                var response = result.response;
+                var data = result.data;
                 return {
                     ok: response.ok,
                     statusCode: response.status,

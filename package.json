@@ -1,17 +1,18 @@
 {
   "name": "node-red-nodes",
-  "version": "0.6.0",
-  "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, OCI Notifications, OCI Logging, OCI Logging Analytics, and the OCI IoT Platform",
+  "version": "0.7.0",
+  "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, and OCI services",
   "license": "UPL-1.0",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@confluentinc/kafka-javascript": "1.10.1",
     "oracledb": "^7.0.1",
-    "axios": "1.17.0",
+    "axios": "1.20.0",
     "https-proxy-agent": "^7.0.6",
-    "oci-sdk": "2.137.0",
-    "mqtt": "5.15.2"
+    "oci-sdk": "2.141.0",
+    "mqtt": "5.16.0"
   },
   "keywords": [
     "node-red",
@@ -33,7 +34,6 @@
       "sql": "db-nodes/nodes/sql.js",
       "begin-transaction": "db-nodes/nodes/begin-transaction.js",
       "end-transaction": "db-nodes/nodes/end-transaction.js",
-
       "scm-server": "fusion-scm-nodes/nodes/scm-server.js",
       "create-meter-reading": "fusion-scm-nodes/nodes/create-meter-reading.js",
       "create-asset": "fusion-scm-nodes/nodes/create-asset.js",
@@ -52,8 +52,23 @@
       "maintenance-work-order": "fusion-scm-nodes/nodes/maintenance-work-order.js",
       "maintenance-work-order-child": "fusion-scm-nodes/nodes/maintenance-work-order-child.js",
       "scm-lookup": "fusion-scm-nodes/nodes/scm-lookup.js",
-
       "oci-config": "oci-nodes/nodes/oci-config.js",
+      "oci-api-request": "oci-nodes/nodes/oci-api-request.js",
+      "oci-monitoring-publish": "oci-nodes/nodes/oci-monitoring-publish.js",
+      "oci-monitoring-query": "oci-nodes/nodes/oci-monitoring-query.js",
+      "oci-streaming-config": "oci-nodes/nodes/oci-streaming-config.js",
+      "oci-streaming-out": "oci-nodes/nodes/oci-streaming-out.js",
+      "oci-streaming-in": "oci-nodes/nodes/oci-streaming-in.js",
+      "oci-streaming-commit": "oci-nodes/nodes/oci-streaming-commit.js",
+      "oci-kafka-config": "oci-nodes/nodes/oci-kafka-config.js",
+      "oci-kafka-producer": "oci-nodes/nodes/oci-kafka-producer.js",
+      "oci-kafka-consumer": "oci-nodes/nodes/oci-kafka-consumer.js",
+      "oci-kafka-commit": "oci-nodes/nodes/oci-kafka-commit.js",
+      "oci-functions-invoke": "oci-nodes/nodes/oci-functions-invoke.js",
+      "oci-queue-config": "oci-nodes/nodes/oci-queue-config.js",
+      "oci-queue-out": "oci-nodes/nodes/oci-queue-out.js",
+      "oci-queue-in": "oci-nodes/nodes/oci-queue-in.js",
+      "oci-queue-ack": "oci-nodes/nodes/oci-queue-ack.js",
       "oci-notification": "oci-nodes/nodes/oci-notification.js",
       "oci-log-analytics": "oci-nodes/nodes/oci-log-analytics.js",
       "oci-logging": "oci-nodes/nodes/oci-logging.js",

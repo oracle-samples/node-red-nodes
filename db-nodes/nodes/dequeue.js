@@ -37,6 +37,7 @@
 module.exports = function(RED) {
     const oracledb = require("oracledb");
     const dbError = require("../lib/db-error.js");
+    var transactions = require("../lib/db-transaction.js")(RED);
     const oracleAq = require("../lib/oracle-aq.js");
     const RETRY_WARN_THROTTLE_MS = 30000;
 
@@ -61,6 +62,7 @@ module.exports = function(RED) {
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
+            node.status({ fill: "red", shape: "ring", text: "no DB connection" });
             node.error("No DB Connection configured");
             return;
         }
@@ -73,8 +75,13 @@ module.exports = function(RED) {
             node.on("input", async function (msg, send, done) {
                 var connection = null;
                 var ownConnection = false;
+                var lease;
 
                 try {
+                    lease = await transactions.acquire(msg, config.connection);
+                    dbError.assertActiveTransaction(msg.transaction);
+                    node.status({ fill: "yellow", shape: "dot", text: "dequeuing..." });
+
                     if (msg.transaction && msg.transaction.connection) {
                         connection = msg.transaction.connection;
                     } else {
@@ -100,6 +107,8 @@ module.exports = function(RED) {
 
                     if (payloads.length === 0) {
                         node.status({ fill: "grey", shape: "dot", text: "no messages" });
+                    } else {
+                        node.status({ fill: "green", shape: "dot", text: `dequeued ${payloads.length}` });
                     }
 
                     for (const payload of payloads) {
@@ -124,6 +133,8 @@ module.exports = function(RED) {
                         try { await connection.close(); } catch (e) {}
                     }
                     dbError.handleNodeError(node, msg, err, done, { statusText: "dequeue failed" });
+                } finally {
+                    if (lease) lease.release();
                 }
             });
         }
@@ -140,6 +151,28 @@ module.exports = function(RED) {
             let retrySleepResolve = null;
             let retryAttempt = 0;
             let lastRetryWarnAt = 0;
+            let statusResetTimer = null;
+
+            function clearStatusResetTimer() {
+                if (!statusResetTimer) return;
+                clearTimeout(statusResetTimer);
+                statusResetTimer = null;
+            }
+
+            function setListeningStatus() {
+                if (running && !statusResetTimer) {
+                    node.status({ fill: "blue", shape: "ring", text: "listening" });
+                }
+            }
+
+            function showDequeuedStatus(count) {
+                clearStatusResetTimer();
+                node.status({ fill: "green", shape: "dot", text: `dequeued ${count}` });
+                statusResetTimer = setTimeout(() => {
+                    statusResetTimer = null;
+                    setListeningStatus();
+                }, 2000);
+            }
 
             // Interruptible sleep — stores resolve so the close handler can wake the loop early.
             function sleep(ms) {
@@ -173,12 +206,14 @@ module.exports = function(RED) {
             }
 
             function setTerminalError(err, reason) {
+                clearStatusResetTimer();
                 const text = dbError.redactText(reason || err.message || "failed");
                 node.status({ fill: "red", shape: "dot", text: text });
                 node.error(`Continuous dequeue stopped: ${text}`);
             }
 
             function setConfigurationError(err, statusText) {
+                clearStatusResetTimer();
                 const text = statusText || "configuration required";
                 const detail = dbError.redactText(err.message || String(err));
                 node.status({ fill: "red", shape: "ring", text: text });
@@ -200,7 +235,7 @@ module.exports = function(RED) {
                             waitForever: true
                         }));
 
-                        node.status({ fill: "green", shape: "ring", text: "listening" });
+                        setListeningStatus();
 
                         while (running) {
                             const messages = await queue.deqMany(node.batchSize);
@@ -210,7 +245,7 @@ module.exports = function(RED) {
 
                             if (messages && messages.length > 0) {
                                 await connection.commit();
-                                node.status({ fill: "green", shape: "dot", text: `dequeued ${messages.length}` });
+                                showDequeuedStatus(messages.length);
                                 for (const m of messages) {
                                     const payload = oracleAq.dbObjectToPojo(m.payload);
                                     node.send({
@@ -219,7 +254,6 @@ module.exports = function(RED) {
                                         payload: payload
                                     });
                                 }
-                                node.status({ fill: "green", shape: "ring", text: "listening" });
                             }
                             retryAttempt = 0;
                         }
@@ -228,6 +262,7 @@ module.exports = function(RED) {
                             break;
                         }
 
+                        clearStatusResetTimer();
                         await closeConnection();
                         if (!node.subscriber && oracleAq.isMissingConsumerNameError(err)) {
                             setConfigurationError(err, "subscriber required");
@@ -262,6 +297,7 @@ module.exports = function(RED) {
                     clearTimeout(retryTimer);
                     retryTimer = null;
                 }
+                clearStatusResetTimer();
                 if (retrySleepResolve) {
                     const wakeResolve = retrySleepResolve;
                     retrySleepResolve = null;

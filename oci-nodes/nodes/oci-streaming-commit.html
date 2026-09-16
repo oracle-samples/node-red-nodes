@@ -1,0 +1,49 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-streaming-commit", {
+    category: "oci",
+    paletteLabel: "streaming commit",
+    defaults: {
+        name: { value: "" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-check-square-o",
+    align: "right",
+    label: function () { return this.name || "streaming commit"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-streaming-commit">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-streaming-commit">
+<p>Commits a record or whole batch emitted by Streaming In in Manual commit mode.</p>
+
+<h3>Configuration</h3>
+<p>No connection fields are required. Runtime metadata identifies the active Streaming In node that delivered the record.</p>
+
+<h3>Inputs</h3>
+<dl class="message-properties">
+    <dt>msg.ociStreaming.commitToken <span class="property-type">string</span></dt><dd>The runtime-only token emitted by Streaming In in Manual mode.</dd>
+    <dt>msg.ociStreaming.consumerNodeId <span class="property-type">string</span></dt><dd>The active Streaming In node that owns the token.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>The unchanged input payload.</dd>
+    <dt>msg.ociStreaming.committed <span class="property-type">boolean</span></dt><dd>True after OCI confirms the consumer-group commit.</dd>
+    <dt>msg.ociStreaming.opcRequestId <span class="property-type">string | null</span></dt><dd>The OCI commit request ID when returned.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On failure, <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Wire this node only after successful downstream processing. Missing, stale, duplicate, or automatic-mode metadata fails through a Catch node. A transient service failure retains the token for retry while the source still owns it. Cursor expiry, reservation loss, retention loss or source shutdown invalidates the token; use the new delivery instead.</p>
+<p>For Batch array output, commit once, after every record succeeds. A token for <code>[A, B, C]</code> commits all three even if the payload now contains only A. If B fails, do not commit that token. The result includes <code>msg.ociStreaming.messageCount</code>. Uncommitted batches can replay after restart, including records already processed downstream.</p>
+</script>

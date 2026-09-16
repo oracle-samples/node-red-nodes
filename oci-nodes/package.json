@@ -1,6 +1,6 @@
 {
   "name": "oci-nodes",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Oracle Cloud Infrastructure (OCI) nodes for Node-RED",
   "keywords": [
     "node-red",
@@ -11,12 +11,29 @@
   ],
   "license": "UPL-1.0",
   "dependencies": {
-    "oci-sdk": "2.137.0",
-    "mqtt": "5.15.2"
+    "@confluentinc/kafka-javascript": "1.10.1",
+    "oci-sdk": "2.141.0",
+    "mqtt": "5.16.0"
   },
   "node-red": {
     "nodes": {
       "oci-config": "nodes/oci-config.js",
+      "oci-api-request": "nodes/oci-api-request.js",
+      "oci-monitoring-publish": "nodes/oci-monitoring-publish.js",
+      "oci-monitoring-query": "nodes/oci-monitoring-query.js",
+      "oci-streaming-config": "nodes/oci-streaming-config.js",
+      "oci-streaming-out": "nodes/oci-streaming-out.js",
+      "oci-streaming-in": "nodes/oci-streaming-in.js",
+      "oci-streaming-commit": "nodes/oci-streaming-commit.js",
+      "oci-kafka-config": "nodes/oci-kafka-config.js",
+      "oci-kafka-producer": "nodes/oci-kafka-producer.js",
+      "oci-kafka-consumer": "nodes/oci-kafka-consumer.js",
+      "oci-kafka-commit": "nodes/oci-kafka-commit.js",
+      "oci-functions-invoke": "nodes/oci-functions-invoke.js",
+      "oci-queue-config": "nodes/oci-queue-config.js",
+      "oci-queue-out": "nodes/oci-queue-out.js",
+      "oci-queue-in": "nodes/oci-queue-in.js",
+      "oci-queue-ack": "nodes/oci-queue-ack.js",
       "oci-notification": "nodes/oci-notification.js",
       "oci-log-analytics": "nodes/oci-log-analytics.js",
       "oci-logging": "nodes/oci-logging.js",

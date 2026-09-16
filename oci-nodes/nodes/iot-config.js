@@ -102,7 +102,7 @@ module.exports = function (RED) {
 
         // Runtime state.
         let client = null;
-        let topicSubscriptions = {};   // topic → [{qos, callback}, ...]
+        let topicSubscriptions = Object.create(null);   // topic → [{qos, callback}, ...]
         let connectionListeners = [];
         let reconnectCount = 0;
         const CLOSE_SAFETY_TIMEOUT_MS = 5000;
@@ -348,7 +348,7 @@ module.exports = function (RED) {
 
         // Cleanup on close.
         node.on("close", function (done) {
-            topicSubscriptions = {};
+            topicSubscriptions = Object.create(null);
             connectionListeners = [];
             var finished = false;
             var doneTimer = setTimeout(function () {

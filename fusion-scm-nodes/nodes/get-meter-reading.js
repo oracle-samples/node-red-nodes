@@ -118,11 +118,8 @@ module.exports = function(RED) {
 
     function finishValidationError(node, msg, done, err, statusText) {
         node.status({ fill: "red", shape: "ring", text: statusText });
-        msg.error = {
-            message: err.message,
-            code: null
-        };
-        node.error(err.message, msg);
+        err.code = err.code ? String(err.code) : null;
+        msg.error = { message: err.message, code: err.code };
         return done(err);
     }
 

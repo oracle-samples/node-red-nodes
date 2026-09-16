@@ -82,11 +82,6 @@ module.exports = function(RED) {
                 var validationError = err && (
                     err.maintenanceWorkOrderValidationError || err.scmPayloadValidationError
                 );
-                node.status({
-                    fill: "red",
-                    shape: validationError ? "ring" : "dot",
-                    text: validationError ? "invalid input" : "request failed"
-                });
                 scmError.handleNodeError(node, msg, err, done, {
                     statusText: validationError ? "invalid input" : "request failed",
                     statusShape: validationError ? "ring" : "dot"

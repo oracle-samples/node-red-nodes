@@ -1,0 +1,408 @@
+[
+    {
+        "id": "int-loop-tab-001",
+        "type": "tab",
+        "label": "Sample Device Fault Handling",
+        "disabled": false,
+        "info": "Configure the placeholder OCI and Fusion nodes before running. Clicking Run sample device fault submits CA_STATUS and CA_FAULT Smart Operations events, invokes an OCI IoT shutdown command, and creates a Fusion maintenance work order. Missing device/asset/organization/work-definition values or invalid temperatures are reported before any service call."
+    },
+    {
+        "id": "int-loop-comment-001",
+        "type": "comment",
+        "z": "int-loop-tab-001",
+        "name": "Configure services and business values before running — double-click for setup details",
+        "info": "Before running:\n\n1. Configure Example OCI Config with permission to invoke commands.\n2. Configure Example Fusion SCM with OAuth credentials and Smart Operations/Maintenance privileges.\n3. Replace the digital twin instance OCID in Send shutdown command.\n4. Replace the EXAMPLE_* asset and organization values in the Inject payload.\n5. Replace <your-maintenance-work-definition-code> with the Code from Fusion Maintenance Work Definitions for the selected organization. This is not the organization code, the CORRECTIVE work-order type, or an assumed ORA_* value.\n6. Confirm the request and response command topics.\n\nClicking Run sample device fault sends real OCI and Fusion requests. Use non-production resources for the first run.",
+        "x": 350,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "int-loop-inject-001",
+        "type": "inject",
+        "z": "int-loop-tab-001",
+        "name": "Run sample device fault",
+        "props": [
+            {
+                "p": "payload",
+                "v": "{\"deviceId\":\"EXAMPLE_ROBOT_01\",\"assetNumber\":\"EXAMPLE_ASSET_01\",\"organizationCode\":\"EXAMPLE_ORG\",\"maintenanceWorkDefinitionCode\":\"<your-maintenance-work-definition-code>\",\"status\":\"FAULT\",\"temperature\":42.7,\"faultCode\":\"EXAMPLE_OVER_TEMP\"}",
+                "vt": "json"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 200,
+        "y": 150,
+        "wires": [
+            [
+                "int-loop-function-001"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-function-001",
+        "type": "function",
+        "z": "int-loop-tab-001",
+        "name": "Normalize telemetry",
+        "func": "var input = msg.payload;\nvar required = [\"deviceId\", \"assetNumber\", \"organizationCode\", \"maintenanceWorkDefinitionCode\"];\nvar valid = input && typeof input === \"object\" && !Array.isArray(input);\nif (valid) {\n    valid = required.every(function (key) {\n        return typeof input[key] === \"string\" && input[key].trim() !== \"\";\n    });\n}\nvar temperature = valid && (typeof input.temperature === \"number\" ||\n    (typeof input.temperature === \"string\" && input.temperature.trim() !== \"\"))\n    ? Number(input.temperature) : NaN;\nif (!valid || !Number.isFinite(temperature)) {\n    var error = new Error(\"Provide device, asset, organization, maintenance work definition, and a numeric temperature\");\n    error.code = \"EXAMPLE_INVALID_TELEMETRY\";\n    msg.error = { message: error.message, code: error.code };\n    node.done(error);\n    return null;\n}\nmsg.payload = {\n    deviceId: input.deviceId,\n    assetNumber: input.assetNumber,\n    organizationCode: input.organizationCode,\n    maintenanceWorkDefinitionCode: input.maintenanceWorkDefinitionCode,\n    eventTime: input.eventTime || new Date().toISOString(),\n    status: String(input.status || \"UNKNOWN\").toUpperCase(),\n    temperature: temperature,\n    faultCode: input.faultCode || \"\"\n};\nnode.done();\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 150,
+        "wires": [
+            [
+                "int-loop-debug-001",
+                "int-loop-transform-001",
+                "int-loop-switch-002"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-debug-001",
+        "type": "debug",
+        "z": "int-loop-tab-001",
+        "name": "Normalized telemetry",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 740,
+        "y": 70,
+        "wires": []
+    },
+    {
+        "id": "int-loop-transform-001",
+        "type": "smo-transformer",
+        "z": "int-loop-tab-001",
+        "name": "Telemetry to CA_STATUS",
+        "eventTypeCode": "CA_STATUS",
+        "selectedPreset": "CA_STATUS",
+        "customEventType": "",
+        "entityCodeFields": "[\"assetNumber\",\"deviceId\"]",
+        "eventTimeFields": "[\"eventTime\"]",
+        "defaultEventTime": false,
+        "outputTarget": "smoEvent",
+        "fieldMappings": "[{\"incomingField\":\"status\",\"smoField\":\"STATUS\",\"transformType\":\"none\",\"defaultValue\":\"\"}]",
+        "enableNesting": false,
+        "nestingKey": "",
+        "enableComposite": false,
+        "requiredFields": "[]",
+        "splitFields": "[]",
+        "samplePayload": "{\"deviceId\":\"EXAMPLE_ROBOT_01\",\"assetNumber\":\"EXAMPLE_ASSET_01\",\"eventTime\":\"2026-08-12T12:00:00Z\",\"status\":\"IN_USE\"}",
+        "customJsonata": "",
+        "staleTimeout": 0,
+        "maxCompositeEntries": 1000,
+        "maxCompositeAgeSec": 3600,
+        "x": 740,
+        "y": 140,
+        "wires": [
+            [
+                "int-loop-event-001"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-switch-002",
+        "type": "switch",
+        "z": "int-loop-tab-001",
+        "name": "Fault or high temperature?",
+        "property": "$uppercase(payload.status) = \"FAULT\" or payload.temperature >= 39",
+        "propertyType": "jsonata",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 760,
+        "y": 250,
+        "wires": [
+            [
+                "int-loop-transform-002"
+            ],
+            [
+                "int-loop-debug-003"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-debug-003",
+        "type": "debug",
+        "z": "int-loop-tab-001",
+        "name": "Normal telemetry - no action",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1050,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "int-loop-transform-002",
+        "type": "smo-transformer",
+        "z": "int-loop-tab-001",
+        "name": "Fault to CA_FAULT",
+        "eventTypeCode": "CA_FAULT",
+        "selectedPreset": "CA_FAULT",
+        "customEventType": "",
+        "entityCodeFields": "[\"assetNumber\",\"deviceId\"]",
+        "eventTimeFields": "[\"eventTime\"]",
+        "defaultEventTime": false,
+        "outputTarget": "smoEvent",
+        "fieldMappings": "[{\"incomingField\":\"faultCode\",\"smoField\":\"FAULT_CODE\",\"transformType\":\"none\",\"defaultValue\":\"EXAMPLE_FAULT\"},{\"incomingField\":\"status\",\"smoField\":\"FAULT_TYPE\",\"transformType\":\"none\",\"defaultValue\":\"Diagnostic\"}]",
+        "enableNesting": false,
+        "nestingKey": "",
+        "enableComposite": false,
+        "requiredFields": "[]",
+        "splitFields": "[]",
+        "samplePayload": "{\"deviceId\":\"EXAMPLE_ROBOT_01\",\"assetNumber\":\"EXAMPLE_ASSET_01\",\"eventTime\":\"2026-08-12T12:00:00Z\",\"status\":\"FAULT\",\"faultCode\":\"EXAMPLE_OVER_TEMP\"}",
+        "customJsonata": "",
+        "staleTimeout": 0,
+        "maxCompositeEntries": 1000,
+        "maxCompositeAgeSec": 3600,
+        "x": 1030,
+        "y": 240,
+        "wires": [
+            [
+                "int-loop-event-001",
+                "int-loop-function-002",
+                "int-loop-function-003"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-event-001",
+        "type": "smo-event",
+        "z": "int-loop-tab-001",
+        "name": "Submit Smart Operations event",
+        "server": "int-loop-scm-config-001",
+        "entityCode": "",
+        "eventTypeCode": "",
+        "defaultEventTime": false,
+        "x": 1330,
+        "y": 140,
+        "wires": [
+            [
+                "int-loop-debug-005"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-debug-005",
+        "type": "debug",
+        "z": "int-loop-tab-001",
+        "name": "Smart Operations response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1610,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "int-loop-function-002",
+        "type": "function",
+        "z": "int-loop-tab-001",
+        "name": "Build shutdown command",
+        "func": "var telemetry = msg.payload || {};\nmsg.payload = {\n    command: \"shutdown\",\n    assetNumber: telemetry.assetNumber,\n    reason: telemetry.faultCode || telemetry.status,\n    requestedAt: new Date().toISOString()\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1330,
+        "y": 240,
+        "wires": [
+            [
+                "int-loop-command-001"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-command-001",
+        "type": "iot-send-command",
+        "z": "int-loop-tab-001",
+        "name": "Send shutdown command",
+        "ociConfig": "int-loop-oci-config-001",
+        "digitalTwinOcid": "<your-digital-twin-identifier>",
+        "requestEndpoint": "iot/v1/devices/example/cmd/shutdown",
+        "responseEndpoint": "iot/v1/devices/example/rsp/shutdown",
+        "requestDuration": "PT10M",
+        "responseDuration": "PT10M",
+        "waitForResponse": true,
+        "x": 1610,
+        "y": 240,
+        "wires": [
+            [
+                "int-loop-debug-006"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-debug-006",
+        "type": "debug",
+        "z": "int-loop-tab-001",
+        "name": "Shutdown command response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1900,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "int-loop-function-003",
+        "type": "function",
+        "z": "int-loop-tab-001",
+        "name": "Build maintenance work order",
+        "func": "var telemetry = msg.payload || {};\nmsg.payload = {\n    OrganizationCode: telemetry.organizationCode,\n    AssetNumber: telemetry.assetNumber,\n    MntWorkDefinitionCode: telemetry.maintenanceWorkDefinitionCode,\n    WorkOrderTypeCode: \"CORRECTIVE\",\n    WorkOrderSubTypeCode: \"ORA_REACTIVE\",\n    WorkOrderDescription: \"Telemetry fault \" + (telemetry.faultCode || telemetry.status) + \" for \" + telemetry.assetNumber\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1350,
+        "y": 400,
+        "wires": [
+            [
+                "int-loop-mwo-001"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-mwo-001",
+        "type": "maintenance-work-order",
+        "z": "int-loop-tab-001",
+        "name": "Create maintenance work order",
+        "server": "int-loop-scm-config-001",
+        "action": "create",
+        "workOrderId": "",
+        "payloadSource": "mappings",
+        "mappings": "[{\"scmField\":\"OrganizationCode\",\"sourceType\":\"msg\",\"value\":\"payload.OrganizationCode\"},{\"scmField\":\"AssetNumber\",\"sourceType\":\"msg\",\"value\":\"payload.AssetNumber\"},{\"scmField\":\"MntWorkDefinitionCode\",\"sourceType\":\"msg\",\"value\":\"payload.MntWorkDefinitionCode\"},{\"scmField\":\"WorkOrderTypeCode\",\"sourceType\":\"msg\",\"value\":\"payload.WorkOrderTypeCode\"},{\"scmField\":\"WorkOrderSubTypeCode\",\"sourceType\":\"msg\",\"value\":\"payload.WorkOrderSubTypeCode\"},{\"scmField\":\"WorkOrderStatusCode\",\"sourceType\":\"static\",\"value\":\"ORA_UNRELEASED\"},{\"scmField\":\"PlannedStartQuantity\",\"sourceType\":\"staticNumber\",\"value\":\"1\"},{\"scmField\":\"PlannedStartDate\",\"sourceType\":\"currentTimestamp\",\"value\":\"\"},{\"scmField\":\"WorkOrderDescription\",\"sourceType\":\"msg\",\"value\":\"payload.WorkOrderDescription\"},{\"scmField\":\"ExplosionFlag\",\"sourceType\":\"staticBoolean\",\"value\":\"true\"}]",
+        "x": 1650,
+        "y": 400,
+        "wires": [
+            [
+                "int-loop-debug-007"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-debug-007",
+        "type": "debug",
+        "z": "int-loop-tab-001",
+        "name": "Maintenance work order response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1970,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "int-loop-catch-001",
+        "type": "catch",
+        "z": "int-loop-tab-001",
+        "name": "Catch device fault handling errors",
+        "scope": [
+            "int-loop-function-001",
+            "int-loop-transform-001",
+            "int-loop-switch-002",
+            "int-loop-transform-002",
+            "int-loop-event-001",
+            "int-loop-function-002",
+            "int-loop-command-001",
+            "int-loop-function-003",
+            "int-loop-mwo-001"
+        ],
+        "uncaught": false,
+        "x": 230,
+        "y": 540,
+        "wires": [
+            [
+                "int-loop-debug-008"
+            ]
+        ]
+    },
+    {
+        "id": "int-loop-debug-008",
+        "type": "debug",
+        "z": "int-loop-tab-001",
+        "name": "Device fault handling error",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "error",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 480,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "int-loop-oci-config-001",
+        "type": "oci-config",
+        "name": "Example OCI Config",
+        "authType": "config",
+        "region": "<your-region>",
+        "compartmentOcid": "<your-compartment-identifier>",
+        "configFilePath": "~/.oci/config",
+        "profile": "DEFAULT",
+        "tenancyOcid": "",
+        "userOcid": "",
+        "fingerprint": "",
+        "privateKeyPath": ""
+    },
+    {
+        "id": "int-loop-scm-config-001",
+        "type": "scm-server",
+        "name": "Example Fusion SCM",
+        "hostname": "fusion.example.invalid",
+        "version": "<your-rest-api-version>",
+        "tokenUrl": "https://identity.example.invalid/oauth2/v1/token",
+        "scope": "<your-oauth-scope>",
+        "proxyUrl": "",
+        "useProxy": false,
+        "useExpiryFallback": false,
+        "tokenExpiryMins": 60
+    }
+]

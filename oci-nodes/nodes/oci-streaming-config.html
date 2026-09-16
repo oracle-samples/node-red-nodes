@@ -1,0 +1,56 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-streaming-config", {
+    category: "config",
+    color: "#F0CC72",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        streamOcid: { value: "", required: true },
+        messagesEndpoint: { value: "", required: true }
+    },
+    label: function () {
+        return this.name || "OCI Streaming";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-streaming-config">
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Streaming Connection</legend>
+        <div class="form-row">
+            <label for="node-config-input-name" style="width:145px;"><i class="fa fa-tag"></i> Name</label>
+            <input type="text" id="node-config-input-name" placeholder="Optional display name">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-ociConfig" style="width:145px;"><i class="fa fa-cloud"></i> OCI Config</label>
+            <input type="text" id="node-config-input-ociConfig">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-streamOcid" style="width:145px;"><i class="fa fa-id-card"></i> Stream OCID</label>
+            <input type="text" id="node-config-input-streamOcid" placeholder="&lt;your-stream-ocid&gt;">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-messagesEndpoint" style="width:145px;"><i class="fa fa-link"></i> Messages Endpoint</label>
+            <input type="text" id="node-config-input-messagesEndpoint" placeholder="https://&lt;cell&gt;.streaming.&lt;region&gt;.oci.&lt;domain&gt;">
+            <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+                Copy the native OCI Streaming Messages endpoint from the stream or stream pool details.
+            </div>
+        </div>
+    </fieldset>
+</script>
+
+<script type="text/x-red" data-help-name="oci-streaming-config">
+<p>Provides a shared native OCI Streaming data-plane client for Streaming Out and future Streaming In nodes.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt><dd>Supplies OCI API authentication.</dd>
+    <dt>Stream OCID</dt><dd>Identifies the single native OCI stream used by referencing nodes.</dd>
+    <dt>Messages Endpoint</dt><dd>The stream pool's HTTPS Messages endpoint shown in OCI Streaming details. It is different from the service control-plane endpoint and from an OCI Streaming with Apache Kafka bootstrap broker.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>The endpoint must use the exact native OCI Streaming Messages host structure, an SDK-known OCI realm domain, and the default HTTPS port. Validation occurs before credentials are requested. The SDK client is created on demand and shared by referencing nodes. Closing this configuration releases its client circuit breaker while leaving the shared <code>oci-config</code> authentication provider active.</p>
+<p>Live connectivity and authorization are validated by the child operation itself because the data plane has no permission-neutral connection check. Streaming Out requires <code>stream-push</code>; Streaming In requires <code>stream-pull</code>.</p>
+</script>

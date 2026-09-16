@@ -1,0 +1,95 @@
+<!--
+ Copyright (c) 2026 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-monitoring-query", {
+    category: "oci",
+    paletteLabel: "monitoring query",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        compartmentOcid: { value: "" },
+        namespace: { value: "", required: true },
+        query: { value: "", required: true },
+        resourceGroup: { value: "" },
+        resolution: { value: "" },
+        lookbackMinutes: { value: 60, required: true, validate: RED.validators.number() }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-line-chart",
+    label: function () {
+        return this.name || "monitoring query";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-monitoring-query">
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-compartmentOcid"><i class="fa fa-folder-o"></i> Compartment OCID</label>
+        <input type="text" id="node-input-compartmentOcid" placeholder="Uses OCI Config default when blank">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-namespace"><i class="fa fa-cubes"></i> Namespace</label>
+        <input type="text" id="node-input-namespace" placeholder="application_metrics">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-query"><i class="fa fa-search"></i> MQL Query</label>
+        <input type="text" id="node-input-query" placeholder="dispatchDurationSeconds[1m].mean()">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-resourceGroup"><i class="fa fa-object-group"></i> Resource Group</label>
+        <input type="text" id="node-input-resourceGroup" placeholder="Optional metric grouping">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-resolution"><i class="fa fa-area-chart"></i> Resolution</label>
+        <input type="text" id="node-input-resolution" placeholder="Optional, for example 1m">
+    </div>
+    <div class="form-row">
+        <label style="width:130px;" for="node-input-lookbackMinutes"><i class="fa fa-clock-o"></i> Lookback (min)</label>
+        <input type="number" id="node-input-lookbackMinutes" min="1" style="width:100px;">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
+            Used when the input message does not provide explicit start and end times.
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-monitoring-query">
+<p>Queries OCI Monitoring metric series using Monitoring Query Language (MQL).</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt><dd>Shared OCI authentication and region.</dd>
+    <dt>Compartment OCID</dt><dd>Metric compartment. Uses the OCI Config default when blank.</dd>
+    <dt>Namespace</dt><dd>Monitoring metric namespace.</dd>
+    <dt>MQL Query</dt><dd>Metric name, interval, and aggregation expression.</dd>
+    <dt>Resource Group</dt><dd>Optional resource group filter.</dd>
+    <dt>Resolution</dt><dd>Optional query resolution such as <code>1m</code>.</dd>
+    <dt>Lookback</dt><dd>Relative time range ending at the current time. Default: <code>60</code> minutes.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">array</span></dt><dd>Metric streams and their aggregated data points.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code, normally <code>200</code>.</dd>
+    <dt>opcRequestId <span class="property-type">string</span></dt><dd>OCI request trace identifier.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>On failure: <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<p><code>msg.metricQuery</code> may contain <code>compartmentId</code>, <code>namespace</code>, <code>query</code>, <code>resourceGroup</code>, <code>resolution</code>, <code>lookbackMinutes</code>, <code>startTime</code>, or <code>endTime</code>. Explicit times must be valid date/time values and start time must precede end time.</p>
+
+<h3>Details</h3>
+<p>Use this node to retrieve time-series measurements for dashboards, threshold evaluation, or downstream processing. It does not retrieve detailed diagnostic log records.</p>
+</script>

@@ -71,7 +71,8 @@ module.exports = function(RED) {
                 if (!resourceId) {
                     node.status({ fill: "red", shape: "ring", text: "no resource ID" });
                     const err = new Error("No resource ID provided");
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
@@ -85,7 +86,8 @@ module.exports = function(RED) {
                 if (!isCustomMode && !endpoint) {
                     const err = new Error(`Unrecognised delete mode: "${mode}"`);
                     node.status({ fill: "red", shape: "ring", text: "invalid mode" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
                 const customPath = String(config.customPath || "").trim();
@@ -93,7 +95,8 @@ module.exports = function(RED) {
                 if (!baseUrl) {
                     const err = new Error("No custom URL configured for custom delete mode");
                     node.status({ fill: "red", shape: "ring", text: "no custom URL" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
                 const parsedUrl = isCustomMode
@@ -102,7 +105,8 @@ module.exports = function(RED) {
                 if (isCustomMode && parsedUrl.search) {
                     const err = new Error("Custom URL must not include query parameters in custom delete mode");
                     node.status({ fill: "red", shape: "ring", text: "invalid custom URL" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
                 const basePath = parsedUrl.pathname.endsWith("/") && parsedUrl.pathname.length > 1

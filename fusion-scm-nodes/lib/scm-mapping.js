@@ -89,7 +89,12 @@ function isPlainObject(value) {
         return false;
     }
     var prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
+    if (prototype === null) return true;
+    // Function-node objects have a different realm's Object.prototype.
+    var constructor = Object.getOwnPropertyDescriptor(prototype, "constructor");
+    return Object.getPrototypeOf(prototype) === null &&
+        constructor && typeof constructor.value === "function" && constructor.value.prototype === prototype &&
+        Function.prototype.toString.call(constructor.value) === Function.prototype.toString.call(Object);
 }
 
 function isProhibitedKey(key) {

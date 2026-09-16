@@ -168,7 +168,7 @@ RED.nodes.registerType("oci-config", {
     <div class="form-row">
         <label for="node-config-input-compartmentOcid"><i class="fa fa-folder-o"></i> Compartment OCID</label>
         <input type="text" id="node-config-input-compartmentOcid" placeholder="<compartment-ocid>">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Default compartment for child nodes (can be overridden per node).</div>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Stored shared setting; current service nodes use their own resource identifiers.</div>
     </div>
     </fieldset>
     <div class="config-test-actions">
@@ -187,9 +187,11 @@ RED.nodes.registerType("oci-config", {
 </script>
 
 <script type="text/x-red" data-help-name="oci-config">
-<p>Provides shared OCI authentication and default region/compartment settings for OCI service nodes.</p>
+<p>Provides shared OCI authentication and region settings for OCI service nodes.</p>
+<p>Compartment OCID supplies the default metric compartment for Monitoring Publish and Monitoring Query. Their per-message or node configuration can override it; other service nodes use their own resource identifiers.</p>
 
 <h3>Authentication Types</h3>
+<p>Simple/API Key authentication reads the PEM file from Private Key Path on the Node-RED host. <code>~/</code> means the runtime user's home directory; Passphrase unlocks an encrypted key. Unreadable or invalid keys report <code>OCI_PRIVATE_KEY_INVALID</code> without exposing key contents or paths. Config File authentication uses the OCI SDK configuration provider.</p>
 <dl class="message-properties">
     <dt>Config File</dt>
     <dd>Uses an OCI CLI config file (for example <code>~/.oci/config</code>) and profile name.</dd>
@@ -206,7 +208,7 @@ RED.nodes.registerType("oci-config", {
     <dt>Region</dt>
     <dd>Optional default OCI region for child nodes.</dd>
     <dt>Compartment OCID</dt>
-    <dd>Optional default compartment OCID used by child nodes unless overridden.</dd>
+    <dd>Stored shared setting. Current public service nodes do not consume this default; configure each service's resource identifiers instead.</dd>
     <dt>Test OCI Credentials</dt>
     <dd>Validates the current configuration and credentials against OCI after deploy.</dd>
 </dl>
@@ -214,6 +216,6 @@ RED.nodes.registerType("oci-config", {
 <h3>Notes</h3>
 <ul>
     <li>After changing config values, click <b>Update</b> and then <b>Deploy</b> before using Test OCI Credentials.</li>
-    <li>Child nodes can override region/compartment values at node level when needed.</li>
+    <li>Service nodes use the configured region where applicable; per-node region overrides are not provided. Services with explicit endpoints use those endpoints.</li>
 </ul>
 </script>

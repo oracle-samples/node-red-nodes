@@ -2,16 +2,16 @@
     {
         "id": "4e260a9ffc513bbc",
         "type": "tab",
-        "label": "Enqueue → Dequeue → Create Meter Reading → If Not Found, Create Asset Example",
+        "label": "AQ Meter Reading Submission",
         "disabled": false,
-        "info": "",
+        "info": "Configure the database connection, existing JSON_QUEUE and ConsumerA subscriber, and Fusion server. Replace EXAMPLE_* values and ReadingDate with valid non-production data. Submit the queued meter reading first. Only the observed HTTP 400 AssetNumber validation error triggers an asset lookup; creation requires a successful empty items array with hasMore false. Other errors and existing assets are reported without creation. Duplicate Catch messages for one _msgid are suppressed for ten minutes (maximum 1000 entries); different submissions or deployments are not an exactly-once workflow. Asset numbers containing quotes, semicolons, backslashes or line breaks are not automatically recovered. Creation does not retry the reading or configure its meter association: verify the asset/meter setup before manually submitting again. Standalone dequeue commits removal before Fusion processing and does not restore messages on failure. Concurrent runs can race; use non-production resources for initial validation.",
         "env": []
     },
     {
         "id": "aa55ced4ff253edc",
         "type": "debug",
         "z": "4e260a9ffc513bbc",
-        "name": "debug 38",
+        "name": "Meter reading result",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -20,95 +20,69 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 920,
-        "y": 140,
+        "x": 1080,
+        "y": 220,
         "wires": []
-    },
-    {
-        "id": "e477e4fc008cd7c3",
-        "type": "switch",
-        "z": "4e260a9ffc513bbc",
-        "name": "",
-        "property": "statusCode",
-        "propertyType": "msg",
-        "rules": [
-            {
-                "t": "eq",
-                "v": "201",
-                "vt": "num"
-            },
-            {
-                "t": "else"
-            }
-        ],
-        "checkall": "true",
-        "repair": false,
-        "outputs": 2,
-        "x": 730,
-        "y": 180,
-        "wires": [
-            [
-                "aa55ced4ff253edc"
-            ],
-            [
-                "7f4c054cb12baeb6"
-            ]
-        ]
     },
     {
         "id": "2fbc8e32c898d5b4",
         "type": "create-meter-reading",
         "z": "4e260a9ffc513bbc",
-        "name": "",
+        "name": "Submit meter reading",
         "server": "a6349301075ee7ed",
         "mappings": "[{\"scmField\":\"AssetNumber\",\"sourceType\":\"dequeued\",\"value\":\"AssetNumber\"},{\"scmField\":\"MeterCode\",\"sourceType\":\"dequeued\",\"value\":\"MeterCode\"},{\"scmField\":\"ReadingDate\",\"sourceType\":\"dequeued\",\"value\":\"ReadingDate\"},{\"scmField\":\"MeterUsageCode\",\"sourceType\":\"dequeued\",\"value\":\"MeterUsageCode\"},{\"scmField\":\"ReadingValue\",\"sourceType\":\"dequeued\",\"value\":\"ReadingValue\"},{\"scmField\":\"Comments\",\"sourceType\":\"dequeued\",\"value\":\"Comments\"}]",
-        "x": 520,
-        "y": 180,
+        "x": 770,
+        "y": 220,
         "wires": [
             [
-                "e477e4fc008cd7c3"
+                "aa55ced4ff253edc"
             ]
-        ]
+        ],
+        "payloadSource": "mappings"
     },
     {
         "id": "7f4c054cb12baeb6",
         "type": "create-asset",
         "z": "4e260a9ffc513bbc",
-        "name": "",
+        "name": "Create installed base asset",
         "server": "a6349301075ee7ed",
         "mappings": "[{\"scmField\":\"AssetNumber\",\"sourceType\":\"dequeued\",\"value\":\"AssetNumber\"},{\"scmField\":\"Description\",\"sourceType\":\"dequeued\",\"value\":\"Description\"},{\"scmField\":\"ItemNumber\",\"sourceType\":\"dequeued\",\"value\":\"ItemNumber\"},{\"scmField\":\"OperatingOrganizationCode\",\"sourceType\":\"dequeued\",\"value\":\"OperatingOrganizationCode\"},{\"scmField\":\"CurrentLocationContextCode\",\"sourceType\":\"dequeued\",\"value\":\"CurrentLocationContextCode\"},{\"scmField\":\"Quantity\",\"sourceType\":\"dequeued\",\"value\":\"Quantity\"},{\"scmField\":\"MaintainableFlag\",\"sourceType\":\"dequeued\",\"value\":\"MaintainableFlag\"},{\"scmField\":\"NewWoAllowedFlag\",\"sourceType\":\"dequeued\",\"value\":\"NewWoAllowedFlag\"}]",
-        "x": 930,
-        "y": 220,
+        "x": 1500,
+        "y": 340,
         "wires": [
             [
                 "171a8087dc2577db"
             ]
-        ]
+        ],
+        "payloadSource": "mappings"
     },
     {
         "id": "47f2b87d6f2294d2",
         "type": "dequeue",
         "z": "4e260a9ffc513bbc",
-        "name": "",
+        "name": "Read queued reading",
         "connection": "648c32eae9b1e56e",
         "queueName": "JSON_QUEUE",
         "subscriber": "ConsumerA",
         "wait": 0,
         "waitForever": false,
         "batchSize": 1,
-        "x": 300,
-        "y": 180,
+        "x": 470,
+        "y": 220,
         "wires": [
             [
                 "2fbc8e32c898d5b4"
             ]
-        ]
+        ],
+        "mode": "transactional",
+        "payloadType": "json",
+        "deqMode": "remove"
     },
     {
         "id": "171a8087dc2577db",
         "type": "debug",
         "z": "4e260a9ffc513bbc",
-        "name": "debug 37",
+        "name": "Asset creation result",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -117,22 +91,22 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1120,
-        "y": 220,
+        "x": 1790,
+        "y": 340,
         "wires": []
     },
     {
         "id": "bfc9433bf1d28b4c",
         "type": "inject",
         "z": "4e260a9ffc513bbc",
-        "name": "",
+        "name": "Enqueue sample reading",
         "props": [],
         "repeat": "",
         "crontab": "",
         "once": false,
         "onceDelay": 0.1,
         "topic": "",
-        "x": 130,
+        "x": 170,
         "y": 100,
         "wires": [
             [
@@ -144,7 +118,7 @@
         "id": "b31d3d2b99d0b5d0",
         "type": "debug",
         "z": "4e260a9ffc513bbc",
-        "name": "debug 36",
+        "name": "Enqueue result",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -153,7 +127,7 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 480,
+        "x": 770,
         "y": 100,
         "wires": []
     },
@@ -161,15 +135,15 @@
         "id": "ea41120b5e0c138c",
         "type": "inject",
         "z": "4e260a9ffc513bbc",
-        "name": "",
+        "name": "Submit queued reading",
         "props": [],
         "repeat": "",
         "crontab": "",
         "once": false,
         "onceDelay": 0.1,
         "topic": "",
-        "x": 130,
-        "y": 180,
+        "x": 170,
+        "y": 220,
         "wires": [
             [
                 "47f2b87d6f2294d2"
@@ -180,18 +154,22 @@
         "id": "a9ea2c8a7ddc0ee2",
         "type": "enqueue",
         "z": "4e260a9ffc513bbc",
-        "name": "",
+        "name": "Queue meter reading",
         "connection": "648c32eae9b1e56e",
         "queueName": "JSON_QUEUE",
         "recipients": "",
-        "userPayload": "[\n  {\n    \"AssetNumber\": <set_data>,\n    \"MeterCode\": <set_data>,\n    \"ReadingDate\": <set_data>,\n    \"MeterUsageCode\": <set_data>,\n    \"ReadingValue\": <set_data>,\n    \"Comments\": <set_data>,\n    \"Description\": <set_data>,\n    \"ItemNumber\": <set_data>,\n    \"OperatingOrganizationCode\": <set_data>,\n    \"CurrentLocationContextCode\": <set_data>,\n    \"Quantity\": <set_data>,\n    \"MaintainableFlag\": <set_data>,\n    \"NewWoAllowedFlag\": <set_data>\n  }\n]\n",
-        "x": 300,
+        "userPayload": "[\n    {\n        \"AssetNumber\": \"EXAMPLE_ASSET\",\n        \"MeterCode\": \"EXAMPLE_METER\",\n        \"ReadingDate\": \"2026-01-01T00:00:00Z\",\n        \"MeterUsageCode\": \"ORA_ASSET\",\n        \"ReadingValue\": 1,\n        \"Comments\": \"Example meter reading\",\n        \"Description\": \"Example asset\",\n        \"ItemNumber\": \"EXAMPLE_ITEM\",\n        \"OperatingOrganizationCode\": \"EXAMPLE_ORG\",\n        \"CurrentLocationContextCode\": \"EXAMPLE_LOCATION\",\n        \"Quantity\": 1,\n        \"MaintainableFlag\": true,\n        \"NewWoAllowedFlag\": true\n    }\n]",
+        "x": 470,
         "y": 100,
         "wires": [
             [
                 "b31d3d2b99d0b5d0"
             ]
-        ]
+        ],
+        "payloadType": "json",
+        "deliveryMode": "persistent",
+        "enableOutput": true,
+        "outputs": 1
     },
     {
         "id": "a6349301075ee7ed",
@@ -228,7 +206,113 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.6.0"
+            "node-red-nodes": "0.7.0"
         }
+    },
+    {
+        "id": "meter-example-catch-errors",
+        "type": "catch",
+        "z": "4e260a9ffc513bbc",
+        "name": "Catch meter reading errors",
+        "scope": [
+            "2fbc8e32c898d5b4",
+            "7f4c054cb12baeb6",
+            "47f2b87d6f2294d2",
+            "a9ea2c8a7ddc0ee2",
+            "meter-example-recovery-gate",
+            "meter-example-asset-lookup",
+            "meter-example-confirm-absent"
+        ],
+        "uncaught": false,
+        "x": 230,
+        "y": 400,
+        "wires": [
+            [
+                "meter-example-recovery-gate"
+            ]
+        ]
+    },
+    {
+        "id": "meter-example-debug-error",
+        "type": "debug",
+        "z": "4e260a9ffc513bbc",
+        "name": "Meter reading error",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "error",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 860,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "meter-example-recovery-gate",
+        "type": "function",
+        "z": "4e260a9ffc513bbc",
+        "name": "Check meter recovery error",
+        "func": "var source = msg.error && msg.error.source;\nvar expected = \"The value of the attribute AssetNumber isn't valid.\";\nif (!source || source.id !== \"2fbc8e32c898d5b4\" ||\n    msg.statusCode !== 400 || typeof msg.payload !== \"string\" ||\n    msg.payload.trim() !== expected) {\n    return [null, msg];\n}\nvar asset = msg.dequeued && msg.dequeued.AssetNumber;\nif (typeof msg._msgid !== \"string\" || !msg._msgid ||\n    typeof asset !== \"string\" || !asset.trim() || /[;'\\\\\\r\\n]/.test(asset)) {\n    return [null, msg];\n}\n// The runtime can report the same failure through both node.error and done.\nvar now = Date.now();\nvar recent = (context.get(\"recentFailures\") || []).filter(function (entry) {\n    return now - entry.time < 600000;\n});\nvar key = msg._msgid;\nif (recent.some(function (entry) { return entry.key === key; })) {\n    return null;\n}\nif (recent.length >= 1000) {\n    return [null, msg];\n}\nrecent.push({ key: key, time: now });\ncontext.set(\"recentFailures\", recent);\nmsg.meterReadingFailure = {\n    error: msg.error,\n    statusCode: msg.statusCode,\n    payload: msg.payload\n};\ndelete msg.error;\ndelete msg._error;\nmsg.payload = {\n    q: \"AssetNumber='\" + asset + \"'\",\n    fields: \"AssetNumber\",\n    onlyData: true,\n    limit: 1\n};\nmsg.method = \"GET\";\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 400,
+        "wires": [
+            [
+                "meter-example-asset-lookup"
+            ],
+            [
+                "meter-example-debug-error"
+            ]
+        ]
+    },
+    {
+        "id": "meter-example-asset-lookup",
+        "type": "fusion-request",
+        "z": "4e260a9ffc513bbc",
+        "name": "Check asset number",
+        "server": "a6349301075ee7ed",
+        "transactionType": "createAsset",
+        "method": "GET",
+        "requestMediaType": "json",
+        "customPath": "",
+        "payloadSource": "msgPayload",
+        "mappings": "[]",
+        "x": 880,
+        "y": 380,
+        "wires": [
+            [
+                "meter-example-confirm-absent"
+            ]
+        ]
+    },
+    {
+        "id": "meter-example-confirm-absent",
+        "type": "function",
+        "z": "4e260a9ffc513bbc",
+        "name": "Confirm asset is absent",
+        "func": "var result = msg.payload;\nvar failure = msg.meterReadingFailure;\nif (msg.statusCode === 200 && result && Array.isArray(result.items) &&\n    result.items.length === 0 && result.hasMore === false) {\n    delete msg.error;\n    delete msg._error;\n    delete msg.method;\n    msg.payload = msg.dequeued;\n    return [msg, null];\n}\nmsg.error = failure ? failure.error : {\n    message: \"Asset absence could not be confirmed\",\n    code: null\n};\nmsg.statusCode = failure ? failure.statusCode : msg.statusCode;\nmsg.payload = failure ? failure.payload : msg.payload;\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1190,
+        "y": 380,
+        "wires": [
+            [
+                "7f4c054cb12baeb6"
+            ],
+            [
+                "meter-example-debug-error"
+            ]
+        ]
     }
 ]

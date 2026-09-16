@@ -116,22 +116,21 @@ module.exports = function (RED) {
             return client;
         }
 
-        async function resolveRelationshipId(iotClient, iotDomainId, relationshipKey) {
-            const parsed = parseRelationshipKey(relationshipKey);
+        async function resolveRelationshipId(iotClient, iotDomainId, parsedRelationshipKey) {
             const response = await iotClient.listDigitalTwinRelationships({
                 iotDomainId: iotDomainId,
-                sourceDigitalTwinInstanceId: parsed.sourceDigitalTwinInstanceId,
-                targetDigitalTwinInstanceId: parsed.targetDigitalTwinInstanceId,
-                contentPath: parsed.contentPath,
+                sourceDigitalTwinInstanceId: parsedRelationshipKey.sourceDigitalTwinInstanceId,
+                targetDigitalTwinInstanceId: parsedRelationshipKey.targetDigitalTwinInstanceId,
+                contentPath: parsedRelationshipKey.contentPath,
                 limit: 100
             });
 
             const items = (response && response.digitalTwinRelationshipCollection && response.digitalTwinRelationshipCollection.items) || [];
             if (items.length === 0) {
-                throw new Error("No relationship found for key: " + parsed.raw);
+                throw new Error("No relationship found for key: " + parsedRelationshipKey.raw);
             }
             if (items.length > 1) {
-                throw new Error("Multiple relationships matched key: " + parsed.raw + ". Provide a more specific key.");
+                throw new Error("Multiple relationships matched key: " + parsedRelationshipKey.raw + ". Provide a more specific key.");
             }
             return items[0].id;
         }
@@ -147,6 +146,7 @@ module.exports = function (RED) {
             var content = (msg.content !== undefined)
                 ? msg.content
                 : (isObject(msg.payload) ? msg.payload.content : node.defaultContent);
+            var validatingInput = true;
 
             try {
                 if (!domainId) {
@@ -158,11 +158,13 @@ module.exports = function (RED) {
                 if (!isObject(content)) {
                     throw new Error("Missing or invalid content. Provide an object in msg.content or msg.payload.content");
                 }
+                var parsedRelationshipKey = parseRelationshipKey(relationshipKey);
+                validatingInput = false;
 
                 node.status({ fill: "yellow", shape: "dot", text: "updating" });
 
                 const iotClient = await getClient();
-                const relationshipId = await resolveRelationshipId(iotClient, domainId, relationshipKey);
+                const relationshipId = await resolveRelationshipId(iotClient, domainId, parsedRelationshipKey);
                 const response = await iotClient.updateDigitalTwinRelationship({
                     digitalTwinRelationshipId: relationshipId,
                     updateDigitalTwinRelationshipDetails: {
@@ -183,12 +185,11 @@ module.exports = function (RED) {
 
                 send(outMsg);
                 done();
-
-                setTimeout(function () {
-                    node.status({});
-                }, 3000);
             } catch (err) {
-                ociError.handleNodeError(node, msg, err, done, { statusText: "update failed" });
+                ociError.handleNodeError(node, msg, err, done, {
+                    statusText: validatingInput ? "invalid input" : "update failed",
+                    statusShape: validatingInput ? "ring" : "dot"
+                });
             }
         });
     }

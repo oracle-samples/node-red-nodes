@@ -1,0 +1,123 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-streaming-in", {
+    category: "oci",
+    paletteLabel: "streaming in",
+    defaults: {
+        name: { value: "" },
+        streamingConfig: { type: "oci-streaming-config", required: true },
+        consumerGroupId: { value: "", required: true },
+        instanceName: { value: "" },
+        startPosition: { value: "latest", required: true },
+        outputMode: { value: "individual", required: true },
+        batchLimit: { value: 10, required: true, validate: RED.validators.number() },
+        autoCommit: { value: true, required: true },
+        retryDelayMs: { value: 1000, required: true, validate: RED.validators.number() }
+    },
+    inputs: 0,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-chevron-circle-down",
+    align: "left",
+    label: function () { return this.name || "streaming in"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-streaming-in">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-streamingConfig" style="width:120px;"><i class="fa fa-cloud"></i> Streaming Config</label>
+        <input type="text" id="node-input-streamingConfig">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-consumerGroupId" style="width:155px;"><i class="fa fa-users"></i> Consumer Group ID</label>
+        <input type="text" id="node-input-consumerGroupId" placeholder="Stable group identifier" style="width:calc(100% - 162px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-instanceName" style="width:155px;"><i class="fa fa-id-badge"></i> Instance Name</label>
+        <input type="text" id="node-input-instanceName" placeholder="Generated when empty" style="width:calc(100% - 162px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-startPosition" style="width:155px;"><i class="fa fa-step-backward"></i> Start Position</label>
+        <select id="node-input-startPosition" style="width:200px;">
+            <option value="latest">Latest</option>
+            <option value="beginning">Beginning</option>
+        </select>
+        <div style="margin-left:160px;font-size:11px;color:#888;margin-top:2px;">Used only when OCI creates the consumer group.</div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-outputMode" style="width:155px;"><i class="fa fa-list"></i> Output Mode</label>
+        <select id="node-input-outputMode" style="width:200px;">
+            <option value="individual">Individual</option>
+            <option value="batch">Batch array</option>
+        </select>
+        <div style="margin-left:160px;font-size:11px;color:#888;margin-top:2px;">Manual batches require all records to finish processing before one commit.</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-batchLimit" style="width:155px;"><i class="fa fa-list-ol"></i> Batch Limit</label>
+        <input type="number" id="node-input-batchLimit" min="1" max="10000" style="width:100px;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-autoCommit" style="width:155px;"><i class="fa fa-check-circle"></i> Commit Mode</label>
+        <select id="node-input-autoCommit" style="width:200px;">
+            <option value="true">Automatic</option>
+            <option value="false">Manual</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-retryDelayMs" style="width:155px;"><i class="fa fa-clock-o"></i> Retry Delay (ms)</label>
+        <input type="number" id="node-input-retryDelayMs" min="100" max="300000" style="width:100px;">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-streaming-in">
+<p>Consumes records from one native OCI stream through an OCI Streaming consumer group.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>Streaming Config</dt><dd>References the stream and shared OCI authentication settings.</dd>
+    <dt>Consumer Group ID</dt><dd>A required stable group identifier. Instances in the same group share partition reservations and committed positions.</dd>
+    <dt>Instance Name</dt><dd>An optional unique name for this consumer-group member. The node generates one from its Node-RED ID when empty.</dd>
+    <dt>Start Position</dt><dd>Latest starts at new records and Beginning starts at the earliest retained record. OCI uses this only when it first creates the group; an existing committed position takes precedence.</dd>
+    <dt>Output Mode</dt><dd><b>Individual</b> (default) emits one message per record. <b>Batch array</b> emits one message containing an array of records from a read.</dd>
+    <dt>Batch Limit</dt><dd>Maximum records requested per call in Automatic mode or Batch array mode, from 1 to 10000. Manual Individual mode requests one record at a time. OCI may return fewer records than requested.</dd>
+    <dt>Commit Mode</dt><dd><b>Automatic</b> commits the prior batch on the next read. <b>Manual</b> waits for a Streaming Commit node after downstream processing succeeds.</dd>
+    <dt>Retry Delay</dt><dd>Delay before retrying a failed OCI request.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any | array</span></dt><dd>Parsed JSON when valid, otherwise UTF-8 text. Batch array mode emits an array of these decoded values.</dd>
+    <dt class="optional">msg.ociStreaming.records <span class="property-type">array</span></dt><dd>Batch array mode only. Per-record metadata in the same order as payload, including partition, offset, decoded key and timestamp. These fields are on msg.ociStreaming itself in Individual mode.</dd>
+    <dt class="optional">msg.ociStreaming.messageCount <span class="property-type">number</span></dt><dd>Number of records in the emitted batch.</dd>
+    <dt>msg.statusCode <span class="property-type">number</span></dt><dd>The GetMessages HTTP status.</dd>
+    <dt>msg.ociStreaming.streamOcid <span class="property-type">string</span></dt><dd>The source stream OCID.</dd>
+    <dt>msg.ociStreaming.partition <span class="property-type">string</span></dt><dd>The source partition.</dd>
+    <dt>msg.ociStreaming.offset <span class="property-type">number</span></dt><dd>The record position within its partition.</dd>
+    <dt>msg.ociStreaming.key <span class="property-type">string | Buffer | null</span></dt><dd>The Base64-decoded record key. Binary keys remain Buffers.</dd>
+    <dt>msg.ociStreaming.timestamp <span class="property-type">date</span></dt><dd>The time OCI appended the record.</dd>
+    <dt>msg.ociStreaming.consumerGroupId <span class="property-type">string</span></dt><dd>The configured group ID.</dd>
+    <dt>msg.ociStreaming.instanceName <span class="property-type">string</span></dt><dd>The configured or generated instance name.</dd>
+    <dt>msg.ociStreaming.autoCommit <span class="property-type">boolean</span></dt><dd>Whether this source uses automatic commits.</dd>
+    <dt class="optional">msg.ociStreaming.commitToken <span class="property-type">string</span></dt><dd>Manual mode only. Runtime token consumed by Streaming Commit.</dd>
+    <dt class="optional">msg.ociStreaming.consumerNodeId <span class="property-type">string</span></dt><dd>Manual mode only. Identifies the active source that owns the token.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On a startup, read, or heartbeat failure, <code>{ message, code }</code> is sent to a Catch node.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Expired cursors and lost reservations rejoin the same consumer group and invalidate old manual tokens. Existing committed offsets are preserved; if the group has expired, recovery starts from the oldest retained records. An error indicating offsets outside retention stops consumption for administrator review and an explicit group reset/redeploy. The node never resets a group's position automatically.</p>
+<p>Read starts are spaced at least 210 ms apart per node. Request time and manual processing/commit time count toward that interval; no extra pause is added when they already take 210 ms or longer. Empty responses add a 1 second idle pause. Waits are non-blocking and cancelled on stop or redeploy. SDK retries remain enabled; Retry Delay applies after a failed request reaches the node, with the read-start interval also enforced. Other consumers sharing the stream/group can still cause throttling.</p>
+<p>Automatic mode commits delivered records without waiting for downstream success. Manual mode keeps one record or batch pending and sends heartbeats while waiting for Streaming Commit. Loss of the cursor or partition reservation can invalidate the token and cause replay. Preserve the original metadata and commit once, after every record succeeds. A token for <code>[A, B, C]</code> commits all three even if the payload now contains only A.</p>
+<p>A stopped or redeployed source invalidates its runtime token and can replay the uncommitted record or batch, including records whose downstream work had already succeeded. Commit failures retain the pending token for retry while the source remains active.</p>
+<p>In Manual mode, this running source suppresses repeated records at or below its successfully committed offset for each partition, scoped to its stream and consumer group. Duplicate-only reads follow the next read cursor with a 1 second pause; five consecutive duplicate-only reads report a Catch error once until progress resumes. Uncommitted records are not suppressed. Stop all affected consumers before intentionally resetting a group, then restart them to clear local committed history. Numeric offsets outside JavaScript's safe integer range are rejected in Manual mode.</p>
+<p>Both modes provide at-least-once delivery. Keep downstream side effects idempotent because a failure after processing but before commit can produce a duplicate.</p>
+
+<h3>Prerequisites</h3>
+<p>The OCI principal selected by Streaming Config must have <code>stream-pull</code> permission for the target native OCI stream.</p>
+</script>

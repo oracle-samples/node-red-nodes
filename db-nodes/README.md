@@ -1,6 +1,6 @@
 # Node-RED DB Nodes
 
-This project provides a set of custom Node-RED nodes that integrate the Oracle Database and Advanced Queues (AQ) with the OCI IoT Platform service. The nodes enable database operations such as executing SQL statements, enqueuing messages, dequeuing messages, and transactional processing using Node-RED flows.
+This project provides custom Node-RED nodes for Oracle Database and Advanced Queues (AQ). The nodes execute SQL statements, enqueue and dequeue messages, and manage database transactions in Node-RED flows.
 
 ## Nodes
 
@@ -8,7 +8,7 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 |------|-------------|
 | **db-connection** | Oracle Database authentication and connection config. Supports Basic and DB Token proxy users, TNS aliases or descriptors, and optional extracted wallet directories. Includes a Test Database Connection action directly below the visible fields on every editor tab. |
 | **begin-transaction** | Opens a managed connection with optional timeout for leak protection. |
-| **end-transaction** | Commits and closes the connection. Shows elapsed time. |
+| **end-transaction** | Commits or rolls back and closes the connection. Shows elapsed time. |
 | **dequeue** | Retrieves messages from Oracle AQ. Supports transactional mode and continuous mode with optional reconnect/retry controls. |
 | **enqueue** | Publishes messages to Oracle AQ. Supports static payload or `msg.payload` (JSON/ADT editor includes `...` JSON editor helper). |
 | **sql** | Executes SQL statements. Supports Editor or `msg.sql` as source (Binds Mapping JSONata rows include `...` expression editor helper). |
@@ -16,6 +16,10 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 ## Error Handling
 
 Message-triggered DB nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }` using Oracle/node-oracledb error text when available, and DB nodes leave the current `msg.payload` unchanged on failure.
+
+## Driver Mode
+
+`db-connection` uses a process-wide node-oracledb driver mode. Thin and Thick remain selectable; an already-initialized Thick driver is reused. Restart Node-RED before switching modes or changing Oracle Client library settings.
 
 ## Installation
 
@@ -45,21 +49,15 @@ gh repo clone oracle-samples/node-red-nodes
 - Node-RED v3.0+
 - Node.js v18+
 - npm
-- Oracle Instant Client 23c (required only when DB `Driver Mode` is `Thick`)
+- Oracle Client libraries supported by node-oracledb (required only when DB `Driver Mode` is `Thick`)
 
-### Required Node-RED Dependencies
+### Install the Node Package
 
-Install inside the Node-RED directory (`~/.node-red`):
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
-```bash
-npm install oracledb@^7.0.1
-```
-
-> **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
->
 > If your DB connections use `Driver Mode = Thin`, Oracle Instant Client is not required.
 >
-> `oracledb` is a native dependency. Keep Node.js versions aligned between build/runtime environments, and run `npm rebuild oracledb` after Node.js upgrades.
+> Thin mode is pure JavaScript. Thick mode additionally loads a platform-specific binary and Oracle Client libraries; follow the [node-oracledb installation guide](https://node-oracledb.readthedocs.io/en/latest/user_guide/installation.html) for your operating system.
 
 ## Documentation
 
@@ -67,26 +65,24 @@ You can find the online documentation for the Oracle Internet of Things Platform
 
 ## Examples
 
-Example Node-RED flows are provided in the documentation showcasing different use cases:
+The package includes one example: [AQ Subscriber and Message Processing](./examples/sql-enqueue-dequeue.json). It checks for a subscriber and creates it when missing; when the subscriber exists, it enqueues and dequeues a message. Run it again after creating the subscriber to exercise the enqueue/dequeue path.
 
-- Subscriber exists? → If Not, Create New Subscriber → If It Exists, Enqueue → Dequeue Example
-- Multi-consumer queue and subscriber creation
-- Transactional dequeue with rollback protection
+The queue must already exist. Queue-creation SQL and the begin/end transaction pattern are documented separately in the shared guides; they are not additional example flows in this package.
 
 Examples can be imported directly into the Node-RED editor.
-See [Import Examples Guide](../docs/import-examples.md).
+See [Import Examples Guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/import-examples.md).
 
 ## Contributing
 
-This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](../CONTRIBUTING.md).
+This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](./CONTRIBUTING.md).
 
 ## Security
 
-Please consult the [security guide](../SECURITY.md) for our responsible security vulnerability disclosure process.
+Please consult the [security guide](./SECURITY.md) for our responsible security vulnerability disclosure process.
 
 ## License
 
-See [LICENSE](../LICENSE.txt).
+See [LICENSE](./LICENSE.txt).
 
 ## Disclaimer
 

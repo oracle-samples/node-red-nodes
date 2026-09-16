@@ -68,7 +68,7 @@ RED.nodes.registerType("oci-object-storage", {
                 $("#row-content-type").show();
                 $("#row-download-output").hide();
                 $("#row-encoding").hide();
-                $("#file-path-hint").html("For <b>upload</b>, file path is used only when <code>msg.payload</code> is empty. Use the exact absolute path to the source file.");
+                $("#file-path-hint").html("For <b>upload</b>, file path is used only when <code>msg.payload</code> is absent or null. An empty string uploads zero bytes. Use the exact absolute path to the source file.");
             }
         }
 
@@ -185,7 +185,7 @@ RED.nodes.registerType("oci-object-storage", {
     <dt>File Path</dt>
     <dd>
         Optional local path.
-        For upload, used only when <code>msg.payload</code> is empty.
+        For upload, used only when <code>msg.payload</code> is absent or null. An empty string uploads zero bytes instead of reading the file.
         For download, writes the downloaded object to this path (while still returning it in <code>msg.payload</code>).
         Provide the full absolute path, for example <code>/path/to/nodered-downloaded.txt</code>.
     </dd>
@@ -221,6 +221,7 @@ RED.nodes.registerType("oci-object-storage", {
 </dl>
 
 <h3>Runtime overrides</h3>
+<p><b>File access:</b> Paths use the Node-RED process's filesystem permissions, and downloads can overwrite existing files. Validate incoming operation and path overrides against an allowlist before this node; editor settings do not restrict them.</p>
 <dl class="message-properties">
     <dt>msg.operation <span class="property-type">string</span></dt><dd>Overrides the Operation field: <code>upload</code> or <code>download</code>.</dd>
     <dt>msg.namespace <span class="property-type">string</span></dt><dd>Overrides the Namespace field.</dd>
@@ -240,7 +241,7 @@ RED.nodes.registerType("oci-object-storage", {
 <p><b>Upload JSON payload:</b><br/>
 <code>inject</code> (JSON) &rarr; <code>oci object storage</code> (upload) &rarr; <code>debug</code></p>
 <p><b>Upload from local file:</b><br/>
-<code>inject</code> (empty payload) &rarr; <code>oci object storage</code> (upload + file path) &rarr; <code>debug</code></p>
+<code>inject</code> (JSON null payload) &rarr; <code>oci object storage</code> (upload + file path) &rarr; <code>debug</code></p>
 <p><b>Download file:</b><br/>
 <code>inject</code> &rarr; <code>oci object storage</code> (download) &rarr; <code>file</code> / <code>debug</code></p>
 </script>

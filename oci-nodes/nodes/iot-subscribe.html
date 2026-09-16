@@ -78,19 +78,18 @@ RED.nodes.registerType("iot-subscribe", {
 </script>
 
 <script type="text/x-red" data-help-name="iot-subscribe">
-<p>Subscribes to an OCI IoT MQTT topic and outputs a message whenever a matching MQTT message arrives. This node has no input port; messages arrive from the broker, not from upstream nodes.</p>
+<p>Receives commands delivered by OCI IoT to the configured device through an MQTT request endpoint. This node has no input port; commands arrive from OCI IoT.</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>IoT Device</dt>
     <dd>References an IoT Device config node for the MQTT connection.</dd>
     <dt>Topic</dt>
-    <dd>The MQTT topic to subscribe to. Required. Supports <code>#</code> (multi-level wildcard)
+    <dd>The MQTT command request endpoint to subscribe to. Required. Supports <code>#</code> (multi-level wildcard)
     and <code>+</code> (single-level wildcard). Examples:
     <ul>
-        <li><code>iot/v1/cmd/#</code> - all messages under that prefix; <code>msg.topicSuffix</code> is the suffix (e.g. <code>shutdown</code>)</li>
-        <li><code>iot/v1/cmd/reset</code> - fixed topic; only that topic is received</li>
-        <li><code>sensors/+/data</code> - any device's data topic</li>
+        <li><code>iot/v1/cmd/#</code> - all commands under that prefix; <code>msg.topicSuffix</code> is the suffix (e.g. <code>shutdown</code>)</li>
+        <li><code>iot/v1/cmd/reset</code> - fixed topic; only commands on that topic are received</li>
     </ul></dd>
     <dt>QoS</dt>
     <dd>MQTT QoS level for the subscription (0, 1, or 2).</dd>
@@ -99,23 +98,21 @@ RED.nodes.registerType("iot-subscribe", {
 <h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object | string</span></dt>
-    <dd>The incoming MQTT payload. JSON payloads are parsed automatically; other messages are passed as strings.</dd>
+    <dd>The incoming command payload. JSON payloads are parsed automatically; other payloads are passed as strings.</dd>
     <dt>topicSuffix <span class="property-type">string</span></dt>
     <dd>For wildcard topics ending in <code>/#</code>, this is the portion that matched <code>#</code>
     (e.g. <code>"shutdown"</code> from <code>iot/v1/cmd/shutdown</code>).
     For fixed topics, this is the last segment of the received topic.</dd>
     <dt>topic <span class="property-type">string</span></dt>
-    <dd>The full MQTT topic the message arrived on.</dd>
+    <dd>The full MQTT request endpoint topic the command arrived on.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>Subscribes to the configured MQTT topic on deploy using the IoT Device connection. The subscription is maintained for the lifetime of the node. On each incoming MQTT message, the node parses the payload as JSON (if possible) and emits an output message. Status shows <code>listening</code> while connected and updates on connection state changes.</p>
+<p>Subscribes to the configured MQTT command request endpoint on deploy using the IoT Device connection, even when its output is not wired. The subscription is maintained for the lifetime of the node. On each incoming command, the node parses the payload as JSON (if possible) and emits an output message. Status shows <code>received</code> for each command, then returns immediately to blue-ring <code>listening</code>. Remove, disable, or leave the IoT Device field unconfigured when the subscription must remain inactive.</p>
 
 <h3>Typical Flows</h3>
 <p><b>Receive all command-topic messages:</b><br/>
 <code>subscribe</code> (topic: <code>iot/v1/cmd/#</code>) -&gt; <code>debug</code></p>
-<p><b>Receive telemetry messages:</b><br/>
-<code>subscribe</code> (topic: <code>sensors/+/data</code>) -&gt; <code>function</code> (normalize telemetry)</p>
 <p><b>Send a response after processing:</b><br/>
 <code>subscribe</code> -&gt; <code>function</code> (process) -&gt; <code>mqtt out</code> (publish response)</p>
 </script>

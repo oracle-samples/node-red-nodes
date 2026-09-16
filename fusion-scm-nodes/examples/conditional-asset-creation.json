@@ -1,0 +1,229 @@
+[
+    {
+        "id": "int-asset-tab-001",
+        "type": "tab",
+        "label": "Conditional Asset Creation",
+        "disabled": false,
+        "info": "Configure the placeholder Fusion server and replace every EXAMPLE_* value before running. Clicking Check and create asset looks up an installed base asset by serial number and item number. A successful lookup with an empty items array proceeds to asset creation. Existing matches are reported without creation. Malformed responses and reported lookup errors stop processing. Concurrent runs can race; this is not an atomic create-if-absent operation."
+    },
+    {
+        "id": "int-asset-comment-001",
+        "type": "comment",
+        "z": "int-asset-tab-001",
+        "name": "Configure services and business values before running — double-click for setup details",
+        "info": "Before running:\n\n1. Configure Example Fusion SCM with OAuth credentials and installed base asset read/create privileges.\n2. Replace EXAMPLE_SERIAL_001 and EXAMPLE_ITEM with a serial number and item valid for your Fusion environment.\n3. Replace the EXAMPLE_* asset number, description, item, organization, and location values in the Inject node.\n4. Confirm the create-asset mappings match the required fields in your Fusion setup.\n\nClicking Check and create asset performs a live lookup and may create a real installed base asset. Use non-production resources for the first run.",
+        "x": 390,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "int-asset-inject-001",
+        "type": "inject",
+        "z": "int-asset-tab-001",
+        "name": "Check and create asset",
+        "props": [
+            {
+                "p": "queryValue",
+                "v": "EXAMPLE_SERIAL_001",
+                "vt": "str"
+            },
+            {
+                "p": "itemNumber",
+                "v": "EXAMPLE_ITEM",
+                "vt": "str"
+            },
+            {
+                "p": "assetRequest",
+                "v": "{\"AssetNumber\":\"EXAMPLE_ASSET_001\",\"SerialNumber\":\"EXAMPLE_SERIAL_001\",\"Description\":\"Example conditionally created asset\",\"ItemNumber\":\"EXAMPLE_ITEM\",\"OperatingOrganizationCode\":\"EXAMPLE_ORG\",\"CurrentLocationContextCode\":\"EXAMPLE_LOCATION\",\"Quantity\":1,\"MaintainableFlag\":true,\"NewWoAllowedFlag\":true}",
+                "vt": "json"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 190,
+        "y": 160,
+        "wires": [
+            [
+                "int-asset-lookup-001"
+            ]
+        ]
+    },
+    {
+        "id": "int-asset-lookup-001",
+        "type": "scm-lookup",
+        "z": "int-asset-tab-001",
+        "name": "Find installed base asset",
+        "server": "int-asset-scm-config-001",
+        "lookupType": "installedBaseAsset",
+        "organizationQueryField": "OrganizationName",
+        "workOrderId": "",
+        "workOrderOperationId": "",
+        "organizationCode": "",
+        "itemNumber": "",
+        "meterCode": "",
+        "subinventoryCode": "",
+        "queryValue": "",
+        "queryFilters": "",
+        "customUrl": "",
+        "customQueryParams": "[]",
+        "x": 460,
+        "y": 160,
+        "wires": [
+            [
+                "asset-example-validate-lookup"
+            ]
+        ]
+    },
+    {
+        "id": "int-asset-switch-001",
+        "type": "switch",
+        "z": "int-asset-tab-001",
+        "name": "Asset already exists?",
+        "property": "$count(payload.items) > 0",
+        "propertyType": "jsonata",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1010,
+        "y": 160,
+        "wires": [
+            [
+                "int-asset-debug-001"
+            ],
+            [
+                "int-asset-create-001"
+            ]
+        ]
+    },
+    {
+        "id": "int-asset-debug-001",
+        "type": "debug",
+        "z": "int-asset-tab-001",
+        "name": "Existing asset - no creation",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1310,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "int-asset-create-001",
+        "type": "create-asset",
+        "z": "int-asset-tab-001",
+        "name": "Create installed base asset",
+        "server": "int-asset-scm-config-001",
+        "payloadSource": "mappings",
+        "mappings": "[{\"scmField\":\"AssetNumber\",\"sourceType\":\"msg\",\"value\":\"assetRequest.AssetNumber\"},{\"scmField\":\"SerialNumber\",\"sourceType\":\"msg\",\"value\":\"assetRequest.SerialNumber\"},{\"scmField\":\"Description\",\"sourceType\":\"msg\",\"value\":\"assetRequest.Description\"},{\"scmField\":\"ItemNumber\",\"sourceType\":\"msg\",\"value\":\"assetRequest.ItemNumber\"},{\"scmField\":\"OperatingOrganizationCode\",\"sourceType\":\"msg\",\"value\":\"assetRequest.OperatingOrganizationCode\"},{\"scmField\":\"CurrentLocationContextCode\",\"sourceType\":\"msg\",\"value\":\"assetRequest.CurrentLocationContextCode\"},{\"scmField\":\"Quantity\",\"sourceType\":\"msg\",\"value\":\"assetRequest.Quantity\"},{\"scmField\":\"MaintainableFlag\",\"sourceType\":\"msg\",\"value\":\"assetRequest.MaintainableFlag\"},{\"scmField\":\"NewWoAllowedFlag\",\"sourceType\":\"msg\",\"value\":\"assetRequest.NewWoAllowedFlag\"}]",
+        "x": 1310,
+        "y": 200,
+        "wires": [
+            [
+                "int-asset-debug-002"
+            ]
+        ]
+    },
+    {
+        "id": "int-asset-debug-002",
+        "type": "debug",
+        "z": "int-asset-tab-001",
+        "name": "Created asset result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1590,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "int-asset-catch-001",
+        "type": "catch",
+        "z": "int-asset-tab-001",
+        "name": "Catch Fusion errors",
+        "scope": [
+            "int-asset-lookup-001",
+            "int-asset-switch-001",
+            "int-asset-create-001",
+            "asset-example-validate-lookup"
+        ],
+        "uncaught": false,
+        "x": 200,
+        "y": 300,
+        "wires": [
+            [
+                "int-asset-debug-003"
+            ]
+        ]
+    },
+    {
+        "id": "int-asset-debug-003",
+        "type": "debug",
+        "z": "int-asset-tab-001",
+        "name": "Fusion asset error",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "error",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 450,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "int-asset-scm-config-001",
+        "type": "scm-server",
+        "name": "Example Fusion SCM",
+        "hostname": "fusion.example.invalid",
+        "version": "<your-rest-api-version>",
+        "tokenUrl": "https://identity.example.invalid/oauth2/v1/token",
+        "scope": "<your-oauth-scope>",
+        "proxyUrl": "",
+        "useProxy": false,
+        "useExpiryFallback": false,
+        "tokenExpiryMins": 60
+    },
+    {
+        "id": "asset-example-validate-lookup",
+        "type": "function",
+        "z": "int-asset-tab-001",
+        "name": "Validate lookup response",
+        "func": "if (!msg.payload || !Array.isArray(msg.payload.items)) {\n    var error = new Error(\"Asset lookup response must contain an items array\");\n    error.code = \"EXAMPLE_INVALID_LOOKUP\";\n    msg.error = { message: error.message, code: error.code };\n    node.done(error);\n    return null;\n}\nnode.done();\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 740,
+        "y": 160,
+        "wires": [
+            [
+                "int-asset-switch-001"
+            ]
+        ]
+    }
+]

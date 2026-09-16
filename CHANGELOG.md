@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.7.0] - 2026-09-16
+
+### Added
+- `oci-streaming-config`, `oci-streaming-out`, `oci-streaming-in`, and `oci-streaming-commit` add native OCI Streaming with individual/batch delivery, automatic/manual commits, and cursor recovery.
+- `oci-kafka-config`, `oci-kafka-producer`, `oci-kafka-consumer`, and `oci-kafka-commit` add OCI Managed Kafka over TLS/SASL with partition-scoped batches and automatic/manual offset commits.
+- `oci-queue-config`, `oci-queue-out`, `oci-queue-in`, and `oci-queue-ack` add OCI Queue publishing, long-poll consumption, individual/batch output, and per-message acknowledgement results.
+- `oci-functions-invoke` adds synchronous and detached OCI Functions invocation.
+- `oci-api-request` sends signed HTTPS requests to OCI APIs with configurable methods, query parameters, headers, response decoding, and request timeouts.
+- `oci-monitoring-publish` and `oci-monitoring-query` publish custom metric observations and query metric series using MQL.
+- `fusion-scm-nodes` adds examples for creating missing assets, submitting inventory transactions, and handling sample device faults with commands and maintenance work orders.
+
+### Changed
+- `axios` updated to `1.20.0`; `mqtt` updated to `5.16.0`; `oci-sdk`, `oci-common`, and `oci-identitydataplane` updated to `2.141.0`.
+- `Node statuses` consistently distinguish waiting/validation rings from execution/result dots; flows matching exact status text, shape, or timing may require adjustment.
+- `dequeue` Continuous mode displays each batch count for two seconds without delaying the next dequeue, then restores blue-ring `listening`.
+
+### Fixed
+- `Database, OCI, and Fusion input nodes` report each failure once to Catch instead of triggering duplicate error deliveries, retaining normalized error codes.
+- `enqueue` applies the validated comma-separated Recipients list to each AQ message instead of ignoring it.
+- `ords-config` keeps request timeouts and shutdown cancellation active until token and data response bodies are fully read.
+- `smo-transformer` clears pending partial data and its timer when a complete event arrives for the same composite identity.
+- `smo-transformer` consistently reports failures through `msg.error` and `done(Error)`, and prevents stale composite timers from overwriting newer statuses.
+- `iot-config` supports MQTT topic names that match JavaScript object properties, including `constructor`.
+- `iot-telemetry` reports null timestamping and JSON serialization failures through the normal validation/Catch path without publishing.
+- `oci-logging` preserves an unset Default Severity when opening and saving its editor.
+- `Fusion SCM mapped action nodes` accept plain JSON objects created by Node-RED Function nodes in Message payload mode while retaining JSON validation.
+- `scm-meter-reading-asset-fallback.json` checks the specific asset-number error and confirms absence before creating an asset; unrelated errors no longer enter asset recovery.
+- `begin-transaction`, `end-transaction`, `sql`, `enqueue`, and `dequeue` preserve managed transactions across Catch and message cloning, serialize DB operations, and coordinate finalization with timeout/shutdown cleanup.
+- `end-transaction` rejects stale or closing transaction references with `DB_TRANSACTION_INACTIVE`; DB nodes reject references to a different DB Connection with `DB_TRANSACTION_CONFIG_MISMATCH`.
+- `end-transaction` rolls back and reports `DB_TRANSACTION_ROLLBACK_REQUIRED` if a commit is requested after reported DB processing errors.
+- `Example flows` correct the AQ SQL terminator, use valid meter-reading sample JSON, and supply an explicit shutdown command with its OCI configuration; scoped Catch-to-Debug paths display `msg.error` separately from successful output.
+- `sql`, `enqueue`, `dequeue`, and `begin-transaction` reject inactive transactions instead of starting standalone work; `begin-transaction` also closes late-acquired connections during shutdown without forwarding them.
+- `oci-config` Simple/API Key authentication reads and validates the private-key file instead of passing its path as the key, and reports safe key-loading errors.
+- `oci-ords-poll` prevents late responses from producing successful output after close or redeploy.
+- `Database, OCI, and Fusion nodes` correct stale or duplicate statuses, missing-configuration feedback, and status resets; Transactional `dequeue` reports `dequeuing...`, `dequeued N`, or `no messages`.
+- `iot-subscribe` restores `listening` after each command; its documentation now describes command delivery through MQTT request endpoints.
+- `Documentation` matches the supplied examples, standardizes example titles, and clarifies package installation, restarting Node-RED, Oracle Client setup, and certificate verification.
+
+---
+
 ## [0.6.0] - 2026-07-31
 
 ### Added
