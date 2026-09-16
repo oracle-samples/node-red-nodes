@@ -26,6 +26,8 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
   - Lookup nodes (asset, meter reading, organization)
 
 - **oci-nodes**
+  - `oci-api-request` for signed OCI HTTPS API requests
+  - `oci-monitoring-publish` and `oci-monitoring-query` for custom metrics and MQL queries
   - OCI authentication config (Config File, Instance Principal, Resource Principal, API Key)
   - `oci-streaming-config`, `oci-streaming-out`, `oci-streaming-in`, and `oci-streaming-commit` for publishing and consuming native OCI Streaming with automatic or explicit consumer-group commits
   - `oci-kafka-config`, `oci-kafka-producer`, `oci-kafka-consumer`, and `oci-kafka-commit` for publishing and consuming OCI Managed Kafka (OCI Streaming with Apache Kafka) topics over TLS with automatic or explicit offset commits

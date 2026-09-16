@@ -19,6 +19,9 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 
 | Node | Category | Description |
 |------|----------|-------------|
+| **oci-api-request** | oci | Sends signed OCI HTTPS requests with configurable methods, response decoding, and timeouts. |
+| **oci-monitoring-publish** | oci | Publishes one custom metric data point per input message. |
+| **oci-monitoring-query** | oci | Queries OCI Monitoring metric series using MQL. |
 | **oci-streaming-out** | oci | Publishes one record or an explicit batch to native OCI Streaming. |
 | **oci-streaming-in** | oci | Consumes native OCI Streaming through a consumer group with automatic or manual commits. |
 | **oci-streaming-commit** | oci | Explicitly commits a record emitted by Streaming In in Manual mode. |
@@ -73,7 +76,7 @@ OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep
 
 ### oci-config (OCI REST API Authentication)
 
-Used by: `oci-streaming-config`, `oci-functions-invoke`, `oci-queue-config`, `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
+Used by: `oci-api-request`, `oci-monitoring-publish`, `oci-monitoring-query`, `oci-streaming-config`, `oci-functions-invoke`, `oci-queue-config`, `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
