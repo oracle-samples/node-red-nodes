@@ -1,0 +1,69 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-streaming-out", {
+    category: "oci",
+    paletteLabel: "streaming out",
+    defaults: {
+        name: { value: "" },
+        streamingConfig: { type: "oci-streaming-config", required: true }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-chevron-circle-up",
+    align: "right",
+    label: function () {
+        return this.name || "streaming out";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-streaming-out">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-streamingConfig" style="width:120px;"><i class="fa fa-cloud"></i> Streaming Config</label>
+        <input type="text" id="node-input-streamingConfig">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-streaming-out">
+<p>Publishes one record or an explicit batch to native OCI Streaming.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>Streaming Config</dt><dd>References the target OCI Streaming Config node.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>The unchanged input payload.</dd>
+    <dt>msg.statusCode <span class="property-type">number</span></dt><dd>The OCI service HTTP status.</dd>
+    <dt>msg.ociStreaming.result <span class="property-type">object</span></dt><dd>The OCI put-messages result, including per-record partition and offset metadata.</dd>
+    <dt>msg.ociStreaming.streamOcid <span class="property-type">string</span></dt><dd>The Stream OCID used for the request.</dd>
+    <dt>msg.ociStreaming.opcRequestId <span class="property-type">string</span></dt><dd>The OCI request ID.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On failure, <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt>
+    <dd>Value for one record. Objects and arrays are JSON-serialized; strings and Buffers retain their bytes; finite numbers, booleans, and null become strings.</dd>
+    <dt class="optional">msg.ociStreaming.key <span class="property-type">any</span></dt>
+    <dd>Optional key for the single record, serialized like the value.</dd>
+    <dt class="optional">msg.ociStreaming.messages <span class="property-type">array</span></dt>
+    <dd>Overrides the single record with a non-empty batch shaped as <code>{ value, key? }</code>. A payload array by itself remains one JSON record.</dd>
+    <dt class="optional">msg.ociStreaming.opcRequestId <span class="property-type">string</span></dt>
+    <dd>Optional caller-supplied OCI request ID.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>The output preserves all upstream properties. Values and keys are Base64-encoded for the OCI SDK request. The node makes one PutMessages attempt per input. Retrying through a flow may duplicate records already accepted by OCI, including successful entries from a partially failed batch.</p>
+<p>If OCI reports a partial batch failure, the node keeps the service result in <code>msg.ociStreaming.result</code> and routes the message through a Catch node. Record values and keys are not written to node status or error logs.</p>
+
+<h3>Prerequisites</h3>
+<p>The OCI principal selected by the Streaming Config must have <code>stream-push</code> permission for the target native OCI stream.</p>
+</script>

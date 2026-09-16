@@ -1,0 +1,95 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-queue-in", {
+    category: "oci",
+    paletteLabel: "queue in",
+    defaults: {
+        name: { value: "" },
+        queueConfig: { type: "oci-queue-config", required: true },
+        outputMode: { value: "individual", required: true },
+        limit: { value: 10, required: true, validate: RED.validators.number() },
+        pollTimeoutSeconds: { value: 20, required: true, validate: RED.validators.number() },
+        visibilityInSeconds: { value: "", validate: RED.validators.regex(/^$|^\d+$/) },
+        channelFilter: { value: "" },
+        consumerGroupId: { value: "" },
+        retryDelayMs: { value: 5000, required: true, validate: RED.validators.number() }
+    },
+    inputs: 0,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-sign-in",
+    label: function () { return this.name || "queue in"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-queue-in">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-queueConfig" style="width:120px;"><i class="fa fa-cloud"></i> Queue Config</label>
+        <input type="text" id="node-input-queueConfig">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-outputMode" style="width:155px;"><i class="fa fa-list"></i> Output Mode</label>
+        <select id="node-input-outputMode" style="width:200px;">
+            <option value="individual">Individual messages</option>
+            <option value="batch">Batch array</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-limit" style="width:155px;"><i class="fa fa-list-ol"></i> Batch Limit</label>
+        <input type="number" id="node-input-limit" min="1" max="20" style="width:80px;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-pollTimeoutSeconds" style="width:155px;"><i class="fa fa-clock-o"></i> Poll Timeout (seconds)</label>
+        <input type="number" id="node-input-pollTimeoutSeconds" min="0" max="30" style="width:100px;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-visibilityInSeconds" style="width:155px;"><i class="fa fa-eye-slash"></i> Visibility (seconds)</label>
+        <input type="number" id="node-input-visibilityInSeconds" min="0" max="43200" style="width:100px;" placeholder="Queue default">
+        <div style="margin-left:160px;font-size:11px;color:#888;margin-top:2px;">Leave empty to use the queue default.</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-retryDelayMs" style="width:155px;"><i class="fa fa-clock-o"></i> Retry Delay (ms)</label>
+        <input type="number" id="node-input-retryDelayMs" min="100" max="300000" style="width:100px;">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-channelFilter" style="width:155px;"><i class="fa fa-filter"></i> Channel Filter</label>
+        <input type="text" id="node-input-channelFilter" placeholder="Optional" style="width:calc(100% - 162px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-consumerGroupId" style="width:155px;"><i class="fa fa-users"></i> Consumer Group ID</label>
+        <input type="text" id="node-input-consumerGroupId" placeholder="Optional" style="width:calc(100% - 162px);">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-queue-in">
+<p>Starts long-polling OCI Queue when deployed. Emits individual messages by default, or one batch array per non-empty receive response.</p>
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>Output Mode</dt><dd>Individual messages (default) or Batch array. An array-valued message remains one record; its contents are never split.</dd>
+    <dt>Batch Limit</dt><dd>Maximum messages per receive request, from 1 to 20.</dd>
+    <dt>Poll Timeout</dt><dd>Long-poll wait from 1 to 30 seconds. Zero selects short polling and applies Retry Delay after empty responses.</dd>
+    <dt>Visibility</dt><dd>How long received messages are hidden. Leave empty for the queue default.</dd>
+    <dt>Channel Filter</dt><dd>Optional channel selection.</dd>
+    <dt>Consumer Group ID</dt><dd>Optional consumer group passed through to receive and later acknowledgement.</dd>
+    <dt>Retry Delay</dt><dd>Delay after an empty short poll or receive failure, from 100 to 300000 milliseconds. The default is 5000.</dd>
+</dl>
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Parsed JSON when valid, otherwise the raw string content.</dd>
+    <dt>msg.ociQueue <span class="property-type">object</span></dt><dd>Queue OCID, message ID, receipt, delivery count, timestamps, metadata, consumer group, and OCI request ID.</dd>
+    <dt>msg.statusCode <span class="property-type">number</span></dt><dd>The OCI receive HTTP status.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On receive failure, <code>{ message, code }</code> is sent to a Catch node.</dd>
+</dl>
+<h3>Details</h3>
+<p>Batch output uses <code>msg.payload</code> as an array of decoded contents, with aligned per-message metadata and receipts in <code>msg.ociQueue.records</code> and a <code>messageCount</code>. Batches contain up to Batch Limit messages and need not be full. Preserve this metadata and process every entry before Queue Ack. One large array inside a single queue message is still subject to the service's per-message size limit.</p>
+<p>This node does not auto-delete messages. Wire successful processing to <code>oci-queue-ack</code>, which uses the receipt to acknowledge explicitly. If processing fails or visibility expires, OCI Queue can redeliver the message; queue-level maximum delivery attempts and dead-letter queue settings govern exhausted messages.</p>
+<p>Receive failures are reported to a Node-RED Catch node and polling resumes after Retry Delay.</p>
+<p>Stopping or redeploying cancels this node's HTTP receive without waiting for the full poll timeout or affecting other nodes. Late authentication/receive completions cannot start another read or emit messages. An already accepted receive may still hide messages until visibility expires. Queue In manages receive retry/backoff without the SDK circuit breaker; the SDK may print one cancellation warning on shutdown.</p>
+</script>

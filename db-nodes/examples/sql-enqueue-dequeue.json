@@ -2,24 +2,24 @@
     {
         "id": "e6f1d4553b898963",
         "type": "tab",
-        "label": "SQL →  Enqueue →  Dequeue → If Not Found, Create Subscriber Example",
+        "label": "AQ Subscriber and Message Processing",
         "disabled": false,
-        "info": "",
+        "info": "Configure the database connection and an existing multi-consumer JSON queue named JSON_QUEUE in the connected schema. Queue administration privileges are required to add MY_DEVICE. If the first run creates the subscriber, click Run AQ example again to enqueue and dequeue a message. The subscriber rule matches the sample endpoint. This example does not use a managed transaction block: standalone dequeue commits removal before downstream processing. An empty queue produces no message. Use a non-production database.",
         "env": []
     },
     {
         "id": "2e498247dd561634",
         "type": "sql",
         "z": "e6f1d4553b898963",
-        "name": "",
+        "name": "Check queue subscriber",
         "connection": "648c32eae9b1e56e",
         "sqlSource": "editor",
-        "sqlcmd": "SELECT *\nFROM ALL_QUEUE_SUBSCRIBERS\nWHERE QUEUE_NAME = 'JSON_QUEUE'\nAND CONSUMER_NAME = 'MY_DEVICE';",
+        "sqlcmd": "SELECT *\nFROM ALL_QUEUE_SUBSCRIBERS\nWHERE QUEUE_NAME = 'JSON_QUEUE'\nAND CONSUMER_NAME = 'MY_DEVICE'",
         "maxrows": 1000,
         "bindsSource": "editor",
         "bindsMappings": "[]",
-        "x": 270,
-        "y": 100,
+        "x": 390,
+        "y": 140,
         "wires": [
             [
                 "8030254eb9bc1125"
@@ -30,15 +30,15 @@
         "id": "ae056cc7dbd0af1a",
         "type": "sql",
         "z": "e6f1d4553b898963",
-        "name": "create subscriber",
+        "name": "Create queue subscriber",
         "connection": "648c32eae9b1e56e",
         "sqlSource": "editor",
         "sqlcmd": "BEGIN \nDBMS_AQADM.ADD_SUBSCRIBER( queue_name => 'JSON_QUEUE', \nsubscriber => SYS.AQ$_AGENT('MY_DEVICE', NULL, NULL), \nrule => q'[ JSON_VALUE(tab.user_data, '$.endpoint') = 'iot/v1/device/credentials/request/MY-DEVICE' ]' ); \nEND; ",
         "maxrows": 1000,
         "bindsSource": "editor",
         "bindsMappings": "[]",
-        "x": 630,
-        "y": 60,
+        "x": 920,
+        "y": 80,
         "wires": [
             []
         ]
@@ -47,7 +47,7 @@
         "id": "d04f8b2bed3f8637",
         "type": "enqueue",
         "z": "e6f1d4553b898963",
-        "name": "",
+        "name": "Enqueue sample message",
         "connection": "648c32eae9b1e56e",
         "queueName": "JSON_QUEUE",
         "recipients": "",
@@ -57,8 +57,8 @@
         "userPayload": "[\n{\n  \"endpoint\": \"iot/v1/device/credentials/request/MY-DEVICE\",\n  \"data\": {\n    \"source\": \"test_data\"}\n}\n]",
         "enableOutput": true,
         "outputs": 1,
-        "x": 600,
-        "y": 140,
+        "x": 920,
+        "y": 200,
         "wires": [
             [
                 "9b86a68426f36041"
@@ -69,7 +69,7 @@
         "id": "9b86a68426f36041",
         "type": "dequeue",
         "z": "e6f1d4553b898963",
-        "name": "",
+        "name": "Read subscriber message",
         "connection": "648c32eae9b1e56e",
         "mode": "transactional",
         "queueName": "JSON_QUEUE",
@@ -83,8 +83,8 @@
         "retryDelayMs": 5000,
         "maxRetries": 0,
         "batchSize": 1,
-        "x": 780,
-        "y": 140,
+        "x": 1210,
+        "y": 200,
         "wires": [
             [
                 "f1df839030440931"
@@ -95,26 +95,26 @@
         "id": "8030254eb9bc1125",
         "type": "switch",
         "z": "e6f1d4553b898963",
-        "name": "",
+        "name": "Subscriber exists?",
         "property": "payload.length",
         "propertyType": "msg",
         "rules": [
             {
                 "t": "eq",
                 "v": "0",
-                "vt": "str"
+                "vt": "num"
             },
             {
                 "t": "gt",
                 "v": "0",
-                "vt": "str"
+                "vt": "num"
             }
         ],
         "checkall": "true",
         "repair": false,
         "outputs": 2,
-        "x": 430,
-        "y": 100,
+        "x": 650,
+        "y": 140,
         "wires": [
             [
                 "ae056cc7dbd0af1a"
@@ -128,7 +128,7 @@
         "id": "f1df839030440931",
         "type": "debug",
         "z": "e6f1d4553b898963",
-        "name": "debug 50",
+        "name": "Dequeued message",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -137,23 +137,23 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 960,
-        "y": 140,
+        "x": 1480,
+        "y": 200,
         "wires": []
     },
     {
         "id": "0ace44e68e4722f4",
         "type": "inject",
         "z": "e6f1d4553b898963",
-        "name": "",
+        "name": "Run AQ example",
         "props": [],
         "repeat": "",
         "crontab": "",
         "once": false,
         "onceDelay": 0.1,
         "topic": "",
-        "x": 110,
-        "y": 100,
+        "x": 140,
+        "y": 140,
         "wires": [
             [
                 "2e498247dd561634"
@@ -185,7 +185,45 @@
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-nodes": "0.6.0"
+            "node-red-nodes": "0.7.0"
         }
+    },
+    {
+        "id": "aq-example-catch-errors",
+        "type": "catch",
+        "z": "e6f1d4553b898963",
+        "name": "Catch AQ processing errors",
+        "scope": [
+            "2e498247dd561634",
+            "ae056cc7dbd0af1a",
+            "d04f8b2bed3f8637",
+            "9b86a68426f36041",
+            "8030254eb9bc1125"
+        ],
+        "uncaught": false,
+        "x": 220,
+        "y": 320,
+        "wires": [
+            [
+                "aq-example-debug-error"
+            ]
+        ]
+    },
+    {
+        "id": "aq-example-debug-error",
+        "type": "debug",
+        "z": "e6f1d4553b898963",
+        "name": "AQ processing error",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "error",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 530,
+        "y": 320,
+        "wires": []
     }
 ]

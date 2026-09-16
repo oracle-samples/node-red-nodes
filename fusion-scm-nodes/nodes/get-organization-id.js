@@ -60,7 +60,8 @@ module.exports = function(RED) {
                 if (!paramValue) {
                     node.status({ fill: "red", shape: "ring", text: "no organization name" });
                     const err = new Error("No Organization Name provided");
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 

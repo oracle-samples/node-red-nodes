@@ -92,7 +92,8 @@ module.exports = function (RED) {
             if (!digitalTwinId) {
                 const err = new Error("No Digital Twin Instance OCID configured or provided in msg.digitalTwinOcid");
                 node.status({ fill: "red", shape: "ring", text: "no twin OCID" });
-                node.error(err.message, msg);
+                err.code = err.code ? String(err.code) : null;
+                msg.error = { message: err.message, code: err.code };
                 return done(err);
             }
 
@@ -105,7 +106,8 @@ module.exports = function (RED) {
                 );
             } catch (validationErr) {
                 node.status({ fill: "red", shape: "ring", text: "invalid metadata flag" });
-                node.error(validationErr.message, msg);
+                validationErr.code = validationErr.code ? String(validationErr.code) : null;
+                msg.error = { message: validationErr.message, code: validationErr.code };
                 return done(validationErr);
             }
 
@@ -131,10 +133,6 @@ module.exports = function (RED) {
 
                 send(outMsg);
                 done();
-
-                setTimeout(function () {
-                    node.status({});
-                }, 3000);
             } catch (err) {
                 ociError.handleNodeError(node, msg, err, done, { statusText: "get content failed" });
             }

@@ -142,21 +142,24 @@ module.exports = function (RED) {
                 if (!namespace) {
                     const err = new Error("No namespace configured or provided in msg.namespace");
                     node.status({ fill: "red", shape: "ring", text: "no namespace" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
                 if (!bucketName) {
                     const err = new Error("No bucket name configured or provided in msg.bucketName");
                     node.status({ fill: "red", shape: "ring", text: "no bucket" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
                 if (!objectName) {
                     const err = new Error("No object name configured or provided in msg.objectName");
                     node.status({ fill: "red", shape: "ring", text: "no object" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
@@ -172,7 +175,8 @@ module.exports = function (RED) {
                         if (!filePath) {
                             const err = new Error("No upload body found in msg.payload and no file path configured/provided");
                             node.status({ fill: "red", shape: "ring", text: "no upload body" });
-                            node.error(err.message, msg);
+                            err.code = err.code ? String(err.code) : null;
+                            msg.error = { message: err.message, code: err.code };
                             return done(err);
                         }
                         uploadBody = await fs.promises.readFile(filePath);
@@ -264,14 +268,10 @@ module.exports = function (RED) {
                 } else {
                     const err = new Error("Unsupported operation: " + operation + ". Use 'upload' or 'download'.");
                     node.status({ fill: "red", shape: "ring", text: "invalid operation" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
-
-                setTimeout(function () {
-                    node.status({});
-                }, 3000);
-
             } catch (err) {
                 ociError.handleNodeError(node, msg, err, done, { statusText: "operation failed" });
             }

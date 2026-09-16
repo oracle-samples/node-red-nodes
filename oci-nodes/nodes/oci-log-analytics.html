@@ -261,6 +261,7 @@ RED.nodes.registerType("oci-log-analytics", {
 
 <script type="text/x-red" data-help-name="oci-log-analytics">
 <p>Pushes log entries to OCI Logging Analytics for search, visualization, and alerting.</p>
+<p><code>msg.namespace</code>, <code>msg.logGroupOcid</code>, <code>msg.logSourceName</code>, and <code>msg.entityOcid</code> are used only when the matching editor fields are blank.</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">

@@ -1,6 +1,6 @@
 # Node-RED OCI Nodes
 
-Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration and the OCI IoT Platform. These nodes enable OCI Notifications, OCI Logging, OCI Log Analytics, Object Storage file transfer, IoT device telemetry, and command-response workflows.
+Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration and the OCI IoT Platform. These nodes enable native OCI Streaming publishing and consumption, managed Kafka publishing and consumption, Functions invocation, Queue processing, OCI Notifications, OCI Logging, OCI Log Analytics, Object Storage file transfer, IoT device telemetry, and command-response workflows.
 
 ## Nodes
 
@@ -9,6 +9,9 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | Node | Category | Description |
 |------|----------|-------------|
 | **oci-config** | config | OCI authentication for REST API nodes. Supports Config File, Instance Principal, Resource Principal, and API Key. |
+| **oci-streaming-config** | config | Shared OCI authentication, Stream OCID, and Messages endpoint for native OCI Streaming. |
+| **oci-kafka-config** | config | TLS and SASL/SCRAM-SHA-512 connection for OCI Managed Kafka (OCI Streaming with Apache Kafka). |
+| **oci-queue-config** | config | Shared OCI Queue authentication, queue OCID, and queue-specific Messages endpoint. |
 | **ords-config** | config | ORDS OAuth client-credentials configuration for ORDS request and polling nodes. |
 | **iot-config** | config | MQTT connection to the OCI IoT Platform. Supports Basic and Certificate auth, persistent sessions, command subscriptions, and advanced connection tuning (clean session, keepalive, reconnect period, connect timeout). MQTTS on port 8883 only. |
 
@@ -16,6 +19,19 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 
 | Node | Category | Description |
 |------|----------|-------------|
+| **oci-api-request** | oci | Sends signed OCI HTTPS requests with configurable methods, response decoding, and timeouts. |
+| **oci-monitoring-publish** | oci | Publishes one custom metric data point per input message. |
+| **oci-monitoring-query** | oci | Queries OCI Monitoring metric series using MQL. |
+| **oci-streaming-out** | oci | Publishes one record or an explicit batch to native OCI Streaming. |
+| **oci-streaming-in** | oci | Consumes native OCI Streaming through a consumer group with automatic or manual commits. |
+| **oci-streaming-commit** | oci | Explicitly commits a record emitted by Streaming In in Manual mode. |
+| **oci-kafka-producer** | oci | Publishes `msg.payload` to a configured or message-routed managed Kafka topic. |
+| **oci-kafka-consumer** | oci | Consumes one managed Kafka topic with automatic or manual offset commits. |
+| **oci-kafka-commit** | oci | Explicitly commits a record emitted by Kafka Consumer in Manual mode. |
+| **oci-functions-invoke** | oci | Invokes an OCI Function synchronously or detached. |
+| **oci-queue-out** | oci | Publishes one message or an explicit batch of up to 20 OCI Queue messages. |
+| **oci-queue-in** | oci | Long-polls OCI Queue and emits receipt-bearing messages without auto-deleting them. |
+| **oci-queue-ack** | oci | Explicitly acknowledges successful processing by deleting a received queue message. |
 | **oci-notification** | oci | Publishes messages to OCI Notifications topics (email, Slack, PagerDuty, webhook, SMS, OCI Functions). |
 | **oci-log-analytics** | oci | Uploads log events to OCI Log Analytics for search, parsing, and analytics workflows. |
 | **oci-logging** | oci | Pushes log entries to OCI Logging (Custom Logs) using the Logging Ingestion API (`putLogs`). |
@@ -35,7 +51,7 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 
 | Node | Category | Description |
 |------|----------|-------------|
-| **iot-subscribe** | oci | Subscribes to OCI IoT MQTT topics and emits incoming messages. |
+| **iot-subscribe** | oci | Receives commands delivered by OCI IoT to the configured device through an MQTT request endpoint. |
 | **iot-telemetry** | oci | Publishes telemetry data to the IoT Platform. |
 
 ## Installation
@@ -46,26 +62,21 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 - Node.js v18+
 - An OCI tenancy with appropriate IAM policies
 
-### Install Dependencies
+### Install the Node Package
 
-Inside your Node-RED user directory (`~/.node-red`):
-
-```bash
-npm install oci-sdk@2.137.0  # OCI Notifications, Logging, Log Analytics, Object Storage, IoT control-plane nodes
-npm install mqtt@5.15.2      # IoT Telemetry, IoT MQTT In
-```
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
 
 ## Error Handling
 
-OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when OCI SDK or ORDS responses include server-side detail text, that text is promoted into `msg.error.message`. OCI/ORDS failures preserve raw response bodies in `msg.payload` when available.
+OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when OCI SDK or ORDS responses include server-side detail text, that text is promoted into `msg.error.message`. Existing OCI/ORDS request nodes preserve raw response bodies in `msg.payload` when available. Streaming Out, Streaming Commit, Kafka Producer, Kafka Commit, Functions Invoke, Queue Out, and Queue Ack preserve their input payload on failure.
 
 ## Authentication
 
 ### oci-config (OCI REST API Authentication)
 
-Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
+Used by: `oci-api-request`, `oci-monitoring-publish`, `oci-monitoring-query`, `oci-streaming-config`, `oci-functions-invoke`, `oci-queue-config`, `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
@@ -77,6 +88,20 @@ Used by: `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-sto
 > **Note:** Instance Principal and Resource Principal only work inside OCI. Config File and API Key work from any machine.
 
 Use **Test OCI Credentials** after deploy to validate the selected authentication mode.
+
+### oci-streaming-config (Native OCI Streaming)
+
+Used by: `oci-streaming-out`, `oci-streaming-in`
+
+Configure the target Stream OCID and the HTTPS Messages endpoint shown on the native OCI stream details page. The config creates one shared data-plane client from the selected `oci-config`. Streaming Out requires `stream-push`; Streaming In requires `stream-pull`. Streaming In supports Automatic mode for simple delivery and Manual mode with Streaming Commit when downstream success must control progress. A public stream pool is reachable through its public endpoint; a private stream pool additionally requires working VCN routing and DNS from the Node-RED host.
+
+### oci-kafka-config (Managed Kafka Authentication)
+
+Used by: `oci-kafka-producer`, `oci-kafka-consumer`
+
+Kafka broker authentication is separate from OCI API request signing. Configure the SASL/SCRAM bootstrap `host:port` entries from the managed Kafka cluster, a Client ID, the cluster's SASL/SCRAM superuser name, and the generated password stored in the manually generated OCI Vault secret associated with that cluster. The password is stored in Node-RED credentials. Connections always use TLS with SASL/SCRAM-SHA-512. Use **Test Kafka Connection** after deploy.
+
+Kafka Consumer supports Automatic commits for simple delivery and Manual commits for workflows that should advance only after Kafka Commit succeeds. Automatic mode records source-node delivery, not successful downstream processing. Use Manual mode and commit after processing when failed work must remain eligible for replay; keep downstream processing idempotent because replay can repeat completed side effects.
 
 ### iot-config (MQTT Device Authentication)
 
@@ -113,11 +138,13 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 
 ## Typical Flows
 
+These are wiring patterns, not separate example files. The package's importable flow is [Device Telemetry and Commands](./examples/alert-shutdown-threshold.json).
+
 **Publish telemetry every 10 seconds:**
 `inject` (with JSON payload or use function node to build payload) → `iot telemetry`
 
-**Receive and log MQTT messages:**
-`subscribe` → `debug`
+**Receive device commands:**
+`iot-subscribe` → `debug`
 
 **Send a command to a device:**
 `inject` (JSON payload) → `iot send command` → `debug`
@@ -134,6 +161,18 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 **Alert on threshold breach:**
 `dequeue` → `switch` (condition) → `oci notification`
 
+**Publish an enriched event to managed Kafka:**
+`function` → `kafka producer` → `debug`
+
+**Consume managed Kafka records:**
+`kafka consumer` → processing nodes → `debug`
+
+**Transform an event with OCI Functions:**
+`inject` / `dequeue` → `functions invoke` → `debug`
+
+**Reliably process an OCI Queue message:**
+`queue in` → processing nodes → `queue ack`; route processing failures to a Catch path without acknowledging the message
+
 **Write custom application events to OCI Logging:**
 `function` (build payload) → `oci logging` → `debug`
 
@@ -146,24 +185,24 @@ See [OCI IoT Documentation](https://docs.oracle.com/en-us/iaas/Content/internet-
 **Download an object from Object Storage:**
 `inject` → `oci object storage` (download) → `debug` / `file`
 
-**Full command round-trip:**
+**Deliver a command to a device:**
 `inject` → `iot send command` → `debug` (command sent)
-`subscribe` → `debug` (message received on device-side subscription)
+`iot-subscribe` → `debug` (command received on the configured MQTT request endpoint)
 
-**Closed-loop IoT to Fusion SCM:**
-`subscribe` / `inject` → `smart operations transformer` → `smart operations event`; fault branch → `maintenance work order` and `iot send command`
+**Sample fault telemetry to Fusion SCM:**
+`inject` (sample telemetry) → `smart operations transformer` → `smart operations event`; fault branch → `maintenance work order` and `iot send command`
 
 ## Contributing
 
-This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](../CONTRIBUTING.md).
+This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](./CONTRIBUTING.md).
 
 ## Security
 
-Please consult the [security guide](../SECURITY.md) for our responsible security vulnerability disclosure process.
+Please consult the [security guide](./SECURITY.md) for our responsible security vulnerability disclosure process.
 
 ## License
 
-See [LICENSE](../LICENSE.txt).
+See [LICENSE](./LICENSE.txt).
 
 ## Disclaimer
 

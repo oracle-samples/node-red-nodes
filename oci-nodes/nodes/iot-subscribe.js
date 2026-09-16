@@ -81,12 +81,10 @@ module.exports = function (RED) {
             return;
         }
         node.qos = normalizeQos(config.qos, 1);
-        var statusResetTimer = null;
-
         function onConnection(state) {
             switch (state) {
                 case "connected":
-                    node.status({ fill: "green", shape: "dot", text: "listening" });
+                    node.status({ fill: "blue", shape: "ring", text: "listening" });
                     break;
                 case "reconnecting":
                     node.status({ fill: "yellow", shape: "ring", text: "reconnecting" });
@@ -103,9 +101,9 @@ module.exports = function (RED) {
         node.iotDevice.onConnection(onConnection);
 
         if (node.iotDevice.isConnected()) {
-            node.status({ fill: "green", shape: "dot", text: "listening" });
+            node.status({ fill: "blue", shape: "ring", text: "listening" });
         } else {
-            node.status({ fill: "yellow", shape: "ring", text: "connecting" });
+            node.status({ fill: "yellow", shape: "dot", text: "connecting" });
         }
 
         /**
@@ -140,20 +138,9 @@ module.exports = function (RED) {
                 topic: receivedTopic
             };
 
-            node.status({ fill: "blue", shape: "dot", text: topicSuffix || receivedTopic });
-
+            node.status({ fill: "green", shape: "dot", text: "received" });
             node.send(msg);
-
-            // Restore listening status after a brief visual cue.
-            if (statusResetTimer) {
-                clearTimeout(statusResetTimer);
-            }
-            statusResetTimer = setTimeout(function () {
-                statusResetTimer = null;
-                if (node.iotDevice.isConnected()) {
-                    node.status({ fill: "green", shape: "dot", text: "listening" });
-                }
-            }, 2000);
+            node.status({ fill: "blue", shape: "ring", text: "listening" });
         }
 
         node.iotDevice.subscribe(node.subscriptionTopic, node.qos, onMessage);
@@ -163,10 +150,6 @@ module.exports = function (RED) {
             function finish() {
                 if (finished) return;
                 finished = true;
-                if (statusResetTimer) {
-                    clearTimeout(statusResetTimer);
-                    statusResetTimer = null;
-                }
                 node.iotDevice.offConnection(onConnection);
                 done();
             }

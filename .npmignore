@@ -1,3 +1,6 @@
 # Development-only files excluded from the published package
 */test/
-*.test.js
+*.test.cjs
+**/*.test.js
+**/*.test.cjs
+*.tgz

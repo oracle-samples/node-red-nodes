@@ -1,0 +1,53 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-queue-ack", {
+    category: "oci",
+    paletteLabel: "queue ack",
+    defaults: {
+        name: { value: "" },
+        queueConfig: { type: "oci-queue-config", required: true }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-check",
+    label: function () { return this.name || "queue ack"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-queue-ack">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-queueConfig" style="width:120px;"><i class="fa fa-cloud"></i> Queue Config</label>
+        <input type="text" id="node-input-queueConfig">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-queue-ack">
+<p>Explicitly acknowledges successfully processed OCI Queue messages by deleting them individually or as a batch.</p>
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>Queue Config</dt><dd>References the same OCI Queue Config used to receive the message.</dd>
+</dl>
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>The unchanged input payload.</dd>
+    <dt>msg.statusCode <span class="property-type">number</span></dt><dd>The delete HTTP status, normally 204 for an individual message or 200 for a batch.</dd>
+    <dt>msg.ociQueue.acknowledged <span class="property-type">boolean</span></dt><dd>True after OCI confirms the delete.</dd>
+    <dt>msg.ociQueue.opcRequestId <span class="property-type">string</span></dt><dd>The delete request ID.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On failure, <code>{ message, code }</code>.</dd>
+</dl>
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.ociQueue.receipt <span class="property-type">string</span></dt><dd>The opaque receipt emitted by Queue In.</dd>
+    <dt class="optional">msg.ociQueue.consumerGroupId <span class="property-type">string</span></dt><dd>The consumer group used to receive the message.</dd>
+</dl>
+<h3>Details</h3>
+<p>An explicit batch from Queue In uses <code>msg.ociQueue.records</code>, not the payload's array type, to select one <code>DeleteMessages</code> request. Preserve the aligned payload, records, messageCount, queue, and consumer group. Batches require 1–20 distinct receipts. Process every entry before acknowledging.</p>
+<p>OCI may delete some messages and reject others. <code>acknowledged: true</code> is emitted only when every entry succeeds. Partial failure goes to Catch with the original payload and receipts, <code>msg.ociQueue.ackResults</code> (index, acknowledged, and any error detail), <code>acknowledgedCount</code>, and <code>failedCount</code>. If A and C were deleted but B failed, retry only B's deletion: keep B's payload and receipt together and set <code>messageCount</code> to <code>1</code>. Malformed responses or network failures leave acknowledgement false and outcomes unknown; do not assume nothing was deleted. No batch is inferred from an array-valued single message.</p>
+<p>All upstream properties are preserved. Missing or stale receipts fail through <code>done(err)</code> and can be handled with a Node-RED Catch node. Receipt values are not written to status text.</p>
+</script>

@@ -36,6 +36,7 @@
 
 module.exports = function(RED) {
     const dbError = require("../lib/db-error.js");
+    var transactions = require("../lib/db-transaction.js")(RED);
 
     function EndTransactionNode(config) {
         RED.nodes.createNode(this, config);
@@ -48,73 +49,31 @@ module.exports = function(RED) {
         }
 
         node.on("input", async (msg, send, done) => {
-            if (msg.transaction && msg.transaction.timedOut) {
-                return dbError.handleNodeError(node, msg, new Error("Transaction timed out"), done, {
-                    statusText: "timed out",
-                    statusShape: "ring"
-                });
-            }
-
-            if (msg.transaction && msg.transaction._ended) {
-                node.status({ fill: "yellow", shape: "ring", text: "already ended" });
-                return done();
-            }
-
-            if (!msg.transaction || !msg.transaction.connection) {
-                if (msg.transaction && !msg.transaction.connection) {
-                    node.status({ fill: "yellow", shape: "ring", text: "no transaction (timed out/closed)" });
-                    node.warn("Transaction context exists but connection is closed");
-                } else {
-                    node.status({ fill: "red", shape: "ring", text: "no transaction" });
-                }
-                send(msg);
-                return done();
-            }
-
-            // Clear the safety timeout from begin-transaction and stop begin
-            // from tracking this transaction (prevents timer-handle accumulation).
-            if (typeof msg.transaction._untrack === "function") {
-                msg.transaction._untrack();
-            } else if (msg.transaction._timeout) {
-                clearTimeout(msg.transaction._timeout);
-                msg.transaction._timeout = null;
-            }
-
-            // Calculate elapsed time
-            const elapsed = msg.transaction.startedAt
-                ? ((Date.now() - msg.transaction.startedAt) / 1000).toFixed(1)
-                : "?";
             const action = node.action === "rollback" ? "rollback" : "commit";
-
+            var elapsed = "?";
             try {
-                msg.transaction._ended = true;
+                var txn = transactions.get(msg);
+                if (!txn) {
+                    node.status({ fill: "red", shape: "ring", text: "no transaction" });
+                    send(msg);
+                    return done();
+                }
+                elapsed = ((Date.now() - txn.startedAt) / 1000).toFixed(1);
+                node.status({ fill: "yellow", shape: "dot", text: action === "rollback" ? "rolling back..." : "committing..." });
+                await transactions.finish(txn, action);
+                delete msg.transaction;
+                delete msg._dbTransaction;
 
                 if (action === "rollback") {
-                    await msg.transaction.connection.rollback();
-                    await msg.transaction.connection.close();
-                    delete msg.transaction;
-
                     node.status({ fill: "yellow", shape: "dot", text: `rolled back (${elapsed}s)` });
                 } else {
-                    await msg.transaction.connection.commit();
-                    await msg.transaction.connection.close();
-                    delete msg.transaction;
-
                     node.status({ fill: "green", shape: "dot", text: `committed (${elapsed}s)` });
                 }
 
                 send(msg);
                 done();
             } catch (err) {
-                node.status({ fill: "red", shape: "dot", text: `${action} failed (${elapsed}s)` });
-
-                // Attempt cleanup
-                if (msg.transaction && msg.transaction.connection) {
-                    try { await msg.transaction.connection.rollback(); } catch (e) { /* ignore */ }
-                    try { await msg.transaction.connection.close(); } catch (e) { /* ignore */ }
-                }
                 delete msg.transaction;
-
                 dbError.handleNodeError(node, msg, err, done, { statusText: `${action} failed (${elapsed}s)` });
             }
         });

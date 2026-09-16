@@ -90,25 +90,32 @@ RED.nodes.registerType("end-transaction", {
 <dl class="message-properties">
     <dt>Action</dt>
     <dd><b>Commit</b> (default): Commits all changes made during the transaction. Dequeued messages
-    are permanently removed from the queue. SCM API calls and SQL DML are finalized.<br/>
+    are permanently removed from the queue. SQL DML on that connection is finalized; external SCM or OCI API calls are not part of the database transaction.<br/>
     <b>Rollback</b>: Rolls back all changes. Dequeued messages return to the queue as if they
-    were never consumed. Use this on error paths to retry failed messages.<br/>
+    were never consumed, provided the message still carries the transaction reference.<br/>
     If an imported flow contains an unknown action value, the node logs a warning and uses commit behavior.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>If the transaction already timed out in <b>begin transaction</b>, this node sets status to
-<code>timed out</code> and calls <code>done(new Error("Transaction timed out"))</code> so Catch
-nodes can handle the failure path explicitly.</p>
-<p>If the same message reaches this node more than once after a transaction has already ended, it
-sets status to <code>already ended</code> and exits without attempting a second commit/rollback.</p>
+<p>End stops new DB work and waits for the active operation before finalizing once. A failed commit
+attempts rollback; connection close is attempted on success or failure. A failed rollback is not repeated.</p>
+<p>Once a DB node reports a processing error, that managed transaction can only roll back.
+If one insert succeeds and the next fails, Commit rolls back both rather than saving the first,
+and reports <code>DB_TRANSACTION_ROLLBACK_REQUIRED</code>.
+An invalid transaction reference does not mark a different transaction as failed.</p>
+<p>Unknown, timed-out, closing, or already-ended references report <code>inactive transaction</code>
+and <code>DB_TRANSACTION_INACTIVE</code> through Catch without another commit/rollback attempt.
+Successful output removes <code>msg._dbTransaction</code> and the private handle.</p>
+<p>Wait for every transaction branch to finish before sending one message to End.
+A branch still in a Delay node may otherwise reach SQL after the transaction has closed.
+Runtime-local references cannot resume transactions after restart or transfer to another process.</p>
 
 <h3>Typical Flows</h3>
-<p><b>Success path commits, error path rolls back:</b></p>
-<pre>begin transaction → dequeue → fusion-request → end transaction (commit)
-                                     ↓ (error)
-                               catch → end transaction (rollback)</pre>
-<p>If fusion-request succeeds, the message is committed and removed. If it fails, the
-catch node routes to a rollback end-transaction, and the message returns to the queue
-for retry.</p>
+<p><b>Transactional database processing:</b></p>
+<pre>begin transaction → dequeue → sql → end transaction (commit)</pre>
+<p><b>Error recovery:</b> A Catch scoped to processing nodes can route to End configured for Rollback.
+Preserve <code>msg._dbTransaction</code> through the flow, and keep End outside its own Catch scope.
+The reference survives Catch, Function send, and fan-out cloning. With neither reference nor private
+handle, End reports <code>no transaction</code> and passes through without a database operation.
+Use a nonzero Begin timeout as a cleanup safeguard; cleanup waits for active DB work to settle.</p>
 </script>

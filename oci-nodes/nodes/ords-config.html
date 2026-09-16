@@ -183,7 +183,7 @@ RED.nodes.registerType("ords-config", {
     <dt>Base URL</dt>
     <dd>ORDS/Data API base URL. Child nodes append relative paths such as <code>/20250531/rawCommandData</code>.</dd>
     <dt>Request Timeout</dt>
-    <dd>Maximum time for token and ORDS HTTP requests before failure.</dd>
+    <dd>Maximum time to receive a complete response, not just HTTP headers. Each OAuth token or ORDS data request has its own timer. For example, a 30-second request still times out if headers arrive promptly but the response body stalls. Closing or redeploying the config aborts active requests, including body reads.</dd>
 </dl>
 
 <h3>Authentication</h3>

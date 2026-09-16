@@ -1254,7 +1254,7 @@
         <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-split-field" style="margin-top:4px;">+ Add Split Field</button>
       </div></div>
       <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = disabled)</label>
+        <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = Max Pending Age)</label>
         <input type="number" id="node-input-staleTimeout" value="0" min="0" style="width:100px;" />
       </div></div>
       <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
@@ -1302,5 +1302,8 @@
     <li><b>Invalid payloads:</b> Non-object and array payloads raise an error and can be routed to a Catch node.</li>
     <li><b>Composite identity:</b> For incomplete composite fragments, both <code>entityCode</code> and <code>eventTime</code> must be present. Missing key parts now fail fast instead of using a shared fallback key.</li>
     <li><b>Pending bounds:</b> Composite pending entries are bounded by stale timeout, max pending age, and max pending count to prevent unbounded memory growth.</li>
+    <li><b>Complete input:</b> A complete event replaces pending partial data with the same identity and cancels its timer.</li>
+    <li><b>Incomplete input:</b> Stale Timeout <code>0</code> uses Max Pending Age, not an unlimited wait. With Max Pending Age <code>60</code> and no further input, the timer emits the partial data after about 60 seconds and removes the pending entry.</li>
+    <li><b>Status:</b> Successful output reports <code>transformed</code>; incomplete composites report <code>waiting: key</code>; validation and execution failures retain their latest error status. Older expiry timers do not clear a newer status.</li>
   </ul>
 </script>

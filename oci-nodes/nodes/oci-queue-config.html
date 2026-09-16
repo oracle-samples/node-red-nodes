@@ -1,0 +1,101 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-queue-config", {
+    category: "config",
+    color: "#F0CC72",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        queueOcid: { value: "", required: true },
+        messagesEndpoint: { value: "", required: true }
+    },
+    label: function () {
+        return this.name || "OCI Queue";
+    },
+    oneditprepare: function () {
+        var nodeId = this.id;
+        setTimeout(function () {
+            $("[id^='node-config-input-']").on("change input", function () {
+                $("#deploy-warning")
+                    .css({ background: "#fff3cd", "border-color": "#ffc107", color: "#856404" })
+                    .html('<i class="fa fa-exclamation-triangle"></i> <strong>Changes detected</strong> — click <strong>Update</strong> then <strong>Deploy</strong> before testing.');
+            });
+        }, 0);
+
+        $("#btn-test-queue").on("click", function () {
+            var btn = $(this);
+            var resultEl = $("#test-queue-result");
+            if (!$("#node-config-input-messagesEndpoint").val().trim()) {
+                resultEl.text("Enter a Messages Endpoint before testing").css("color", "#d62728");
+                return;
+            }
+            btn.prop("disabled", true);
+            resultEl.text("Testing...").css("color", "#888");
+            $.ajax({
+                url: "oci-queue-config/" + nodeId + "/test",
+                type: "POST",
+                success: function (data) {
+                    resultEl.text((data.success ? "\u2713 " : "\u2717 ") + data.message)
+                        .css("color", data.success ? "#2ca02c" : "#d62728");
+                },
+                error: function (err) {
+                    resultEl.text("\u2717 " + (err.status === 404 ? "Deploy the flow first, then test" : "Test failed"))
+                        .css("color", "#d62728");
+                },
+                complete: function () { btn.prop("disabled", false); }
+            });
+        });
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-queue-config">
+    <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Queue Connection</legend>
+        <div class="form-row">
+            <label for="node-config-input-name" style="width:145px;"><i class="fa fa-tag"></i> Name</label>
+            <input type="text" id="node-config-input-name" placeholder="Optional display name">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-ociConfig" style="width:145px;"><i class="fa fa-cloud"></i> OCI Config</label>
+            <input type="text" id="node-config-input-ociConfig">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-queueOcid" style="width:145px;"><i class="fa fa-id-card"></i> Queue OCID</label>
+            <input type="text" id="node-config-input-queueOcid" placeholder="&lt;your-queue-ocid&gt;">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-messagesEndpoint" style="width:145px;"><i class="fa fa-link"></i> Messages Endpoint</label>
+            <input type="text" id="node-config-input-messagesEndpoint" placeholder="https://&lt;cell&gt;.queue.messaging.&lt;region&gt;.oci.&lt;domain&gt;">
+            <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+                Copy the queue-specific Messages endpoint from OCI Queue details.
+            </div>
+        </div>
+    </fieldset>
+
+    <div class="config-test-actions">
+        <div class="form-row" style="text-align:center;margin-top:12px;">
+            <button type="button" class="red-ui-button" id="btn-test-queue">
+                <i class="fa fa-plug"></i> Test OCI Queue Connection
+            </button>
+            <span id="test-queue-result" style="margin-left:10px;font-size:12px;"></span>
+        </div>
+        <div class="form-row" style="text-align:center;margin-top:2px;">
+            <div id="deploy-warning" style="display:inline-block;font-size:11px;color:#555;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;padding:5px 8px;">
+                <i class="fa fa-info-circle"></i> After making changes, click <strong>Update</strong> then <strong>Deploy</strong> before testing.
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-queue-config">
+<p>Provides a shared OCI Queue data-plane client for Queue Out, Queue In, and Queue Ack nodes.</p>
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt><dd>Supplies OCI API authentication.</dd>
+    <dt>Queue OCID</dt><dd>The target queue identifier.</dd>
+    <dt>Messages Endpoint</dt><dd>The queue-specific HTTPS endpoint shown in the queue details. It is different from the Queue control-plane endpoint.</dd>
+    <dt>Test OCI Queue Connection</dt><dd>Calls queue statistics after deploy to validate credentials, queue access, and the Messages endpoint.</dd>
+</dl>
+<p>The endpoint must use the exact OCI Queue messages host structure, an SDK-known OCI realm domain, and the default HTTPS port. Validation occurs before credentials are requested. The SDK client is created on demand and shared by referencing nodes. Closing this configuration releases its client circuit breaker while leaving the shared <code>oci-config</code> authentication provider active.</p>
+</script>

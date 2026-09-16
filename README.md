@@ -26,7 +26,13 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
   - Lookup nodes (asset, meter reading, organization)
 
 - **oci-nodes**
+  - `oci-api-request` for signed OCI HTTPS API requests
+  - `oci-monitoring-publish` and `oci-monitoring-query` for custom metrics and MQL queries
   - OCI authentication config (Config File, Instance Principal, Resource Principal, API Key)
+  - `oci-streaming-config`, `oci-streaming-out`, `oci-streaming-in`, and `oci-streaming-commit` for publishing and consuming native OCI Streaming with automatic or explicit consumer-group commits
+  - `oci-kafka-config`, `oci-kafka-producer`, `oci-kafka-consumer`, and `oci-kafka-commit` for publishing and consuming OCI Managed Kafka (OCI Streaming with Apache Kafka) topics over TLS with automatic or explicit offset commits
+  - `oci-functions-invoke` for synchronous or detached OCI Functions invocation
+  - `oci-queue-config`, `oci-queue-out`, `oci-queue-in`, and `oci-queue-ack` for publish, long-poll receive, and explicit acknowledgement
   - OCI Notifications (email, Slack, PagerDuty, webhook, SMS, OCI Functions)
   - OCI Object Storage (upload and download objects)
   - OCI Logging (putLogs to OCI Custom Logs)
@@ -34,7 +40,7 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
   - ORDS Config, ORDS Request, and ORDS Poll (OAuth-backed ORDS access with IoT Data API shortcuts)
   - IoT Device config (MQTT connection to OCI IoT Platform)
   - IoT Telemetry (publish device telemetry)
-  - IoT Subscribe (subscribe to OCI IoT MQTT topics)
+  - IoT Subscribe (receive commands delivered by OCI IoT through an MQTT request endpoint)
   - IoT Send Command (send commands to devices via OCI REST API)
   - IoT Get Content (read digital twin instance content via OCI REST API)
   - IoT Update Relationship (update digital twin relationship content via OCI REST API)
@@ -72,43 +78,24 @@ git clone git@github.com:oracle-samples/node-red-nodes.git
 gh repo clone oracle-samples/node-red-nodes
 ```
 
-### 2. Install Dependencies
+### 2. Install the Node Package
 
 #### Prerequisites
 
 - Node-RED v3.0+
 - Node.js v18+
 - npm
-- Oracle Instant Client 23c (required only when DB `Driver Mode` is `Thick`)
+- Oracle Client libraries supported by node-oracledb (required only when DB `Driver Mode` is `Thick`)
 
-#### Required Node-RED Dependencies
+#### Package Installation
 
-These libraries must be installed inside your Node-RED user directory (`~/.node-red`):
-
-```bash
-cd ~/.node-red
-npm install oracledb@^7.0.1          # DB nodes
-npm install axios@1.17.0              # SCM nodes
-npm install https-proxy-agent@^7.0.6 # SCM nodes (proxy support)
-npm install oci-sdk@2.137.0          # OCI nodes (Notifications, Logging, Log Analytics, IoT control-plane nodes)
-npm install mqtt@5.15.2              # IoT nodes (Telemetry, Command)
-```
+Install the node package using the [installation guide](./docs/installation.md#12-install-dependencies). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
 
-#### Install Oracle Instant Client (23c)
+#### Oracle Client Libraries
 
-```bash
-sudo dnf install oracle-instantclient-release-el8
-sudo dnf install oracle-instantclient-basic
-sudo dnf install oracle-instantclient-sqlplus
-```
-
-> **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default.
->
-> If your DB flows use `Driver Mode = Thin`, Oracle Instant Client is not required.
->
-> `oracledb` is a native module: keep Node.js build/runtime versions aligned and run `npm rebuild oracledb` after Node.js upgrades.
+Thin mode does not require Oracle Client libraries. For Thick mode, follow the [platform-specific installation instructions](./docs/installation.md#oracle-client-setup-thick-mode-only).
 
 ### Local Install Note (Palette Manager Upload)
 
@@ -123,11 +110,14 @@ You can find the online documentation for the Oracle Internet of Things Platform
 
 ## Examples
 
-The repository includes three importable Node-RED examples:
+The repository includes six importable Node-RED examples:
 
-- Oracle Database SQL, enqueue, dequeue, and transaction flows
-- Enqueue → Dequeue → Create Meter Reading → If Not Found, `create installed base asset`
-- OCI IoT telemetry, MQTT subscription, command delivery, and threshold notification
+- [AQ Subscriber and Message Processing](./db-nodes/examples/sql-enqueue-dequeue.json)
+- [AQ Meter Reading Submission](./fusion-scm-nodes/examples/scm-meter-reading-asset-fallback.json)
+- [Conditional Asset Creation](./fusion-scm-nodes/examples/conditional-asset-creation.json)
+- [Inventory Transactions](./fusion-scm-nodes/examples/inventory-transactions.json)
+- [Sample Device Fault Handling](./fusion-scm-nodes/examples/iot-fusion-maintenance-closed-loop.json)
+- [Device Telemetry and Commands](./oci-nodes/examples/alert-shutdown-threshold.json)
 
 Examples can be imported directly into the Node-RED editor.
 See [Import Examples Guide](./docs/import-examples.md).

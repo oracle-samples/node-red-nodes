@@ -1,6 +1,15 @@
 # Import Examples into Node-RED
 
-This guide explains how to import the repository examples, including [db-nodes](../db-nodes/examples/sql-enqueue-dequeue.json), [fusion-scm-nodes](../fusion-scm-nodes/examples/scm-meter-reading-asset-fallback.json), and the [OCI IoT alert and shutdown example](../oci-nodes/examples/alert-shutdown-threshold.json), using the Node-RED editor.
+This guide explains how to import the repository examples using the Node-RED editor.
+
+## Available examples
+
+- [AQ Subscriber and Message Processing](../db-nodes/examples/sql-enqueue-dequeue.json)
+- [AQ Meter Reading Submission](../fusion-scm-nodes/examples/scm-meter-reading-asset-fallback.json)
+- [Conditional Asset Creation](../fusion-scm-nodes/examples/conditional-asset-creation.json)
+- [Inventory Transactions](../fusion-scm-nodes/examples/inventory-transactions.json)
+- [Sample Device Fault Handling](../fusion-scm-nodes/examples/iot-fusion-maintenance-closed-loop.json)
+- [Device Telemetry and Commands](../oci-nodes/examples/alert-shutdown-threshold.json)
 
 ## Import a JSON flow using the Node-RED editor
 
@@ -12,6 +21,39 @@ This guide explains how to import the repository examples, including [db-nodes](
 6. Click **Import**.
 
 ## After importing, configure each node
+
+Some examples combine DB, OCI, and Fusion SCM nodes. Install the root package for the complete set, or ensure all required standalone packages are installed without also installing the root package. Importing a flow does not create its database queues, OCI resources, or Fusion business data.
+
+Open the flow's tab properties and setup comments before running. Replace sample identifiers, dates, numeric placeholders, credentials, and resource settings with values for a non-production environment. Inject buttons can send real requests that change data or control a device.
+
+## Running the examples
+
+- **AQ Subscriber and Message Processing:** use an existing multi-consumer JSON queue in the connected schema. The first run may create the subscriber; run it again to enqueue and dequeue a message. An empty dequeue produces no output.
+- **AQ Meter Reading Submission:** enqueue sample data, dequeue it, and submit the reading. See [setup and missing-asset recovery](#aq-meter-reading-submission) below.
+- **Conditional Asset Creation:** only a successful lookup with an empty `items` array proceeds to asset creation. A malformed response or reported lookup error stops the flow. Two simultaneous runs may both find no asset and try to create it; the lookup does not reserve the asset number.
+- **Inventory Transactions:** test the issue and transfer branches independently. The issue uses a negative quantity; the transfer uses a positive quantity. Replace organization and source identifiers and confirm transaction requirements for your Fusion setup.
+- **Sample Device Fault Handling:** a fault or temperature of at least 39 triggers the action branches; normal data sends a status event only. Missing required identity fields or invalid temperatures stop processing. Command, event, and work-order requests are independent, not one transaction; retrying the entire sample may repeat successful actions.
+- **Device Telemetry and Commands:** this sample intentionally alerts below 30. A successful notification is followed by a shutdown command request. At 30 or above, no alert or command is sent. The subscription displays received commands; it does not implement device shutdown or send its response.
+
+The AQ examples do not use a managed transaction block. Standalone dequeue commits message removal before downstream processing, so a later Fusion error does not put the message back on the queue.
+
+### AQ Meter Reading Submission
+
+**Setup:** Replace the sample reading date and configure the intended meter association in Fusion.
+
+**Normal processing:** Enqueue the sample data, dequeue it, and submit the meter reading.
+
+**Missing-asset recovery:** The specific HTTP 400 response `The value of the attribute AssetNumber isn't valid.` triggers an asset lookup. Creation proceeds only when the lookup succeeds with no items and `hasMore: false`. Other errors, existing assets, and incomplete lookup results go to Error Debug.
+
+**After creation:** Associate the intended meter with the new asset in Fusion, then submit the reading again yourself. The flow does not configure the association or retry the reading automatically.
+
+## Example error paths
+
+Each example has a Catch node scoped to its processing nodes, connected to a named Error Debug node. The Debug sidebar shows `msg.error`, including the error message and any available code and source details, without dumping the whole input message. Inspect diagnostics before sharing them; error text can still contain application data.
+
+These paths report catchable errors only. The meter-reading example additionally checks the specific error described above before looking up and creating an absent asset. It suppresses duplicate Catch deliveries for the same message ID for ten minutes, up to 1000 recent failures; this does not prevent races between different messages or across redeploys. Asset numbers containing apostrophes, semicolons, backslashes, or line breaks stop at Error Debug instead of being used in the recovery query.
+
+The examples do not automatically retry failed requests or roll back transactions. Connection warnings and status-only failures may require checking the node status or runtime logs. If you add processing nodes to an example, update its Catch scope too. Add recovery only for a specifically identified error; when adding a managed database transaction, route failure through rollback before reporting it.
 
 ### 1. DB Connection (config node)
 - Open any DB node in the imported flow (Enqueue/Dequeue/SQL/Begin Transaction)

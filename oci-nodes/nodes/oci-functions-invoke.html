@@ -1,0 +1,97 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-functions-invoke", {
+    category: "oci",
+    paletteLabel: "functions invoke",
+    defaults: {
+        name: { value: "" },
+        ociConfig: { type: "oci-config", required: true },
+        functionOcid: { value: "", required: true },
+        invokeEndpoint: { value: "", required: true },
+        invokeType: { value: "sync", required: true },
+        intent: { value: "httprequest", required: true }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-bolt",
+    label: function () {
+        return this.name || "functions invoke";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-functions-invoke">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig" style="width:120px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-functionOcid" style="width:145px;"><i class="fa fa-id-card"></i> Function OCID</label>
+        <input type="text" id="node-input-functionOcid" placeholder="&lt;your-function-ocid&gt;" style="width:calc(100% - 152px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-invokeEndpoint" style="width:145px;"><i class="fa fa-link"></i> Invoke Base Endpoint</label>
+        <input type="text" id="node-input-invokeEndpoint" placeholder="https://&lt;prefix&gt;.&lt;region&gt;.functions.oci.&lt;domain&gt;" style="width:calc(100% - 152px);">
+        <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+            Enter only the HTTPS base endpoint from the function's Invoke endpoint.
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-invokeType" style="width:120px;"><i class="fa fa-clock-o"></i> Invoke Type</label>
+        <select id="node-input-invokeType" style="width:200px;">
+            <option value="sync">Synchronous</option>
+            <option value="detached">Detached</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-intent" style="width:120px;"><i class="fa fa-file-code-o"></i> Intent</label>
+        <select id="node-input-intent" style="width:200px;">
+            <option value="httprequest">HTTP request</option>
+            <option value="cloudevent">CloudEvent</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-functions-invoke">
+<p>Invokes an OCI Function with the authentication from an OCI Config node.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>OCI Config</dt><dd>References an OCI Config node for request signing.</dd>
+    <dt>Function OCID</dt><dd>The default target function identifier.</dd>
+    <dt>Invoke Base Endpoint</dt><dd>The HTTPS OCI Functions base origin without the function path.</dd>
+    <dt>Invoke Type</dt><dd>Synchronous or detached.</dd>
+    <dt>Intent</dt><dd>HTTP request or CloudEvent.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt>
+    <dd>The synchronous response body, parsed when it contains valid JSON. Detached invocation normally returns an empty string.</dd>
+    <dt>msg.ociFunction <span class="property-type">object</span></dt>
+    <dd>The resolved function OCID, invoke endpoint, <code>sync</code> or <code>detached</code> type, <code>httprequest</code> or <code>cloudevent</code> intent, and OCI request ID.</dd>
+    <dt>msg.statusCode <span class="property-type">number</span></dt>
+    <dd>The service HTTP status, defaulting to 200 for synchronous or 202 for detached invocation when the SDK omits it.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On failure, <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>The invocation body. Objects and arrays are JSON-serialized; strings and buffers are passed directly. An undefined payload sends no body.</dd>
+    <dt>msg.ociFunction <span class="property-type">object</span></dt><dd>May override <code>functionOcid</code>, <code>invokeEndpoint</code>, <code>invokeType</code>, or <code>intent</code>, and may set <code>opcRequestId</code> or boolean <code>isDryRun</code>.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Detached success means OCI accepted the request, not that the function finished or succeeded. Track completion separately, or use Synchronous mode if the next node needs the function's returned result.</p>
+<p>The Invoke Base Endpoint must be the HTTPS OCI Functions base origin, without the function path. It is validated before OCI credentials are requested.</p>
+<p>Endpoints must use the exact OCI Functions host structure, an SDK-known OCI realm domain, and the default HTTPS port. Validation occurs before credentials are requested. The configured endpoint client is cached. A message-level endpoint override uses a request-scoped client whose circuit breaker is released after the response is read. The shared authentication provider remains owned by <code>oci-config</code>.</p>
+<p>All upstream properties are preserved. Invocation failures call <code>done(err)</code> and can be handled with a Node-RED Catch node.</p>
+</script>

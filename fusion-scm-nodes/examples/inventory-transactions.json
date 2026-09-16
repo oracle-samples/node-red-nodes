@@ -1,0 +1,184 @@
+[
+  {
+    "id": "int-inv-tab-001",
+    "type": "tab",
+    "label": "Inventory Transactions",
+    "disabled": false,
+    "info": "Two independent examples use the placeholder Fusion server. Replace every EXAMPLE_* value and numeric placeholder before running. One Inject submits a Miscellaneous Issue; the other submits a Subinventory Transfer. Each branch can be tested separately."
+  },
+  {
+    "id": "int-inv-comment-001",
+    "type": "comment",
+    "z": "int-inv-tab-001",
+    "name": "Configure services and business values before running — double-click for setup details",
+    "info": "Before running either branch:\n\n1. Configure Example Fusion SCM with OAuth credentials and inventory transaction privileges.\n2. Replace OrganizationId 0 with the numeric ID for your inventory organization.\n3. Replace every EXAMPLE_* item and subinventory value.\n4. Confirm source/header/line identifiers, transaction mode, quantity sign, unit of measure, and transaction type requirements for your Fusion setup.\n\nEach Inject stages a real Fusion inventory transaction. The issue example uses an explicit negative quantity because the node does not change its sign. Use non-production resources for the first run.",
+    "x": 390,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "int-inv-inject-001",
+    "type": "inject",
+    "z": "int-inv-tab-001",
+    "name": "Submit miscellaneous issue",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"SourceCode\":\"NODE_RED_EXAMPLE_ISSUE\",\"SourceHeaderId\":0,\"SourceLineId\":1,\"TransactionMode\":\"1\",\"OrganizationId\":0,\"ItemNumber\":\"EXAMPLE_ITEM\",\"TransactionQuantity\":-1,\"TransactionUnitOfMeasure\":\"Ea\",\"SubinventoryCode\":\"EXAMPLE_SOURCE\"}",
+        "vt": "json"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 210,
+    "y": 160,
+    "wires": [
+      [
+        "int-inv-misc-001"
+      ]
+    ]
+  },
+  {
+    "id": "int-inv-misc-001",
+    "type": "misc-transaction",
+    "z": "int-inv-tab-001",
+    "name": "Create miscellaneous issue",
+    "server": "int-inv-scm-config-001",
+    "mode": "issue",
+    "payloadSource": "mappings",
+    "mappings": "[{\"scmField\":\"SourceCode\",\"sourceType\":\"msg\",\"value\":\"payload.SourceCode\"},{\"scmField\":\"SourceHeaderId\",\"sourceType\":\"msg\",\"value\":\"payload.SourceHeaderId\"},{\"scmField\":\"SourceLineId\",\"sourceType\":\"msg\",\"value\":\"payload.SourceLineId\"},{\"scmField\":\"TransactionMode\",\"sourceType\":\"msg\",\"value\":\"payload.TransactionMode\"},{\"scmField\":\"UseCurrentCostFlag\",\"sourceType\":\"staticBoolean\",\"value\":\"true\"},{\"scmField\":\"OrganizationId\",\"sourceType\":\"msg\",\"value\":\"payload.OrganizationId\"},{\"scmField\":\"ItemNumber\",\"sourceType\":\"msg\",\"value\":\"payload.ItemNumber\"},{\"scmField\":\"TransactionQuantity\",\"sourceType\":\"msg\",\"value\":\"payload.TransactionQuantity\"},{\"scmField\":\"TransactionUnitOfMeasure\",\"sourceType\":\"msg\",\"value\":\"payload.TransactionUnitOfMeasure\"},{\"scmField\":\"TransactionDate\",\"sourceType\":\"currentTimestamp\",\"value\":\"\"},{\"scmField\":\"SubinventoryCode\",\"sourceType\":\"msg\",\"value\":\"payload.SubinventoryCode\"}]",
+    "x": 510,
+    "y": 160,
+    "wires": [
+      [
+        "int-inv-debug-001"
+      ]
+    ]
+  },
+  {
+    "id": "int-inv-debug-001",
+    "type": "debug",
+    "z": "int-inv-tab-001",
+    "name": "Miscellaneous issue submission",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 820,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "int-inv-inject-002",
+    "type": "inject",
+    "z": "int-inv-tab-001",
+    "name": "Submit subinventory transfer",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"SourceCode\":\"NODE_RED_EXAMPLE_TRANSFER\",\"SourceHeaderId\":0,\"SourceLineId\":1,\"TransactionMode\":\"1\",\"TransactionTypeName\":\"Subinventory Transfer\",\"OrganizationId\":0,\"ItemNumber\":\"EXAMPLE_ITEM\",\"TransactionQuantity\":1,\"TransactionUnitOfMeasure\":\"Ea\",\"SubinventoryCode\":\"EXAMPLE_SOURCE\",\"TransferSubinventory\":\"EXAMPLE_DESTINATION\"}",
+        "vt": "json"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 220,
+    "y": 260,
+    "wires": [
+      [
+        "int-inv-transfer-001"
+      ]
+    ]
+  },
+  {
+    "id": "int-inv-transfer-001",
+    "type": "subinventory-quantity-transfer",
+    "z": "int-inv-tab-001",
+    "name": "Create subinventory transfer",
+    "server": "int-inv-scm-config-001",
+    "payloadSource": "mappings",
+    "mappings": "[{\"scmField\":\"SourceCode\",\"sourceType\":\"msg\",\"value\":\"payload.SourceCode\"},{\"scmField\":\"SourceHeaderId\",\"sourceType\":\"msg\",\"value\":\"payload.SourceHeaderId\"},{\"scmField\":\"SourceLineId\",\"sourceType\":\"msg\",\"value\":\"payload.SourceLineId\"},{\"scmField\":\"TransactionMode\",\"sourceType\":\"msg\",\"value\":\"payload.TransactionMode\"},{\"scmField\":\"UseCurrentCostFlag\",\"sourceType\":\"staticBoolean\",\"value\":\"true\"},{\"scmField\":\"TransactionTypeName\",\"sourceType\":\"msg\",\"value\":\"payload.TransactionTypeName\"},{\"scmField\":\"OrganizationId\",\"sourceType\":\"msg\",\"value\":\"payload.OrganizationId\"},{\"scmField\":\"ItemNumber\",\"sourceType\":\"msg\",\"value\":\"payload.ItemNumber\"},{\"scmField\":\"TransactionQuantity\",\"sourceType\":\"msg\",\"value\":\"payload.TransactionQuantity\"},{\"scmField\":\"TransactionUnitOfMeasure\",\"sourceType\":\"msg\",\"value\":\"payload.TransactionUnitOfMeasure\"},{\"scmField\":\"TransactionDate\",\"sourceType\":\"currentTimestamp\",\"value\":\"\"},{\"scmField\":\"SubinventoryCode\",\"sourceType\":\"msg\",\"value\":\"payload.SubinventoryCode\"},{\"scmField\":\"TransferSubinventory\",\"sourceType\":\"msg\",\"value\":\"payload.TransferSubinventory\"}]",
+    "x": 520,
+    "y": 260,
+    "wires": [
+      [
+        "int-inv-debug-002"
+      ]
+    ]
+  },
+  {
+    "id": "int-inv-debug-002",
+    "type": "debug",
+    "z": "int-inv-tab-001",
+    "name": "Subinventory transfer submission",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 830,
+    "y": 260,
+    "wires": []
+  },
+  {
+    "id": "int-inv-catch-001",
+    "type": "catch",
+    "z": "int-inv-tab-001",
+    "name": "Catch Fusion errors",
+    "scope": [
+      "int-inv-misc-001",
+      "int-inv-transfer-001"
+    ],
+    "uncaught": false,
+    "x": 200,
+    "y": 380,
+    "wires": [
+      [
+        "int-inv-debug-003"
+      ]
+    ]
+  },
+  {
+    "id": "int-inv-debug-003",
+    "type": "debug",
+    "z": "int-inv-tab-001",
+    "name": "Fusion inventory error",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "error",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 460,
+    "y": 380,
+    "wires": []
+  },
+  {
+    "id": "int-inv-scm-config-001",
+    "type": "scm-server",
+    "name": "Example Fusion SCM",
+    "hostname": "fusion.example.invalid",
+    "version": "<your-rest-api-version>",
+    "tokenUrl": "https://identity.example.invalid/oauth2/v1/token",
+    "scope": "<your-oauth-scope>",
+    "proxyUrl": "",
+    "useProxy": false,
+    "useExpiryFallback": false,
+    "tokenExpiryMins": 60
+  }
+]

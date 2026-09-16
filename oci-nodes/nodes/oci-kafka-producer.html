@@ -1,0 +1,106 @@
+<!--
+ Copyright (c) 2026 Oracle and/or its affiliates.
+ The Universal Permissive License (UPL), Version 1.0
+
+ Subject to the condition set forth below, permission is hereby granted to any
+ person obtaining a copy of this software, associated documentation and/or data
+ (collectively the "Software"), free of charge and under any and all copyright
+ rights in the Software, and in any and all patent rights owned or freely
+ licensable by each licensor hereunder covering either (i) the unmodified
+ Software as contributed to or provided by such licensor, or (ii) the Larger
+ Works (as defined below), to deal in both
+
+ (a) the Software, and
+ (b) any piece of software and/or hardware listed in the lrgrwrks.txt file if
+     one is included with the Software (each a "Larger Work" to which the
+     Software is contributed by such licensors),
+
+ without restriction, including without limitation the rights to copy, create
+ derivative works of, display, perform, and distribute the Software and make,
+ use, sell, offer for sale, import, export, have made, and have sold the
+ Software and the Larger Work(s), and to sublicense the foregoing rights on
+ either these or other terms.
+
+ This license is subject to the following condition: The above copyright notice
+ and either this complete permission notice or at a minimum a reference to the
+ UPL must be included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+-->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-kafka-producer", {
+    category: "oci",
+    paletteLabel: "kafka producer",
+    defaults: {
+        name: { value: "" },
+        kafkaConfig: { type: "oci-kafka-config", required: true },
+        topic: { value: "", required: false }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-arrow-circle-o-up",
+    label: function () {
+        return this.name || "kafka producer";
+    }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-kafka-producer">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-kafkaConfig" style="width:120px;"><i class="fa fa-cloud"></i> Kafka Config</label>
+        <input type="text" id="node-input-kafkaConfig">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-topic" style="width:120px;"><i class="fa fa-exchange"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="Optional when msg.kafka.topic is set" style="width:calc(100% - 127px);">
+        <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
+            <code>msg.kafka.topic</code> overrides this value.
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-kafka-producer">
+<p>Publishes telemetry or derived events to OCI Managed Kafka (OCI Streaming with Apache Kafka).</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>Kafka Config</dt><dd>References an OCI Kafka Config node for broker authentication and producer lifecycle.</dd>
+    <dt>Topic</dt><dd>The default topic. It may be empty when <code>msg.kafka.topic</code> supplies the topic.</dd>
+</dl>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">any</span></dt><dd>The unchanged input payload.</dd>
+    <dt>msg.kafka.result <span class="property-type">array</span></dt>
+    <dd>Broker delivery metadata returned after the acknowledged publish.</dd>
+    <dt>msg.kafka.topic <span class="property-type">string</span></dt>
+    <dd>The resolved topic used for the publish.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>On failure, <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>The message value. Objects and arrays are JSON-serialized; strings and buffers are sent directly; finite numbers, booleans, and null become strings.</dd>
+    <dt>msg.kafka.topic <span class="property-type">string</span></dt><dd>Overrides the configured Topic.</dd>
+    <dt>msg.kafka.key <span class="property-type">any</span></dt><dd>Optional record key serialized with the same supported types.</dd>
+    <dt>msg.kafka.headers <span class="property-type">object</span></dt><dd>Optional header map containing strings, buffers, finite numbers, booleans, or null.</dd>
+    <dt>msg.kafka.partition <span class="property-type">number</span></dt><dd>Optional non-negative partition number.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>The output preserves <code>msg.payload</code> and all other upstream properties. Kafka client retry behavior is used without an additional node-level retry loop.</p>
+<p>Validation and publish errors call <code>done(err)</code> and can be handled with a Node-RED Catch node. Payloads, headers, broker addresses, and credentials are not written to status text or logs by this node.</p>
+</script>

@@ -103,7 +103,8 @@ module.exports = function (RED) {
                 if (!namespace) {
                     const err = new Error("No namespace configured or provided in msg.namespace");
                     node.status({ fill: "red", shape: "ring", text: "no namespace" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
@@ -111,7 +112,8 @@ module.exports = function (RED) {
                 if (!logGroupId) {
                     const err = new Error("No Log Group OCID configured or provided in msg.logGroupOcid");
                     node.status({ fill: "red", shape: "ring", text: "no log group" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
@@ -119,7 +121,8 @@ module.exports = function (RED) {
                 if (!logSourceName) {
                     const err = new Error("No Log Source Name configured or provided in msg.logSourceName");
                     node.status({ fill: "red", shape: "ring", text: "no log source" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
@@ -153,7 +156,8 @@ module.exports = function (RED) {
                         "Reduce payload size before sending to Log Analytics."
                     );
                     node.status({ fill: "red", shape: "ring", text: "payload too large" });
-                    node.error(err.message, msg);
+                    err.code = err.code ? String(err.code) : null;
+                    msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
 
@@ -200,11 +204,6 @@ module.exports = function (RED) {
                 node.status({ fill: "green", shape: "dot", text: "uploaded" });
                 send(msg);
                 done();
-
-                setTimeout(function () {
-                    node.status({});
-                }, 3000);
-
             } catch (err) {
                 ociError.handleNodeError(node, msg, err, done, { statusText: "upload failed" });
             }

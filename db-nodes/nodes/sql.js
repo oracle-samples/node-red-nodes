@@ -37,6 +37,7 @@
 module.exports = function (RED) {
     const oracledb = require("oracledb");
     const dbError = require("../lib/db-error.js");
+    var transactions = require("../lib/db-transaction.js")(RED);
 
     // Blank string literals, quoted identifiers, and comments in sql so the
     // placeholder regex cannot match ':' inside literal values like 'call :id'.
@@ -370,8 +371,11 @@ module.exports = function (RED) {
         node.on("input", async (msg, send, done) => {
             let connection;
             let ownConnection = false;
+            var lease;
 
             try {
+                lease = await transactions.acquire(msg, config.connection);
+                dbError.assertActiveTransaction(msg.transaction);
                 let sql;
                 if (node.sqlSource === "msg") {
                     sql = msg.sql;
@@ -461,6 +465,7 @@ module.exports = function (RED) {
                 };
 
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
+                dbError.assertActiveTransaction(msg.transaction);
                 if (msg.transaction && msg.transaction.connection) {
                     connection = msg.transaction.connection;
                 } else {
@@ -504,6 +509,7 @@ module.exports = function (RED) {
             } catch (err) {
                 dbError.handleNodeError(node, msg, err, done, { statusText: "query failed" });
             } finally {
+                if (lease) lease.release();
                 if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {
                         node.warn("Error closing connection: " + e.message);

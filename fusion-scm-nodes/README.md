@@ -54,14 +54,9 @@ gh repo clone oracle-samples/node-red-nodes
 - Node.js v18+
 - npm
 
-### Required Node-RED Dependencies
+### Install the Node Package
 
-Install inside the Node-RED directory (`~/.node-red`):
-
-```bash
-npm install axios@1.17.0
-npm install https-proxy-agent@^7.0.6
-```
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 ## Payload Sources and Mappings
 
@@ -130,7 +125,7 @@ The smo-transformer converts incoming telemetry or message data into structured 
 
 **Typical flow:** `dequeue` → `split` (fixed length: 1) → `smart operations transformer` → `smart operations event`
 
-See [Node Reference](../docs/node-reference.md) for full configuration details.
+See [Node Reference](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/node-reference.md) for full configuration details.
 
 ## Documentation
 
@@ -138,27 +133,29 @@ You can find the online documentation for the Oracle Internet of Things Platform
 
 ## Examples
 
-Example Node-RED flows are provided in the documentation showcasing different use cases:
+The package includes four importable Node-RED examples:
 
-- Enqueue → Dequeue → Create Meter Reading → If Not Found, `create installed base asset`
-- Conditional Asset Creation
-- Inventory Transactions
-- Closed-loop OCI IoT telemetry → Smart Operations event → Maintenance Work Order / raw command
+- [AQ Meter Reading Submission](./examples/scm-meter-reading-asset-fallback.json) — enqueue sample data, dequeue it, and submit a meter reading
+- [Conditional Asset Creation](./examples/conditional-asset-creation.json) — look up an installed base asset and create it only when no match is found
+- [Inventory Transactions](./examples/inventory-transactions.json) — run a Miscellaneous Issue and a Subinventory Transfer independently
+- [Sample Device Fault Handling](./examples/iot-fusion-maintenance-closed-loop.json) — inject sample device data, send Smart Operations events, and submit a shutdown command and a maintenance work order when a fault or high temperature is detected
+
+The device-fault example uses injected sample data, not a live telemetry subscription. Command submission and work-order creation run on separate branches; the flow does not wait for confirmation that the device has shut down.
 
 Examples can be imported directly into the Node-RED editor.
-See [Import Examples Guide](../docs/import-examples.md).
+See [Import Examples Guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/import-examples.md).
 
 ## Contributing
 
-This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](../CONTRIBUTING.md).
+This project welcomes contributions from the community. Before submitting a pull request, please [review our contribution guide](./CONTRIBUTING.md).
 
 ## Security
 
-Please consult the [security guide](../SECURITY.md) for our responsible security vulnerability disclosure process.
+Please consult the [security guide](./SECURITY.md) for our responsible security vulnerability disclosure process.
 
 ## License
 
-See [LICENSE](../LICENSE.txt).
+See [LICENSE](./LICENSE.txt).
 
 ## Disclaimer
 

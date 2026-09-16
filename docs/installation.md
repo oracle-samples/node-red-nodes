@@ -7,7 +7,7 @@ This guide includes all installation steps and verification steps.
 - Node-RED (v3.0+)
 - Node.js (v18+)
 - npm (comes with Node.js)
-- Oracle Instant Client 23c (required only when `db-connection` Driver Mode is set to `Thick`)
+- Oracle Client libraries supported by node-oracledb (required only when `db-connection` Driver Mode is set to `Thick`)
 
 ## 1.1 Clone the Repository
 
@@ -30,7 +30,18 @@ gh repo clone oracle-samples/node-red-nodes
 
 ## 1.2 Install Dependencies
 
-Install required npm packages inside your Node-RED user directory (`~/.node-red`):
+After cloning, install the node package, not only its dependency libraries. For the complete node set, run these commands from your Node-RED user directory (`~/.node-red`):
+
+```bash
+cd ~/.node-red/node-red-nodes
+npm pack
+cd ..
+npm install ./node-red-nodes/node-red-nodes-0.7.0.tgz
+```
+
+The package manifest installs its dependencies automatically. Do not install the root package alongside standalone `db-nodes`, `oci-nodes`, or `fusion-scm-nodes` packages, because their node registrations overlap.
+
+The dependency versions declared for the complete package are listed below for reference; installing these libraries alone does not register the custom nodes:
 
 ```bash
 cd ~/.node-red
@@ -39,47 +50,47 @@ cd ~/.node-red
 npm install oracledb@^7.0.1
 
 # SCM nodes
-npm install axios@1.17.0
+npm install axios@1.20.0
 npm install https-proxy-agent@^7.0.6
 
-# OCI nodes (Notifications, Logging, Log Analytics, Object Storage, IoT control-plane nodes)
-npm install oci-sdk@2.137.0
+# OCI nodes (Functions, native Streaming, Queue, Notifications, Logging, Object Storage, IoT control-plane nodes)
+npm install oci-sdk@2.141.0
+
+# OCI Managed Kafka producer and consumer
+npm install @confluentinc/kafka-javascript@1.10.1
 
 # IoT nodes (Telemetry, Command)
-npm install mqtt@5.15.2
+npm install mqtt@5.16.0
 ```
 
-Install Oracle Instant Client (23c) when using DB nodes in Thick mode:
+### Managed Kafka Client Install Reliability
 
-```bash
-sudo dnf install oracle-instantclient-release-el8
-sudo dnf install oracle-instantclient-basic
-sudo dnf install oracle-instantclient-sqlplus
+`@confluentinc/kafka-javascript` includes native librdkafka bindings. Install it on the same operating system, architecture, libc, and Node.js ABI used to run Node-RED; do not copy its installed `node_modules` tree between different build and runtime images. Reinstall or rebuild it after changing Node.js. Supported platforms normally use an upstream prebuilt binary; other platforms require the native compiler prerequisites described in the [Confluent Kafka JavaScript installation guide](https://github.com/confluentinc/confluent-kafka-javascript#requirements).
+
+### OCI Monitoring and signed API requests
+
+**Credentials and permissions:** `oci-monitoring-publish`, `oci-monitoring-query`, and `oci-api-request` use `oci-config` and the existing OCI SDK dependency. Monitoring needs a region, metric compartment, and permission to publish or read the metrics. The signed API node needs permission for its target API. Test OCI Credentials checks authentication, not access to every service operation.
+
+### Native OCI Streaming Setup
+
+Streaming Out and Streaming In use OCI API signing through `oci-config`, not Kafka SASL credentials. Grant the principal the permissions required by the nodes in use:
+
+```text
+Allow group <group-name> to use stream-push in compartment <compartment-name>
+Allow group <group-name> to use stream-pull in compartment <compartment-name>
 ```
 
-> **NOTE:** Oracle Linux typically installs Instant Client into `/usr/lib/oracle/23/client64/lib` by default. To use a different path, set the `ORACLE_CLIENT_LIB` environment variable before starting Node-RED:
->
-> ```bash
-> export ORACLE_CLIENT_LIB=/path/to/your/instantclient
-> ```
->
-> If `ORACLE_CLIENT_LIB` is not set, the driver falls back to node-oracledb platform default library lookup (for example, PATH on Windows).
->
-> If all DB connections use Driver Mode `Thin`, Oracle Instant Client is not required.
+For Instance Principal authentication, use the corresponding dynamic group instead of an IAM group. A broader existing `use streams` or `manage stream-family` grant may already include both operations. Use `stream-push` for Streaming Out and `stream-pull` for Streaming In when granting only the required data-plane access.
 
-### Native Install Reliability (`oracledb`)
+In the OCI Console, open the target stream and copy both its Stream OCID and Messages endpoint into `oci-streaming-config`. Use the HTTPS Messages endpoint shown for the stream, not the Kafka bootstrap server or the Streaming control-plane endpoint. Public stream pools use their public endpoint. Private stream pools require the Node-RED host to have VCN routing and DNS access to the private endpoint.
 
-`oracledb` is a native module, so build/runtime consistency matters in CI and container images.
+### Oracle Client Setup (Thick Mode Only)
 
-- Keep the same Node.js major/minor version between image build and runtime.
-- Install dependencies inside the final runtime image/layer (avoid copying `node_modules` across different OS images).
-- If you upgrade Node.js after installing modules, run `npm rebuild oracledb`.
-- For Thick mode, ensure Instant Client shared libraries are present at runtime (`LD_LIBRARY_PATH` or `ORACLE_CLIENT_LIB`).
-- All DB connection configurations share one process-wide node-oracledb driver mode. The first
-  successful Thick initialization selects the Oracle Client, and later DB nodes reuse it. Keep
-  `ORACLE_CLIENT_LIB` aligned with the configured Oracle Client installation, and restart Node-RED
-  to change driver mode or client-library settings.
-- Prefer Thin mode when Oracle Advanced Security features and wallet/TNS requirements do not require Thick mode.
+Thin mode uses JavaScript and does not require Oracle Client libraries. Thick mode loads a platform-specific node-oracledb binary and compatible Oracle Client libraries. Follow the [node-oracledb installation guide](https://node-oracledb.readthedocs.io/en/latest/user_guide/installation.html) for your operating system, architecture, and database version; RPM package names and library paths differ between platforms and releases.
+
+The node passes `ORACLE_CLIENT_LIB`, when set, to `initOracleClient` as `libDir`. On Linux, configure the system library search path before starting Node-RED; setting `libDir` alone does not replace that requirement. Do not copy installed native dependencies between incompatible runtime images.
+
+Node-oracledb driver mode is process-wide. Later DB nodes reuse an initialized Thick driver; fully restart Node-RED before switching modes or changing Oracle Client library settings.
 
 ## 1.3 Install from Local `.tgz` in Palette Manager
 
@@ -108,7 +119,7 @@ From the repository root:
 npm pack
 ```
 
-This creates a file like `node-red-nodes-0.6.0.tgz`. Upload that file in Palette Manager:
+This creates a file like `node-red-nodes-0.7.0.tgz`. Upload that file in Palette Manager:
 
 1. Open Node-RED editor.
 2. Menu → **Manage palette** → **Install**.
@@ -123,8 +134,8 @@ Windows (PowerShell):
 
 ```powershell
 cd $env:TEMP
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.6.0.tgz
-cd .\node-red-nodes-0.6.0
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.0.tgz
+cd .\node-red-nodes-0.7.0
 npm pack
 ```
 
@@ -132,8 +143,8 @@ Windows (cmd):
 
 ```cmd
 cd /d %TEMP%
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.6.0.tgz
-cd node-red-nodes-0.6.0
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.0.tgz
+cd node-red-nodes-0.7.0
 npm pack
 ```
 
@@ -141,8 +152,8 @@ Linux/macOS:
 
 ```bash
 cd /tmp
-tar -xf ~/Downloads/node-red-nodes-0.6.0.tgz
-cd node-red-nodes-0.6.0
+tar -xf ~/Downloads/node-red-nodes-0.7.0.tgz
+cd node-red-nodes-0.7.0
 npm pack
 ```
 
@@ -150,34 +161,22 @@ Upload the new npm-packed `.tgz` file via Palette Manager. This `npm pack` step 
 
 ## 1.4 Private Subnet Installation (Proxy + Registry Setup)
 
-When running Node-RED on a private subnet not accessible to the internet, the npm proxy and registry must be configured to access external packages.
-
-Set npm registry:
+Use the registry and proxy approved for your network. Replace the placeholders below before running the commands:
 
 ```bash
-npm config set registry https://internal-npm-registry-link
+npm config set registry "https://<registry-host>/<registry-path>"
+npm config set proxy "http://<proxy-host>:<port>"
+npm config set https-proxy "http://<proxy-host>:<port>"
+npm config set strict-ssl true
 ```
 
-Disable strict SSL:
+Keep certificate verification enabled to protect package downloads and credentials from interception. If the registry or proxy uses an organizational CA, obtain the approved CA bundle from your administrator and configure `npm config set cafile "/path/to/approved-ca-bundle.pem"`. See [npm TLS configuration](https://docs.npmjs.com/cli/v10/using-npm/config#strict-ssl).
 
-```bash
-npm config set strict-ssl false
-```
-
-Configure npm proxy:
-
-```bash
-npm config set proxy http://user-proxy-host:port
-npm config set https-proxy http://user-proxy-host:port
-```
+If your registry must be reached directly, set `NO_PROXY`/`no_proxy` for that registry host according to your network policy. Proxy bypass and certificate trust are separate settings.
 
 ## 1.5 Verify Installation
 
-1. Restart Node-RED:
-
-```bash
-sudo systemctl restart node-red
-```
+1. Fully restart the Node-RED process or container using the method appropriate to your installation. Deploying flows alone does not restart Node-RED.
 
 2. Confirm the nodes appear in the palette under their categories: oracle db, oracle fusion scm, and oci.
 
@@ -186,13 +185,14 @@ sudo systemctl restart node-red
 
 ## 1.6 Which Dependencies Are Needed?
 
-Not all dependencies are required. Install only what you need:
+Each installed package installs all dependencies declared in its own `package.json`, regardless of which nodes appear in a flow. To use fewer node families, install a standalone package instead of the root package. The runtime libraries used by each family are:
 
-| If you're using... | Install |
+| Node family | Runtime libraries |
 |--------------------|---------|
-| DB nodes only | `oracledb` (+ Oracle Instant Client when Driver Mode is Thick) |
+| DB nodes | `oracledb`, `oci-common`, `oci-identitydataplane` (+ Oracle Client libraries for Thick mode) |
 | SCM nodes only | `axios`, `https-proxy-agent` |
-| OCI Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | `oci-sdk` |
+| OCI Functions, native OCI Streaming, Queue, Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | `oci-sdk` |
+| OCI Managed Kafka (OCI Streaming with Apache Kafka) producer or consumer | `@confluentinc/kafka-javascript@1.10.1` |
 | ORDS request/poll nodes | No additional package beyond Node.js v18+ |
-| IoT Telemetry or IoT MQTT In | `mqtt` |
+| IoT Telemetry or IoT Subscribe | `mqtt` |
 | Everything | All of the above |

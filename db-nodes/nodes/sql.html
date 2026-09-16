@@ -313,7 +313,8 @@ var sqlBindsMappingEditor = (function () {
 </dl>
 
 <h3>Details</h3>
-<p>When <code>msg.transaction.connection</code> exists, the SQL executes on that shared transaction connection and is finalized by <code>end-transaction</code>. Without a transaction connection, the node opens its own connection, executes the SQL, and closes it.</p>
+<p>If <code>msg.transaction</code> is timed out, ended, or has no connection, the node reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Handle the error and start a new transaction before retrying. Messages with no transaction context keep their normal standalone behavior.</p>
+<p>When <code>msg.transaction.connection</code> exists, the SQL executes on that shared transaction connection and is finalized by <code>end-transaction</code>. Without a transaction context, the node opens its own connection, executes the SQL, and closes it.</p>
 <p><b>Important:</b> This node uses <code>autoCommit: false</code>. SELECT queries
 work as expected. DML statements (INSERT, UPDATE, DELETE) are <b>not committed</b>
 and will be rolled back when a standalone connection closes. To commit DML, use a PL/SQL block

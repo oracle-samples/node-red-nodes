@@ -78,20 +78,28 @@ function normalizeEnqueuePayload(payloadType, configuredPayload, msgPayload) {
     return Array.isArray(payload) ? payload : [payload];
 }
 
-function createEnqueueMessages(payloadType, queue, payloads) {
+function normalizeRecipients(value) {
+    if (value === undefined || value === null || value === "") return [];
+    if (typeof value !== "string" || /[\x00-\x1f\x7f]/.test(value)) {
+        throw new Error("Recipients must be a comma-separated list of subscriber names");
+    }
+    if (!value.trim()) return [];
+    return value.split(",").map(function (name) {
+        var recipient = name.trim();
+        if (!recipient) throw new Error("Recipients must not contain empty subscriber names");
+        return recipient;
+    });
+}
+
+function createEnqueueMessages(payloadType, queue, payloads, recipients) {
     var type = normalizePayloadType(payloadType);
-    if (type === "adt") {
-        return payloads.map(function (item) {
-            return { payload: new queue.payloadTypeClass(item) };
-        });
-    }
-    if (type === "raw") {
-        return payloads.map(function (item) {
-            return { payload: Buffer.isBuffer(item) ? item : Buffer.from(String(item)) };
-        });
-    }
     return payloads.map(function (item) {
-        return { payload: item };
+        var payload = item;
+        if (type === "adt") payload = new queue.payloadTypeClass(item);
+        if (type === "raw") payload = Buffer.isBuffer(item) ? item : Buffer.from(String(item));
+        var message = { payload: payload };
+        if (recipients && recipients.length) message.recipients = recipients.slice();
+        return message;
     });
 }
 
@@ -112,9 +120,6 @@ function dbObjectToPojo(obj) {
 
 function configureEnqueueQueue(queue, oracledb, config) {
     queue.enqOptions.deliveryMode = resolveDeliveryMode(oracledb, config.deliveryMode);
-    if (config.recipients) {
-        queue.enqOptions.recipients = config.recipients;
-    }
 }
 
 function configureDequeueQueue(queue, oracledb, config) {
@@ -173,6 +178,7 @@ module.exports = {
     resolveDeliveryMode: resolveDeliveryMode,
     resolveDequeueMode: resolveDequeueMode,
     normalizeEnqueuePayload: normalizeEnqueuePayload,
+    normalizeRecipients: normalizeRecipients,
     createEnqueueMessages: createEnqueueMessages,
     dbObjectToPojo: dbObjectToPojo,
     configureEnqueueQueue: configureEnqueueQueue,

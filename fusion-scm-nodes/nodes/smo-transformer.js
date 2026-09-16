@@ -69,15 +69,16 @@ module.exports = function (RED) {
 
     var compositeStore = {};
     var staleTimers = {};
+    var statusState = { generation: 0 };
 
     node.on("input", function (msg, send, done) {
       try {
         var payload = msg.payload;
         if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
           var payloadErr = new Error("Invalid payload: expected an object");
-          msg.error = { message: payloadErr.message, code: null };
-          node.status({ fill: "red", shape: "ring", text: "invalid payload" });
-          node.error(payloadErr, msg);
+          setTransformerStatus(node, statusState, { fill: "red", shape: "ring", text: "invalid payload" });
+          payloadErr.code = payloadErr.code ? String(payloadErr.code) : null;
+          msg.error = { message: payloadErr.message, code: payloadErr.code };
           done(payloadErr);
           return;
         }
@@ -85,17 +86,42 @@ module.exports = function (RED) {
         // Custom JSONata override (expression compiled once at construction)
         if (node.customJsonata && node.customJsonata.trim() !== "") {
           if (node.jsonataError) {
-            node.error("JSONata preparation error: " + node.jsonataError.message, msg);
-            done(node.jsonataError);
+            reportTransformError(
+              node,
+              statusState,
+              msg,
+              node.jsonataError,
+              done,
+              { fill: "red", shape: "dot", text: "transform failed" }
+            );
             return;
           }
           RED.util.evaluateJSONataExpression(node.jsonataExpr, msg, function (err, result) {
             if (err) {
-              node.error("JSONata evaluation error: " + err.message, msg);
-              done(err);
+              reportTransformError(
+                node,
+                statusState,
+                msg,
+                err,
+                done,
+                { fill: "red", shape: "dot", text: "transform failed" }
+              );
               return;
             }
-            sendOutputMessage(msg, result, node.outputTarget, send);
+            try {
+              sendOutputMessage(msg, result, node.outputTarget, send);
+              setTransformerStatus(node, statusState, { fill: "green", shape: "dot", text: "transformed" });
+            } catch (callbackErr) {
+              reportTransformError(
+                node,
+                statusState,
+                msg,
+                callbackErr,
+                done,
+                { fill: "red", shape: "dot", text: "transform failed" }
+              );
+              return;
+            }
             done();
           });
           return;
@@ -103,9 +129,9 @@ module.exports = function (RED) {
 
         if (!node.eventTypeCode) {
           var eventTypeErr = new Error("Event Type is required");
-          msg.error = { message: eventTypeErr.message, code: null };
-          node.status({ fill: "red", shape: "ring", text: "no event type" });
-          node.error(eventTypeErr, msg);
+          setTransformerStatus(node, statusState, { fill: "red", shape: "ring", text: "no event type" });
+          eventTypeErr.code = eventTypeErr.code ? String(eventTypeErr.code) : null;
+          msg.error = { message: eventTypeErr.message, code: eventTypeErr.code };
           done(eventTypeErr);
           return;
         }
@@ -129,14 +155,21 @@ module.exports = function (RED) {
         };
 
         if (node.enableComposite) {
-          handleComposite(node, msg, outputPayload, compositeStore, staleTimers, send, done);
+          handleComposite(node, statusState, msg, outputPayload, compositeStore, staleTimers, send, done);
         } else {
           sendOutputMessage(msg, outputPayload, node.outputTarget, send);
+          setTransformerStatus(node, statusState, { fill: "green", shape: "dot", text: "transformed" });
           done();
         }
       } catch (e) {
-        node.error("Transform error: " + e.message, msg);
-        done(e);
+        reportTransformError(
+          node,
+          statusState,
+          msg,
+          e,
+          done,
+          { fill: "red", shape: "dot", text: "transform failed" }
+        );
       }
     });
 
@@ -161,6 +194,25 @@ module.exports = function (RED) {
 
   function isEnabled(value) {
     return value === true || value === "true";
+  }
+
+  function setTransformerStatus(node, statusState, status) {
+    statusState.generation += 1;
+    node.status(status);
+    return statusState.generation;
+  }
+
+  function reportTransformError(node, statusState, msg, err, done, status) {
+    var message = err && err.message ? err.message : String(err);
+    var errorCode = err && (err.errorNum || err.statusCode || err.code);
+    var doneErr = err instanceof Error ? err : new Error(message);
+    msg.error = {
+      message: message,
+      code: errorCode ? String(errorCode) : null
+    };
+    setTransformerStatus(node, statusState, status);
+    doneErr.code = msg.error.code;
+    done(doneErr);
   }
 
   function getByPath(source, path) {
@@ -379,7 +431,7 @@ module.exports = function (RED) {
     }
   }
 
-  function scheduleStaleTimer(node, compositeStore, staleTimers, key, send) {
+  function scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, waitingGeneration) {
     clearCompositeTimer(staleTimers, key);
     // Fall back to maxCompositeAgeSec when no explicit stale timeout is set so an
     // idle incomplete composite is always evicted by a timer, not only on later input.
@@ -388,25 +440,36 @@ module.exports = function (RED) {
     var reason = node.staleTimeout > 0 ? "stale timeout" : "max pending age exceeded";
     staleTimers[key] = setTimeout(function () {
       flushCompositeEntry(node, compositeStore, staleTimers, key, reason, send);
-      if (Object.keys(compositeStore).length === 0) node.status({});
+      if (Object.keys(compositeStore).length === 0 && statusState.generation === waitingGeneration) {
+        setTransformerStatus(node, statusState, {});
+      }
     }, timeoutSec * 1000);
   }
 
-  function handleComposite(node, msg, outputPayload, compositeStore, staleTimers, send, done) {
+  function handleComposite(node, statusState, msg, outputPayload, compositeStore, staleTimers, send, done) {
     var requiredFields = node.requiredFields || [];
+    var key = buildCompositeKey(outputPayload, node.eventTypeCode);
     if (isCompositeComplete(outputPayload, requiredFields)) {
-      node.status({});
+      if (key) {
+        delete compositeStore[key];
+        clearCompositeTimer(staleTimers, key);
+      }
       sendOutputMessage(msg, outputPayload, node.outputTarget, send);
+      setTransformerStatus(node, statusState, { fill: "green", shape: "dot", text: "transformed" });
       done();
       return;
     }
 
-    var key = buildCompositeKey(outputPayload, node.eventTypeCode);
     if (!key) {
       var keyErr = new Error("Composite mode requires both entityCode and eventTime for incomplete messages");
-      node.status({ fill: "red", shape: "ring", text: "missing composite key fields" });
-      node.error(keyErr.message, msg);
-      done(keyErr);
+      reportTransformError(
+        node,
+        statusState,
+        msg,
+        keyErr,
+        done,
+        { fill: "red", shape: "ring", text: "missing composite key fields" }
+      );
       return;
     }
 
@@ -422,8 +485,12 @@ module.exports = function (RED) {
         createdAt: now,
         updatedAt: now
       };
-      node.status({ fill: "yellow", shape: "ring", text: "waiting: " + key });
-      scheduleStaleTimer(node, compositeStore, staleTimers, key, send);
+      var waitingGeneration = setTransformerStatus(
+        node,
+        statusState,
+        { fill: "yellow", shape: "ring", text: "waiting: " + key }
+      );
+      scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, waitingGeneration);
       enforceCompositeLimits(node, compositeStore, staleTimers, send);
       done();
       return;
@@ -435,8 +502,8 @@ module.exports = function (RED) {
     merged.data = mergeData((existing.payload && existing.payload.data) || {}, outputPayload.data || {});
     if (isCompositeComplete(merged, requiredFields)) {
       delete compositeStore[key];
-      node.status({});
       sendOutputMessage(msg, merged, node.outputTarget, send);
+      setTransformerStatus(node, statusState, { fill: "green", shape: "dot", text: "transformed" });
       done();
       return;
     }
@@ -446,8 +513,12 @@ module.exports = function (RED) {
     existing.transaction = msg.transaction;
     existing.updatedAt = now;
     compositeStore[key] = existing;
-    node.status({ fill: "yellow", shape: "ring", text: "waiting: " + key });
-    scheduleStaleTimer(node, compositeStore, staleTimers, key, send);
+    var updatedWaitingGeneration = setTransformerStatus(
+      node,
+      statusState,
+      { fill: "yellow", shape: "ring", text: "waiting: " + key }
+    );
+    scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, updatedWaitingGeneration);
     enforceCompositeLimits(node, compositeStore, staleTimers, send);
     done();
   }

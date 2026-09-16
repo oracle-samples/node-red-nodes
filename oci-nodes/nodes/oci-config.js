@@ -37,6 +37,26 @@
 module.exports = function (RED) {
     const common = require("oci-common");
 
+    var fs = require("fs");
+    var path = require("path");
+    var os = require("os");
+    var crypto = require("crypto");
+
+    async function readPrivateKey(file, passphrase) {
+        try {
+            var keyPath = String(file || "").trim();
+            if (!keyPath) throw new Error("Missing key path");
+            if (keyPath.indexOf("~/") === 0) keyPath = path.join(os.homedir(), keyPath.slice(2));
+            var pem = await fs.promises.readFile(path.resolve(keyPath), "utf8");
+            crypto.createPrivateKey({ key: pem, passphrase: passphrase || undefined });
+            return pem;
+        } catch (err) {
+            var safeError = new Error("Unable to load OCI private key; check the key file, permissions, PEM format and passphrase");
+            safeError.code = "OCI_PRIVATE_KEY_INVALID";
+            throw safeError;
+        }
+    }
+
     function OciConfigNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -85,11 +105,12 @@ module.exports = function (RED) {
                         break;
 
                     case "simple":
+                        var privateKey = await readPrivateKey(node.privateKeyPath, node.passphrase);
                         _authProvider = new common.SimpleAuthenticationDetailsProvider(
                             node.tenancyOcid,
                             node.userOcid,
                             node.fingerprint,
-                            node.privateKeyPath,
+                            privateKey,
                             node.passphrase,
                             common.Region.fromRegionId(node.region)
                         );

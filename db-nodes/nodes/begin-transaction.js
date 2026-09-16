@@ -36,6 +36,7 @@
 
 module.exports = function(RED) {
     const dbError = require("../lib/db-error.js");
+    var transactions = require("../lib/db-transaction.js")(RED);
 
     function BeginTransactionNode(config) {
         RED.nodes.createNode(this, config);
@@ -44,9 +45,18 @@ module.exports = function(RED) {
         node.timeoutSecs = Number(config.timeoutSecs) || 0;
         node.timeoutHandles = new Set();
         node.activeTransactions = new Set();
+        var closing = false;
+        var pendingInputs = new Set();
+
+        function closedError() {
+            var err = new Error("Transaction node is closed");
+            err.code = "DB_NODE_CLOSED";
+            return err;
+        }
 
         node.connection = RED.nodes.getNode(config.connection);
         if (!node.connection) {
+            node.status({ fill: "red", shape: "ring", text: "no DB connection" });
             node.error("No DB Connection configured");
             return;
         }
@@ -77,20 +87,13 @@ module.exports = function(RED) {
 
             var handle = setTimeout(async () => {
                 node.timeoutHandles.delete(handle);
-                node.activeTransactions.delete(txn);
                 txn._timeout = null;
-
-                txn.timedOut = true;
-                txn.endedAt = Date.now();
-                txn._ended = true;
 
                 node.warn(`Transaction timed out after ${node.timeoutSecs}s — rolling back and closing connection`);
                 node.status({ fill: "red", shape: "ring", text: `timed out (${node.timeoutSecs}s)` });
 
-                if (txn.connection) {
-                    try { await txn.connection.rollback(); } catch (e) { /* ignore */ }
-                    try { await txn.connection.close(); } catch (e) { /* ignore */ }
-                    txn.connection = null;
+                try { await transactions.finish(txn, "rollback", "timeout"); } catch (err) {
+                    node.warn("Timeout cleanup failed: " + dbError.redactText(err.message));
                 }
             }, node.timeoutSecs * 1000);
 
@@ -98,8 +101,10 @@ module.exports = function(RED) {
             node.timeoutHandles.add(handle);
         }
 
-        node.on("input", async (msg, send, done) => {
+        async function handleInput(msg, send, done) {
             try {
+                if (closing) throw closedError();
+                transactions.get(msg, config.connection);
                 // Reuse existing transaction connection if present
                 if (msg.transaction && msg.transaction.connection) {
                     var reused = msg.transaction;
@@ -116,24 +121,20 @@ module.exports = function(RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
                 const connection = await node.connection.getConnection();
+                if (closing) {
+                    try { await connection.close(); } catch (err) {
+                        node.warn("Late connection cleanup failed: " + dbError.redactText(err.message));
+                    }
+                    throw closedError();
+                }
 
-                // Attach transaction as non-enumerable so:
-                // - Downstream nodes can still access msg.transaction.connection
-                // - JSON.stringify and Socket.IO skip it
-                // - Dashboard nodes can serialize msg without errors
-                // - Debug nodes show a cleaner output
-                var txn = {
-                    connection: connection,
-                    startedAt: Date.now(),
-                    msgId: msg._msgid
-                };
- 
-                Object.defineProperty(msg, 'transaction', {
-                    value: txn,
-                    enumerable: false,
-                    writable: true,
-                    configurable: true
-                });
+                var txn;
+                try {
+                    txn = transactions.create(msg, connection, config.connection);
+                } catch (err) {
+                    try { await connection.close(); } catch (closeErr) { /* preserve attachment failure */ }
+                    throw err;
+                }
 
                 txn._untrack = function () { untrackTransaction(txn); };
                 node.activeTransactions.add(txn);
@@ -145,25 +146,29 @@ module.exports = function(RED) {
             } catch (err) {
                 dbError.handleNodeError(node, msg, err, done, {
                     statusText: "DB connect failed",
-                    statusShape: "ring"
+                    statusShape: "dot"
                 });
             }
+        }
+
+        node.on("input", function (msg, send, done) {
+            var operation = handleInput(msg, send, done);
+            pendingInputs.add(operation);
+            operation.then(function () { pendingInputs.delete(operation); }, function () { pendingInputs.delete(operation); });
+            return operation;
         });
 
         node.on("close", async function(done) {
+            closing = true;
             // Roll back and close any transaction still open at redeploy/shutdown so
             // DB sessions and locks are not orphaned when no end-transaction runs.
-            for (const txn of node.activeTransactions) {
-                clearTrackedTimeout(txn._timeout);
-                txn._timeout = null;
-                txn._ended = true;
-                if (txn.connection) {
-                    try { await txn.connection.rollback(); } catch (e) { /* ignore */ }
-                    try { await txn.connection.close(); } catch (e) { /* ignore */ }
-                    txn.connection = null;
+            await Promise.all(Array.from(node.activeTransactions, async function (txn) {
+                try { await transactions.finish(txn, "rollback", "close"); } catch (err) {
+                    node.warn("Transaction cleanup failed: " + dbError.redactText(err.message));
                 }
-            }
+            }));
             node.activeTransactions.clear();
+            await Promise.allSettled(Array.from(pendingInputs));
             node.timeoutHandles.forEach((handle) => clearTimeout(handle));
             node.timeoutHandles.clear();
             if (done) done();

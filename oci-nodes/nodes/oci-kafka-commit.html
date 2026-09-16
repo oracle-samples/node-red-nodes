@@ -1,0 +1,51 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+
+<script type="text/javascript">
+RED.nodes.registerType("oci-kafka-commit", {
+    category: "oci",
+    paletteLabel: "kafka commit",
+    defaults: {
+        name: { value: "" }
+    },
+    inputs: 1,
+    outputs: 1,
+    color: "#F0CC72",
+    icon: "font-awesome/fa-check-square-o",
+    align: "right",
+    label: function () { return this.name || "kafka commit"; }
+});
+</script>
+
+<script type="text/x-red" data-template-name="oci-kafka-commit">
+    <div class="form-row">
+        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="oci-kafka-commit">
+<p>Commits an individual record or a whole batch emitted by Kafka Consumer in Manual commit mode.</p>
+
+<h3>Configuration</h3>
+<p>No connection fields are required. The node uses runtime metadata to reach the active Kafka Consumer that delivered the record.</p>
+
+<h3>Outputs</h3>
+<dl class="message-properties">
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>The unchanged input payload.</dd>
+    <dt>msg.kafka.committed <span class="property-type">boolean</span></dt><dd>True after Kafka confirms the offset commit.</dd>
+    <dt>msg.kafka.nextOffset <span class="property-type">string</span></dt><dd>The committed position after the processed record, or after the last record of a batch.</dd>
+    <dt class="optional">msg.kafka.messageCount <span class="property-type">number</span></dt><dd>Batch mode only. Number of records committed by the original batch token. Per-record metadata remains in <code>msg.kafka.records</code>.</dd>
+    <dt>msg.error <span class="property-type">object</span></dt><dd>On failure, <code>{ message, code }</code>.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>msg.kafka.commitToken <span class="property-type">string</span></dt><dd>The runtime-only token emitted by Kafka Consumer in Manual mode.</dd>
+    <dt>msg.kafka.consumerNodeId <span class="property-type">string</span></dt><dd>The active Kafka Consumer that owns the token.</dd>
+</dl>
+
+<h3>Details</h3>
+<p>Wire this node only after successful downstream processing. Missing, stale, duplicate, or automatic-mode metadata fails through a Catch node. Committing a Kafka offset confirms the processed record and every earlier record in that partition.</p>
+<p>Commit only after every record in the batch succeeds. A token for <code>[A, B, C]</code> commits all three even if the payload now contains only A. If B fails, do not commit that token; splitting or editing the payload does not create separate commits.</p>
+<p>Tokens belong to the active consumer and partition ownership. A close or reassignment during a commit makes its completion stale, even if the broker received the request; no success message is emitted and the old token cannot resume the partition. Treat interrupted commit outcomes as uncertain and keep downstream work idempotent.</p>
+</script>

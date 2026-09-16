@@ -210,6 +210,7 @@ module.exports = function (RED) {
                     path: path,
                     queryParams: queryParams
                 });
+                ensureOpen();
 
                 var data = lastResponse.data;
                 var complete = pollType === "commandStatus"
@@ -238,10 +239,11 @@ module.exports = function (RED) {
 
         node.on("input", async function (msg, send, done) {
             try {
-                node.status({ fill: "yellow", shape: "ring", text: "polling" });
+                node.status({ fill: "yellow", shape: "dot", text: "polling" });
                 var result = await node.ordsConfig.runPollJob(function () {
                     return pollOnce(msg);
                 });
+                ensureOpen();
                 var response = result.response;
                 var data = response ? response.data : null;
                 var status = getDeliveryStatus(data);
@@ -249,7 +251,7 @@ module.exports = function (RED) {
                 node.status({
                     fill: result.complete ? "green" : "yellow",
                     shape: result.complete ? "dot" : "ring",
-                    text: result.complete ? "poll complete" : "poll timed out"
+                    text: result.complete ? "poll completed" : "poll timed out"
                 });
 
                 var outMsg = Object.assign({}, msg, {
