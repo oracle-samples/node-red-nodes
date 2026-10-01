@@ -10,7 +10,15 @@ RED.nodes.registerType("oci-functions-invoke", {
         functionOcid: { value: "", required: true },
         invokeEndpoint: { value: "", required: true },
         invokeType: { value: "sync", required: true },
-        intent: { value: "httprequest", required: true }
+        intent: { value: "httprequest", required: true },
+        maxResponseBytes: {
+            value: 16777216,
+            required: true,
+            validate: function (value) {
+                return (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
+                    Number.isSafeInteger(Number(value)) && Number(value) > 0;
+            }
+        }
     },
     inputs: 1,
     outputs: 1,
@@ -18,45 +26,57 @@ RED.nodes.registerType("oci-functions-invoke", {
     icon: "font-awesome/fa-bolt",
     label: function () {
         return this.name || "functions invoke";
+    },
+    oneditprepare: function () {
+        $("#node-input-invokeType").on("change", function () {
+            $("#detached-note").toggle($(this).val() === "detached");
+        }).trigger("change");
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="oci-functions-invoke">
     <div class="form-row">
-        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+        <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig" style="width:120px;"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig">
+        <label for="node-input-ociConfig" style="width:160px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 167px);">
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-functionOcid" style="width:145px;"><i class="fa fa-id-card"></i> Function OCID</label>
-        <input type="text" id="node-input-functionOcid" placeholder="&lt;your-function-ocid&gt;" style="width:calc(100% - 152px);">
+        <label for="node-input-functionOcid" style="width:160px;"><i class="fa fa-id-card"></i> Function OCID</label>
+        <input type="text" id="node-input-functionOcid" placeholder="&lt;your-function-ocid&gt;" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-input-invokeEndpoint" style="width:145px;"><i class="fa fa-link"></i> Invoke Base Endpoint</label>
-        <input type="text" id="node-input-invokeEndpoint" placeholder="https://&lt;prefix&gt;.&lt;region&gt;.functions.oci.&lt;domain&gt;" style="width:calc(100% - 152px);">
-        <div style="margin-left:150px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-invokeEndpoint" style="width:160px;"><i class="fa fa-link"></i> Invoke Base Endpoint</label>
+        <input type="text" id="node-input-invokeEndpoint" placeholder="https://&lt;prefix&gt;.&lt;region&gt;.functions.oci.&lt;domain&gt;" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Enter only the HTTPS base endpoint from the function's Invoke endpoint.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-invokeType" style="width:120px;"><i class="fa fa-clock-o"></i> Invoke Type</label>
+        <label for="node-input-invokeType" style="width:160px;"><i class="fa fa-clock-o"></i> Invoke Type</label>
         <select id="node-input-invokeType" style="width:200px;">
             <option value="sync">Synchronous</option>
             <option value="detached">Detached</option>
         </select>
+        <div id="detached-note" style="display:none;margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Returns after OCI accepts the invocation. The function may still be running; acceptance does not confirm successful completion.</div>
     </div>
     <div class="form-row">
-        <label for="node-input-intent" style="width:120px;"><i class="fa fa-file-code-o"></i> Intent</label>
+        <label for="node-input-intent" style="width:160px;"><i class="fa fa-file-code-o"></i> Intent</label>
         <select id="node-input-intent" style="width:200px;">
             <option value="httprequest">HTTP request</option>
             <option value="cloudevent">CloudEvent</option>
         </select>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-maxResponseBytes" style="width:160px;"><i class="fa fa-database"></i> Max Response Bytes</label>
+        <input type="number" id="node-input-maxResponseBytes" min="1" step="1" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Maximum buffered successful response size. Default: 16 MiB (16777216 bytes).</div>
     </div>
 </script>
 
@@ -70,6 +90,7 @@ RED.nodes.registerType("oci-functions-invoke", {
     <dt>Invoke Base Endpoint</dt><dd>The HTTPS OCI Functions base origin without the function path.</dd>
     <dt>Invoke Type</dt><dd>Synchronous or detached.</dd>
     <dt>Intent</dt><dd>HTTP request or CloudEvent.</dd>
+    <dt>Max Response Bytes</dt><dd>Maximum buffered successful response size. Default: 16777216 bytes (16 MiB), including saved flows without this field. Messages cannot override it. SDK-handled service error bodies are outside this limit.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -90,8 +111,9 @@ RED.nodes.registerType("oci-functions-invoke", {
 </dl>
 
 <h3>Details</h3>
-<p>Detached success means OCI accepted the request, not that the function finished or succeeded. Track completion separately, or use Synchronous mode if the next node needs the function's returned result.</p>
-<p>The Invoke Base Endpoint must be the HTTPS OCI Functions base origin, without the function path. It is validated before OCI credentials are requested.</p>
-<p>Endpoints must use the exact OCI Functions host structure, an SDK-known OCI realm domain, and the default HTTPS port. Validation occurs before credentials are requested. The configured endpoint client is cached. A message-level endpoint override uses a request-scoped client whose circuit breaker is released after the response is read. The shared authentication provider remains owned by <code>oci-config</code>.</p>
-<p>All upstream properties are preserved. Invocation failures call <code>done(err)</code> and can be handled with a Node-RED Catch node.</p>
+<p>Responses above Max Response Bytes stop reading and reach Catch with <code>OCI_RESPONSE_TOO_LARGE</code>, without normal output. The function may already have completed; this limit does not undo its work. Raise it only for trusted larger responses and available memory.</p>
+<p>Detached success means OCI accepted the request, not that the function finished or succeeded. Track completion separately, or use Synchronous when the next node needs the result.</p>
+<p>The endpoint requires the exact OCI Functions host structure, an SDK-known OCI realm domain, the default HTTPS port, and no function path. Validation runs before credentials are requested.</p>
+<p>Upstream properties are preserved. Invocation failures reach a Node-RED Catch node.</p>
+
 </script>

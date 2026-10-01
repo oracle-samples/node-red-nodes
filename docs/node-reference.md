@@ -44,6 +44,8 @@ Defines how Node-RED connects to the Oracle Database. All other DB nodes referen
 | Advanced (restricted) | No | Optional advanced session SQL. Only `ALTER SESSION SET ...` statements are allowed. Statements are semicolon-separated, max 10 statements, max 1000 total characters. |
 | Test Database Connection | — | Verifies the deployed database connection. Requires a TNS String; configure one in the Connection tab before testing. |
 
+NLS fields and Advanced SQL can be used separately or together; Advanced statements run last. Initialization must succeed before a connection is returned. Thin pools initialize new sessions without tags; Thick pools initialize new or differently tagged sessions using an opaque identity covering all configured statements. Warm pooled sessions reuse their initialization, while standalone connections initialize on every open. Initialization does not reset session changes made later by flow SQL.
+
 Driver mode behavior:
 
 | Behavior | Thick | Thin |
@@ -92,7 +94,7 @@ Once a DB node reports a processing error, that managed transaction can only rol
 Unknown, expired, closing or already-ended references report `inactive transaction` with `DB_TRANSACTION_INACTIVE` through Catch. Successful output removes `msg._dbTransaction` and `msg.transaction`.
 If an imported flow provides an invalid Action value, the node logs a warning and defaults to commit behavior.
 
-**Catch and branching:** Route processing errors through Catch to End configured for Rollback, preserving `msg._dbTransaction`. Keep End outside its own Catch scope. Wait for every transaction branch to finish before sending one message to End: a branch still in a Delay node may otherwise reach SQL after the transaction has closed. Do not log, publish, persist, or modify the reference. With neither reference nor private handle, End reports `no transaction` and passes through without DB work. Use a nonzero Begin timeout as a cleanup safeguard.
+**Catch and branching:** Route processing errors through Catch to End configured for Rollback, preserving `msg._dbTransaction`. Keep End outside its own Catch scope. When later branches must use the same transaction or remain eligible for rollback, wait for all of them before sending one message to End. A branch still in a Delay node may otherwise reach SQL after the transaction has closed; independent recovery uses Enqueue’s Auto-commit mode. Do not log, publish, persist, or modify the reference. With neither reference nor private handle, End reports `no transaction` and passes through without DB work. Use a nonzero Begin timeout as a cleanup safeguard.
 
 ### dequeue
 
@@ -113,6 +115,22 @@ Dequeues messages from an Oracle AQ queue.
 | Block Indefinitely | No | Waits forever for messages if checked (Transactional mode only) |
 | Blocking Time (seconds) | No | Wait time if not blocking indefinitely (Transactional mode only) |
 | Batch Size | No | Messages per dequeue (default: 1, max: 10000) |
+| Filter Source | No | **None** (default), **Editor**, or **Message**. Message reads `msg.dequeueCondition` on each Transactional input; it cannot be used in Continuous mode. |
+| Condition | Editor only | Nonblank, single-line SQL predicate supported by the queue and payload type, without `SELECT` or `WHERE`, up to 4000 UTF-8 bytes. |
+
+**Editor sections:** Basic queue settings and transaction guidance stay visible. **Filtering** opens automatically when a filter is configured and indicates filtering in its collapsed summary. **Advanced** contains the dequeue operation and wait/retry settings.
+
+**Filtering:** Oracle evaluates the predicate through `queue.deqOptions.condition`; no JavaScript filtering or subscriber-rule creation occurs. None ignores saved editor conditions and `msg.dequeueCondition`. Editor condition uses only the configured value. Message condition requires a valid string on each input; a missing or invalid value fails rather than running unfiltered. Only use trusted flow configuration for condition text. Oracle validates predicate syntax and support for the queue, database version and payload; driver support does not guarantee every predicate works on every TxEventQ configuration.
+
+For a JSON payload such as `{ "pressure": 80 }`, a condition can select messages with pressure above 50:
+
+```sql
+JSON_VALUE(tab.user_data, '$.pressure' RETURNING NUMBER) > 50
+```
+
+The predicate is evaluated during each dequeue and does not alter the subscriber's persistent rule. Both filters apply when a subscriber rule is also configured. Supported expressions depend on the queue and payload; an unsupported expression reports an error through Catch rather than falling back to an unfiltered dequeue.
+
+**Browse and Locked batches:** Both modes read one message at a time, up to Batch Size, because native array operations can return an empty result for a nonempty queue. The first read uses the configured wait; subsequent reads do not wait. A partial batch is returned immediately when no further message is available. Neither mode removes messages; Locked holds locks until the transaction ends.
 
 **Dequeue modes:**
 
@@ -122,15 +140,17 @@ Dequeues messages from an Oracle AQ queue.
 | **Browse** | Reads without locking | Message stays, anyone can read it again | Monitoring or inspecting queue contents |
 | **Locked** | Reads and locks | Lock released, message stays | Inspect before deciding to remove |
 
-**Outputs:** `msg.payload` (message payload), `msg.dequeued` (same, for SCM payload mapping compatibility)
+**Outputs:** `msg.payload` and `msg.dequeued` initially reference the same dequeued payload. Replacing `msg.payload` leaves `msg.dequeued` available when downstream nodes preserve message properties. In-place mutations can change both; this is not an immutable snapshot. A later Dequeue replaces the payload and clears previous `smoTransactionResults`. See [recovering a dequeued record](best-practice.md#recovering-a-dequeued-record) for recovery and array handling.
 
 **Transactional mode:** When wired after begin-transaction, uses `msg.transaction.connection`. Messages stay locked on the queue until end-transaction commits or rolls back. The node reports `dequeuing...`, followed by `dequeued N` or `no messages`.
 
-**Batch processing:** Each dequeued item is emitted as a separate message. In a managed transaction, every item shares the same transaction. Use Batch Size `1` for a direct processing-to-End path; larger batches require every item to finish before one End commits. The first Commit otherwise commits removal of the whole batch.
+**Batch processing:** Each dequeued item is emitted as a separate message. In a managed transaction, every item shares the same transaction. For independent sequential processing, use Batch Size `1` and finish processing before End. The first Commit commits removal of the whole batch even if other records or branches have not finished. To keep rollback available for all work, coordinate completion before End. Otherwise, handle later failures through independent recovery; another End cannot undo the committed work.
+
+**Empty managed result:** Commits earlier work and closes the transaction without output; rollback-only protection still applies. With filtering, this means no matching messages were returned, not that the queue has no other messages. Already-admitted DB operations settle before finalization, but delayed branches are not tracked.
 
 **Standalone mode:** When used without transaction nodes, creates its own connection and commits before emitting messages. Downstream failures cannot roll back that dequeue.
 
-**Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. A successful batch shows `dequeued N` for two seconds while the next blocking dequeue starts immediately, then restores the blue-ring `listening` status. On DB/dequeue errors, the node retries connection/dequeue automatically when retries are enabled and stops after Max Retries is exhausted. On redeploy/stop, the node interrupts the blocking dequeue call (and any retry wait) so close can finish promptly without timing out. If Oracle returns `ORA-25231`, configure **Subscriber** with the AQ consumer name required by the multi-consumer queue; this missing-subscriber error stops immediately.
+**Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. A successful batch shows `dequeued N` for two seconds while the next blocking dequeue starts immediately, then restores the blue-ring `listening` status. On DB/dequeue errors, the node retries when enabled. A terminal operational failure reports once to scoped Catch after retries are disabled or exhausted. On redeploy/stop, the node interrupts the blocking dequeue call (and any retry wait) so close can finish promptly without timing out. If Oracle returns `ORA-25231`, configure **Subscriber** with the AQ consumer name required by the multi-consumer queue; this missing-subscriber error stops immediately.
 
 ### enqueue
 
@@ -146,12 +166,15 @@ Enqueues JSON, RAW, or ADT messages into an Oracle AQ queue.
 | Object Type | ADT only | Schema-qualified Oracle object type name (e.g. `ADMIN.MY_MSG_TYPE`) |
 | User Payload | No | A single object or JSON array. A single object is enqueued as one message; each array element becomes a separate message. If empty, uses `msg.payload` (accepts both shapes). For JSON/ADT payload types, the editor provides a `...` JSON editor button. |
 | Pass Message | No | When enabled (default), sends a msg after successful enqueue. Disable to use as a pure sink. |
+| Mode | No | **Transactional** (default): uses an incoming Begin transaction; without one, commits its standalone enqueue. **Auto-commit**: always commits each input on a separate connection, preserving but not finalizing the incoming transaction. |
 
 **Outputs (when enabled):** `msg.count` (number of messages enqueued). All upstream `msg` properties are preserved.
 
 **Buffered limitation:** The node uses `enqMany` without configuring immediate visibility. Buffered delivery may therefore fail with `ORA-25298`; Thin mode also does not support immediate visibility with `enqMany`. Use Persistent for the documented workflow. Switching to Thick mode alone does not configure visibility. See [node-oracledb AQ options](https://node-oracledb.readthedocs.io/en/latest/user_guide/aq.html#changing-aq-options).
 
-**Transactional mode:** When wired after begin-transaction, uses `msg.transaction.connection` and does not auto-commit. Enqueued messages are finalized by end-transaction commit/rollback.
+**Transactional mode:** An active managed reference uses its transaction without auto-commit. Enqueued messages are finalized by End Transaction. With no transaction context, Enqueue commits and closes its standalone connection.
+
+**Independent recovery:** Select Auto-commit mode for an error-AQ write that must work after the source transaction ends. Set `msg.payload` to the desired recovery data and leave the editor Payload blank. For one original AQ record, use `msg.payload = [msg.dequeued]` after checking that the property is still present and suitable for replay. The outer array preserves an array-valued original as one record. This does not close or poison the incoming transaction on failure. Its reference remains on the output for the original owner; it must not be mistaken for a new managed transaction to End. Keep Catch for recovery failures separate from the original processing Catch.
 
 **Standalone mode:** Without transaction nodes, opens its own connection, enqueues, commits, and closes.
 
@@ -200,8 +223,8 @@ Stores the Fusion hostname, API version, OAuth credentials, and proxy settings. 
 | Hostname | Yes | Fusion hostname only, without `https://` or a path. |
 | API Version | Yes | Fusion REST API version supplied for the environment. |
 | REST Base | Read-only | Derived preview: `https://<fusion-host>/fscmRestApi/resources/<api-version>`. Resource paths are appended automatically. |
-| Use Expiry Fallback | No | When enabled, uses the configured fallback lifetime when the token response omits `expires_in` |
-| Expiry Fallback (min) | No | Token cache duration in minutes used when `expires_in` is absent. Default: `60`. Ignored when `expires_in` is present — server-reported lifetime minus a 30-second safety buffer is used instead. |
+| Use Expiry Fallback | No | When enabled, uses the configured fallback lifetime when the token response omits `expires_in`. When disabled (default), tokens without an expiry are not cached for later requests. Concurrent requests still share an in-flight token request. |
+| Expiry Fallback (min) | No | Token cache duration used only when Use Expiry Fallback is enabled and `expires_in` is absent. Default: `60`. A reported lifetime takes precedence, with a 30-second safety buffer; lifetimes of 30 seconds or less are not reused. |
 | Use Proxy | No | Enables proxy for outbound requests |
 | Proxy URL | Proxy only | Proxy URL used by axios |
 | Test SCM Connection | No | Acquires an OAuth token, then verifies that the configured Fusion REST host is reachable. Reports OAuth-only success as a partial failure. |
@@ -322,16 +345,20 @@ Palette label: `smart operations transformer`.
 | Sample Payload | No | Editor-only Mapping Assistant input. Paste one JSON object, or an array of JSON objects for composite fragment preview, to detect available paths, click paths into focused path fields, and preview the transformed event. Runtime input still expects one object per message. |
 | Nesting | No | Wraps mapped fields in a nested object |
 | Composite | No | Advanced option that holds partial messages until all required fields are present |
-| Stale Timeout (seconds) | No | How long the timer waits before emitting incomplete composite data and removing it from pending storage. `0` uses Max Pending Age; it does not disable the timer. |
+| Stale Timeout (seconds) | No | Inactivity time before emitting incomplete composite data and removing it from pending storage. New fragments restart this timer but cannot extend Max Pending Age. `0` uses Max Pending Age; it does not disable the timer. |
 | Max Pending Composites | No | Upper bound for pending composite entries in memory (default `1000`) |
-| Max Pending Age (seconds) | No | Upper bound for how long a pending composite entry may stay in memory (default `3600`) |
+| Max Pending Age (seconds) | No | Maximum time from the first fragment until an incomplete entry is emitted and removed (default `3600`). Applies even when Stale Timeout is longer or fragments keep arriving. |
 | JSONata Override | No | Replaces all field mapping configuration |
 
 **Inputs:** `msg.payload` must be a single object. Arrays and non-object payloads raise an error and can be routed to a Catch node.
 
 **Outputs:** `msg.smoEvent` (structured Smart Operations event object, default) or `msg.payload` when Output Target is set to `msg.payload`.
 
-A complete event replaces pending partial data for the same entity, event time, and event type, and cancels that entry's timer. For an incomplete event receiving no further data, Stale Timeout `0` with Max Pending Age `60` emits the partial data after about 60 seconds and removes the pending entry.
+Composite fragments sharing one managed transaction retain that reference for End. When owners differ, SMO finalizes each distinct managed source once before merging; a managed/unmanaged mix finalizes only the managed source. This commits all work in those source transactions, including other dequeued records and branches. Successful automatic finalization removes closed references from the combined message. Independent commits are not an atomic group. `msg.dequeued` is not a collection of contributing originals; recover individual records before aggregation or preserve the required data explicitly.
+
+A complete event replaces pending partial data after any required transaction finalization for the same entity, event time, and event type, and cancels that entry's timer. For an incomplete event receiving no further data, Stale Timeout `0` with Max Pending Age `60` emits the partial data after about 60 seconds and removes the pending entry.
+
+If source finalization fails, `SMO_COMPOSITE_COMMIT_FAILED` reaches Catch once with `msg.smoTransactionResults`. Results contain `outcome` (`committed`, `rolledBack`, `unknown`), `closed`, `failed`. No normal event is emitted; committed sources cannot be rolled back, and unknown outcomes need reconciliation before retry. A close failure may accompany a known successful commit. Invalid or expired references fail through `SMO_COMPOSITE_TRANSACTION_INVALID`; valid incoming ownership is retained on preflight failure so its error path can finish it. Timer/eviction rejects expired buffered references instead of emitting stale transaction work. Composite operations serialize per event key, so a slow commit does not hold unrelated event keys or their timers. Max Pending Entries also bounds waiting inputs; excess inputs reach Catch with `SMO_COMPOSITE_BUSY` and retain their transaction reference for error handling. Close suppresses late normal output.
 
 New nodes start with `Select event type...`, empty mappings, and the generic `smart operations transformer` workspace label. Select a preset to populate its default mappings, or add a custom event type. Messages are routed to Catch if Event Type is left blank.
 
@@ -397,9 +424,9 @@ Palette label: `manage manufacturing work order details`.
 | SCM Server | Yes | References a scm-server config node |
 | Resource | Yes | Operation, Component, Resource, Serial, or Progress |
 | Action | Yes | Child collections support Create, List, Get, Update, and Delete where Fusion supports them; Progress supports Create only |
-| Work Order ID | Resource-dependent | Fusion manufacturing work order resource ID. If empty, reads `msg.workOrderId` |
-| Operation ID | Component/Resource | Fusion operation resource ID. If empty, reads `msg.operationId` |
-| Child ID | Get/Update/Delete | Operation, component, resource, or serial child record ID. If empty, reads `msg.childRecordId` |
+| Work Order ID | Resource-dependent | Fusion manufacturing work order resource ID. `msg.workOrderId` overrides the editor value |
+| Operation ID | Component/Resource | Fusion operation resource ID. `msg.operationId` overrides the editor value |
+| Child ID | Get/Update/Delete | Operation, component, resource, or serial child record ID. `msg.childRecordId` overrides the editor value |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected SCM Server, Resource, and Action |
 | Payload Source | Create/Update | `Mapped fields` (default) builds the child request from mappings. `Entire msg.payload` uses a validated copy of the complete input object and ignores, but retains, saved mappings |
 | Payload Mappings | Create/Update with Mapped fields | Structured rows mapping Fusion child-resource or operation-transaction fields to values |
@@ -416,7 +443,7 @@ Resource modes target these Fusion resources:
 
 Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`, read from matching `msg.payload.*` paths. Progress transactions read the nested `OperationTransactionDetail` collection from `msg.payload.OperationTransactionDetail` by default.
 
-**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` supply IDs when editor fields are blank. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
+**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` override their editor values. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
 
 **Outputs:** `msg.payload` (API response), `msg.manufacturingWorkOrderChild` (same successful API response), `msg.workOrderChild` (same successful API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
@@ -485,9 +512,9 @@ Palette label: `manage maintenance work order details`.
 | SCM Server | Yes | References a scm-server config node |
 | Resource | Yes | Operation, Material, Resource, or Cost Transaction |
 | Action | Yes | Child collections support Create, List, Get, Update, and Delete where Fusion supports them; Cost Transaction supports Create only |
-| Work Order ID | Resource-dependent | Fusion maintenance work order resource ID. If empty, reads `msg.workOrderId` |
-| Operation ID | Material/Resource | Fusion operation resource ID. If empty, reads `msg.operationId` |
-| Child ID | Get/Update/Delete | Operation, material, or resource child record ID. If empty, reads `msg.childRecordId` |
+| Work Order ID | Resource-dependent | Fusion maintenance work order resource ID. `msg.workOrderId` overrides the editor value |
+| Operation ID | Material/Resource | Fusion operation resource ID. `msg.operationId` overrides the editor value |
+| Child ID | Get/Update/Delete | Operation, material, or resource child record ID. `msg.childRecordId` overrides the editor value |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected SCM Server, Resource, and Action |
 | Payload Source | Create/Update | `Mapped fields` (default) builds the child request from mappings. `Entire msg.payload` uses a validated copy of the complete input object and ignores, but retains, saved mappings |
 | Payload Mappings | Create/Update with Mapped fields | Structured rows mapping Fusion child-resource or maintenance operation transaction fields to values |
@@ -503,7 +530,7 @@ Resource modes target these Fusion resources:
 
 Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`, read from matching `msg.payload.*` paths. Cost transactions read the nested `OperationTransactionDetail` collection from `msg.payload.OperationTransactionDetail` by default.
 
-**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` supply IDs when editor fields are blank. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
+**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` override their editor values. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
 
 **Outputs:** `msg.payload` (API response), `msg.maintenanceWorkOrderChild` (same successful API response), `msg.workOrderChild` (same successful API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
@@ -530,6 +557,8 @@ These typed nodes always call their canonical SCM endpoint. To target a differen
 
 ### delete-transaction
 
+Resource identifiers in work-order, child, delete and lookup requests are encoded as individual path segments. Dot-only identifiers (`.` and `..`) are rejected before the resource request.
+
 Deletes an SCM resource by identifier using the selected mode endpoint.
 
 Palette label: `delete scm record`.
@@ -538,7 +567,7 @@ Palette label: `delete scm record`.
 |-------|----------|-------------|
 | SCM Server | Yes | References a scm-server config node |
 | Delete Type | Yes | Asset, Meter, Misc, Subinventory, or Custom |
-| Resource ID | No | If empty, reads from `msg.resourceId` |
+| Resource ID | No | `msg.resourceId` overrides the editor value |
 | Custom Endpoint | Custom only | Editable HTTPS base endpoint used when Delete Type is `custom`. Query strings are not allowed, and the host must match the configured SCM Server |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected Delete Type and SCM Server |
 
@@ -769,7 +798,7 @@ Publishes telemetry or derived events to OCI Managed Kafka (OCI Streaming with A
 
 - `msg.payload` is the record value. Objects and arrays are JSON-serialized; strings and buffers are sent directly; finite numbers, booleans, and null become strings.
 - `msg.kafka.topic` overrides Topic.
-- `msg.kafka.key`, `msg.kafka.headers`, and non-negative integer `msg.kafka.partition` provide optional record attributes. Header values may be strings, buffers, finite numbers, booleans, or null.
+- `msg.kafka.key`, `msg.kafka.headers`, and non-negative integer `msg.kafka.partition` provide optional record attributes. Header values may be strings, buffers, finite numbers, booleans, or null. The header name `__proto__` is rejected before sending because the installed Kafka client cannot preserve it.
 
 **Outputs:** Preserves the input payload and upstream properties; sets the resolved `msg.kafka.topic` and broker delivery metadata in `msg.kafka.result`.
 
@@ -828,10 +857,13 @@ Invokes an OCI Function through the native OCI SDK. Synchronous invocation is th
 | Invoke Base Endpoint | Yes* | HTTPS OCI Functions base origin without the invoke path. *May be overridden by `msg.ociFunction.invokeEndpoint` |
 | Invoke Type | Yes | `sync` (default) or `detached` |
 | Intent | Yes | `httprequest` (default) or `cloudevent` |
+| Max Response Bytes | No | Maximum buffered successful response size, default `16777216` (16 MiB). Positive integer; cannot be overridden by a message. SDK-handled service error bodies are outside this limit. |
 
 **Inputs:** `msg.payload` is the request body. Objects and arrays are JSON-serialized; strings and buffers are passed directly; an undefined payload sends no body. `msg.ociFunction` may override `functionOcid`, `invokeEndpoint`, `invokeType`, or `intent`, and may set `opcRequestId` or boolean `isDryRun`.
 
 **Outputs:** Replaces `msg.payload` with the response body: parsed JSON when valid, text for other UTF-8 content, or a Buffer for binary content. Detached invocation normally returns an empty string. Sets `msg.statusCode` and merges the resolved function, endpoint, mode, intent, and OCI request ID into `msg.ociFunction`.
+
+A response above Max Response Bytes stops reading and reports `OCI_RESPONSE_TOO_LARGE` through Catch, without normal output. Saved flows without this field use the 16 MiB default. The function may already have completed; rejecting its response does not undo its work.
 
 Configured and message-level endpoints must use the exact OCI Functions host structure, an SDK-known OCI realm domain, and the default HTTPS port; validation occurs before authentication is requested. Detached success means OCI accepted the request; the function may still be running or may later fail. Track completion separately, or use Synchronous mode when the next node needs the function's returned result.
 The configured endpoint client is cached for reuse. A message-level endpoint override uses a request-scoped client whose circuit breaker is released after the response stream is read, avoiding an unbounded endpoint-client cache without closing the authentication provider shared by `oci-config`.
@@ -952,7 +984,7 @@ Sends a one-shot ORDS HTTP request using an `ords-config` OAuth token. The node 
 
 ### oci-ords-poll
 
-After close or redeploy, late responses cannot produce successful output. Pending polls detect closure with `ORDS_NODE_CLOSED`. Already-issued HTTP requests may finish; other nodes sharing the ORDS config are unaffected.
+After close or redeploy, late responses cannot produce successful output. Pending polls detect closure with `ORDS_NODE_CLOSED`; their local requests are cancelled without closing other nodes sharing the ORDS config. Cancellation cannot undo remote processing already performed.
 
 Polls an ORDS endpoint until command status or a custom stop condition is reached.
 
@@ -968,7 +1000,7 @@ Polls an ORDS endpoint until command status or a custom stop condition is reache
 | Success Value | Equals only | Expected value for Equals mode |
 | Query JSON | No | Optional ORDS `q` filter. Can be overridden by `msg.query` |
 | Interval (ms) | No | Delay between attempts. Default: `2000` |
-| Timeout (ms) | No | Maximum wait time. Default: `60000` |
+| Timeout (ms) | No | Total poll deadline including concurrency queue, token acquisition, requests, response reads and intervals. Default: `60000` |
 
 **Runtime overrides:** `msg.recordId`, `msg.customPath`, `msg.query`, `msg.queryParams`, `msg.intervalMs`, `msg.timeoutMs`
 
@@ -1006,12 +1038,15 @@ Uploads and downloads objects in OCI Object Storage.
 | Content Type | No | Upload content type (for example `application/json`) |
 | Download Output | No | `buffer` (default) or `text` |
 | Encoding | No | Text encoding used when Download Output is `text` (default: `utf8`) |
+| Max Response Bytes | No | Maximum buffered successful download size, default `16777216` (16 MiB). Positive integer; cannot be overridden by a message. Uploads are unaffected; SDK-handled service error bodies are outside this limit. |
 
 **Runtime overrides:** `msg.operation`, `msg.namespace`, `msg.bucketName`, `msg.objectName`, `msg.filePath`, `msg.contentType`, `msg.downloadOutput`, `msg.encoding`
 
 **File access:** File paths use the Node-RED process's filesystem permissions; downloads can overwrite existing files. Validate message overrides against approved operations and paths before this node. Editor settings do not restrict overrides from incoming messages.
 
 **Upload input:** `msg.payload` (Buffer, string, stream, Uint8Array, or object)
+
+**Download limit:** Responses above Max Response Bytes stop reading and report `OCI_RESPONSE_TOO_LARGE` through Catch, with no normal output or file write. Saved flows without this field use the 16 MiB default. Downloads are buffered even with a File Path. Raise the limit only for trusted larger objects and available memory.
 
 **Outputs:** `msg.payload`, `msg.statusCode`, plus object metadata (`msg.eTag`, `msg.contentType`, `msg.contentLength`, `msg.versionId`, `msg.opcRequestId`) on download
 
@@ -1058,6 +1093,8 @@ Clicking **Done** saves the current Payload Mappings rows; reopening the node re
 
 ### iot-config (Config Node)
 
+When several Subscribe nodes share one topic, the broker subscription uses their highest requested QoS. Wildcard subscriptions that start with `#` or `+` do not receive `$`-prefixed system topics; subscribe to those explicitly.
+
 MQTT connection to the OCI IoT Platform. Manages persistent sessions, command subscriptions, and auto-reconnect.
 
 | Field | Required | Description |
@@ -1097,7 +1134,7 @@ Publishes telemetry data to the IoT Platform via MQTT.
 
 Auto Timestamp rejects a null payload. Payloads that cannot be serialized as JSON also route to Catch with `invalid payload`, without publishing. Null remains unchanged when Auto Timestamp is disabled.
 
-**Outputs:** `msg.payload` (passed through), `msg.topic` (MQTT topic published to)
+**Outputs:** `msg.payload` (published payload, including any scalar wrapper or added timestamp), `msg.topic` (MQTT topic published to)
 
 Status uses an active dot while `connecting`, then reports `connected`, `publishing`, or `published` as the connection and publish operation progress.
 
@@ -1120,12 +1157,14 @@ Status reports `received` for each command and immediately restores blue-ring `l
 
 ### iot-send-command
 
+Both nodes prefer `msg.digitalTwinInstanceOcid` when supplied and reject invalid new overrides. Without it, existing precedence is preserved: Get Content prefers legacy `msg.digitalTwinOcid` over configuration; Send Command prefers the configured identifier over the legacy property. The saved `digitalTwinOcid` field remains supported.
+
 Sends commands to devices via the OCI REST API.
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | OCI Config | Yes | References an oci-config node (not iot-config — this uses the REST API) |
-| Digital Twin OCID | No* | Device to send the command to. *Required either here or in `msg.digitalTwinOcid` |
+| Digital Twin Instance OCID | No* | Device to send the command to. *Required here or through `msg.digitalTwinInstanceOcid` / legacy `msg.digitalTwinOcid` |
 | Request Endpoint | Yes | Exact endpoint/topic the device or gateway subscribes to. Can be overridden by `msg.requestEndpoint` |
 | Wait for Response | No | Includes response endpoint so the platform waits for device ack. Default: enabled. |
 | Response Endpoint | Response only | Exact endpoint/topic the device or gateway publishes responses to. Can be overridden by `msg.responseEndpoint` |
@@ -1146,10 +1185,10 @@ Retrieves digital twin instance content from the OCI IoT REST API.
 | Field | Required | Description |
 |-------|----------|-------------|
 | OCI Config | Yes | References an `oci-config` node for authentication/region |
-| Digital Twin OCID | Yes* | Digital twin instance OCID. *Can be overridden by `msg.digitalTwinOcid` |
+| Digital Twin Instance OCID | Yes* | Digital twin instance OCID. *Can be overridden by `msg.digitalTwinInstanceOcid` or legacy `msg.digitalTwinOcid` |
 | Include Metadata | No | Includes metadata in the response when enabled. Can be overridden by `msg.shouldIncludeMetadata`. |
 
-**Input:** `msg.digitalTwinOcid` (optional runtime override), `msg.shouldIncludeMetadata` (optional runtime override; boolean or true/false-like string)
+**Input:** `msg.digitalTwinInstanceOcid` (preferred override), `msg.digitalTwinOcid` (legacy override), `msg.shouldIncludeMetadata` (optional runtime override; boolean or true/false-like string)
 
 **Outputs:** `msg.payload` (digital twin content object), `msg.statusCode`, `msg.etag`, `msg.opcRequestId`, `msg.digitalTwinOcid`, `msg.shouldIncludeMetadata`
 

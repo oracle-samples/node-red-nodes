@@ -172,7 +172,7 @@ RED.nodes.registerType("oci-ords-poll", {
     <dt>Success Property / Mode / Value</dt>
     <dd>Custom mode stop condition. Property paths use dot notation.</dd>
     <dt>Interval / Timeout</dt>
-    <dd>Polling interval and maximum wait time in milliseconds. In-progress waits are canceled when the node closes or redeploys.</dd>
+    <dd>Interval between requests and total polling deadline, including time waiting for a polling slot, authentication, requests and response reads. On timeout the current request is canceled locally and the node returns the last received response with <code>msg.pollTimedOut = true</code>. Cancellation does not undo remote work.</dd>
 </dl>
 
 <h3>Outputs</h3>

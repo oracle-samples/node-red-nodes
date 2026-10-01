@@ -81,17 +81,17 @@ RED.nodes.registerType("get-meter-reading", {
 
 <script type="text/x-red" data-template-name="get-meter-reading">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:140px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 147px);">
     </div>
     <div class="form-row">
-        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server">
+        <label for="node-input-server" style="width:140px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 147px);">
     </div>
     <hr/>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="get-meter-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <label style="width:140px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="get-meter-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 147px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row">
@@ -111,8 +111,8 @@ RED.nodes.registerType("get-meter-reading", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Asset Number</dt><dd>Required asset identifier. If left blank, reads from <code>msg.assetNumber</code>.</dd>
-    <dt>Meter Code</dt><dd>Required meter identifier. If left blank, reads from <code>msg.meterCode</code>.</dd>
+    <dt>Asset Number</dt><dd>Required asset identifier; <code>msg.assetNumber</code> takes precedence.</dd>
+    <dt>Meter Code</dt><dd>Required meter identifier; <code>msg.meterCode</code> takes precedence.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint URL derived from the selected SCM Server.</dd>
 </dl>
 <h3>Outputs</h3>

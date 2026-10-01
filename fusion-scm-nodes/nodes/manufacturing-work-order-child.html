@@ -409,11 +409,11 @@ window.workOrderChildEditor = (function () {
 <script type="text/x-red" data-template-name="manufacturing-work-order-child">
     <div class="form-row">
         <label for="node-input-name" style="width:135px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <input type="text" id="node-input-name" style="width:calc(100% - 142px);">
     </div>
     <div class="form-row">
         <label for="node-input-server" style="width:135px;"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server" />
+        <input type="text" id="node-input-server" style="width:calc(100% - 142px);" />
     </div>
     <hr/>
     <div class="form-row">
@@ -432,23 +432,23 @@ window.workOrderChildEditor = (function () {
     </div>
     <div class="form-row manufacturing-child-work-order-section">
         <label for="node-input-workOrderId" style="width:135px;"><i class="fa fa-key"></i> Work Order ID</label>
-        <input type="text" id="node-input-workOrderId" placeholder="Leave empty to read msg.workOrderId">
+        <input type="text" id="node-input-workOrderId" placeholder="Leave empty to read msg.workOrderId" style="width:calc(100% - 142px);">
         <div style="margin-left:140px;font-size:11px;color:#888;margin-top:4px;">
             Fusion manufacturing work order resource ID. Runtime value can be supplied by <code>msg.workOrderId</code>.
         </div>
     </div>
     <div class="form-row manufacturing-child-operation-section">
         <label for="node-input-operationId" style="width:135px;"><i class="fa fa-cog"></i> Operation ID</label>
-        <input type="text" id="node-input-operationId" placeholder="Leave empty to read msg.operationId">
+        <input type="text" id="node-input-operationId" placeholder="Leave empty to read msg.operationId" style="width:calc(100% - 142px);">
     </div>
     <div class="form-row manufacturing-child-record-section">
         <label for="node-input-childRecordId" id="manufacturing-child-record-label" style="width:135px;"><i class="fa fa-link"></i> Child ID</label>
-        <input type="text" id="node-input-childRecordId" placeholder="Leave empty to read msg.childRecordId">
+        <input type="text" id="node-input-childRecordId" placeholder="Leave empty to read msg.childRecordId" style="width:calc(100% - 142px);">
     </div>
     <hr/>
     <div class="form-row">
         <label style="width:135px;"><i class="fa fa-link"></i> Endpoint</label>
-        <span id="manufacturing-work-order-child-url-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <span id="manufacturing-work-order-child-url-display" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 142px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="manufacturing-child-payload-section">
@@ -495,11 +495,11 @@ window.workOrderChildEditor = (function () {
 <h3>Inputs</h3>
 <dl class="message-properties">
     <dt>workOrderId <span class="property-type">string</span></dt>
-    <dd>Manufacturing work order resource ID when the editor field is blank.</dd>
+    <dd>Manufacturing work order resource ID; overrides the editor value.</dd>
     <dt>operationId <span class="property-type">string</span></dt>
-    <dd>Operation resource ID for Component and Resource modes when the editor field is blank.</dd>
+    <dd>Operation resource ID for Component and Resource modes; overrides the editor value.</dd>
     <dt>childRecordId <span class="property-type">string</span></dt>
-    <dd>Operation, component, resource, or serial child record ID for get, update, and delete actions.</dd>
+    <dd>Operation, component, resource, or serial ID for get, update and delete; overrides the editor value.</dd>
     <dt>payload <span class="property-type">object</span></dt>
     <dd>Source for mappings, or the complete child request when Payload Source is <code>Entire msg.payload</code>.</dd>
 </dl>

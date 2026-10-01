@@ -4,10 +4,12 @@ This guide includes all installation steps and verification steps.
 
 ## Prerequisites
 
-- Node-RED (v3.0+)
+- Node-RED (v2.0+)
 - Node.js (v18+)
 - npm (comes with Node.js)
 - Oracle Client libraries supported by node-oracledb (required only when `db-connection` Driver Mode is set to `Thick`)
+
+Early Node.js 18 releases can report `EBADENGINE` for transitive Kafka or MQTT dependencies. Use Node.js 18.17 or later for those dependencies; the package's declared minimum remains 18.0.0.
 
 ## 1.1 Clone the Repository
 
@@ -36,8 +38,10 @@ After cloning, install the node package, not only its dependency libraries. For 
 cd ~/.node-red/node-red-nodes
 npm pack
 cd ..
-npm install ./node-red-nodes/node-red-nodes-0.7.0.tgz
+npm install ./node-red-nodes/node-red-nodes-0.7.1.tgz
 ```
+
+`npm pack` creates the `.tgz` archive; `npm install` installs it into the Node-RED user directory. Use the filename printed by `npm pack` if the package version differs, then restart Node-RED to load the installed nodes. This installs a node package; it does not import a flow through the editor.
 
 The package manifest installs its dependencies automatically. Do not install the root package alongside standalone `db-nodes`, `oci-nodes`, or `fusion-scm-nodes` packages, because their node registrations overlap.
 
@@ -54,7 +58,7 @@ npm install axios@1.20.0
 npm install https-proxy-agent@^7.0.6
 
 # OCI nodes (Functions, native Streaming, Queue, Notifications, Logging, Object Storage, IoT control-plane nodes)
-npm install oci-sdk@2.141.0
+# OCI component dependencies are installed with the node package.
 
 # OCI Managed Kafka producer and consumer
 npm install @confluentinc/kafka-javascript@1.10.1
@@ -119,7 +123,7 @@ From the repository root:
 npm pack
 ```
 
-This creates a file like `node-red-nodes-0.7.0.tgz`. Upload that file in Palette Manager:
+This creates a file like `node-red-nodes-0.7.1.tgz`. Upload that file in Palette Manager:
 
 1. Open Node-RED editor.
 2. Menu → **Manage palette** → **Install**.
@@ -134,8 +138,8 @@ Windows (PowerShell):
 
 ```powershell
 cd $env:TEMP
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.0.tgz
-cd .\node-red-nodes-0.7.0
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.1.tgz
+cd .\node-red-nodes-0.7.1
 npm pack
 ```
 
@@ -143,8 +147,8 @@ Windows (cmd):
 
 ```cmd
 cd /d %TEMP%
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.0.tgz
-cd node-red-nodes-0.7.0
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.1.tgz
+cd node-red-nodes-0.7.1
 npm pack
 ```
 
@@ -152,8 +156,8 @@ Linux/macOS:
 
 ```bash
 cd /tmp
-tar -xf ~/Downloads/node-red-nodes-0.7.0.tgz
-cd node-red-nodes-0.7.0
+tar -xf ~/Downloads/node-red-nodes-0.7.1.tgz
+cd node-red-nodes-0.7.1
 npm pack
 ```
 
@@ -191,7 +195,7 @@ Each installed package installs all dependencies declared in its own `package.js
 |--------------------|---------|
 | DB nodes | `oracledb`, `oci-common`, `oci-identitydataplane` (+ Oracle Client libraries for Thick mode) |
 | SCM nodes only | `axios`, `https-proxy-agent` |
-| OCI Functions, native OCI Streaming, Queue, Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | `oci-sdk` |
+| OCI Functions, native OCI Streaming, Queue, Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | Individual `oci-*` SDK service packages used by these nodes |
 | OCI Managed Kafka (OCI Streaming with Apache Kafka) producer or consumer | `@confluentinc/kafka-javascript@1.10.1` |
 | ORDS request/poll nodes | No additional package beyond Node.js v18+ |
 | IoT Telemetry or IoT Subscribe | `mqtt` |

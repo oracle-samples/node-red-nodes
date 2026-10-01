@@ -1,8 +1,9 @@
 function normalizeError(err) {
     var response = err && err.response;
-    var responseData = response && response.data !== undefined ? response.data : undefined;
+    var responseData = response && response.data !== undefined
+        ? redactValue(response.data, new WeakSet()) : undefined;
     var statusCode = response && response.status ? response.status : 0;
-    var message = extractResponseMessage(responseData) || (err && err.message) || String(err);
+    var message = redactText(extractResponseMessage(responseData) || (err && err.message) || String(err));
 
     return {
         message: message,
@@ -27,17 +28,56 @@ function handleNodeError(node, msg, err, done, options) {
     msg.statusCode = normalized.statusCode;
     msg.payload = normalized.payload;
 
-    var doneErr = err instanceof Error ? err : new Error(normalized.message);
-    if (doneErr.message !== normalized.message) {
-        doneErr.scmOriginalMessage = doneErr.message;
-        doneErr.message = normalized.message;
-    }
-    if (normalized.statusCode && !doneErr.statusCode) {
+    // Axios errors retain credential-bearing request config and response objects.
+    var doneErr = new Error(normalized.message);
+    if (err && typeof err.stack === "string") doneErr.stack = redactText(err.stack);
+    if (normalized.statusCode) {
         doneErr.statusCode = normalized.statusCode;
     }
 
     doneErr.code = normalized.code;
     done(doneErr);
+}
+
+function redactText(value) {
+    var text = String(value || "");
+    if (/^\s*[\[{]/.test(text)) {
+        try {
+            var parsed = JSON.parse(text);
+            var sanitized = JSON.stringify(redactValue(parsed, new WeakSet()));
+            // Escaped quotes in JSON credentials cannot be safely masked by a text regex.
+            return sanitized === JSON.stringify(parsed) ? text : sanitized;
+        } catch (err) { /* Non-JSON diagnostics use the text patterns below. */ }
+    }
+    return text
+        .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[REDACTED PRIVATE KEY]")
+        .replace(/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED TOKEN]")
+        .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+\/._~=-]+/gi, "$1 [REDACTED]")
+        .replace(/(^|\r?\n)((?:set-)?cookie|(?:proxy-)?authorization)\s*:[^\r\n]*/gi, "$1$2: [REDACTED]")
+        .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[REDACTED]@")
+        .replace(/\b([A-Za-z0-9_-]*(?:password|passwd|passphrase|token|private[_-]?key|secret|authorization|cookie)[A-Za-z0-9_-]*)(["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1$2\"[REDACTED]\"");
+}
+
+function redactValue(value, active) {
+    if (typeof value === "string") return redactText(value);
+    if (Buffer.isBuffer(value)) {
+        var text = value.toString("utf8");
+        var sanitized = redactText(text);
+        return sanitized === text ? Buffer.from(value) : Buffer.from(sanitized, "utf8");
+    }
+    if (!value || typeof value !== "object") return value;
+    if (active.has(value)) return "[Circular]";
+    active.add(value);
+    var copy = Array.isArray(value) ? [] : {};
+    Object.keys(value).forEach(function (key) {
+        var sensitive = /password|passwd|passphrase|token|private[_-]?key|secret|authorization|cookie/i.test(key);
+        Object.defineProperty(copy, key, {
+            value: sensitive ? "[REDACTED]" : redactValue(value[key], active),
+            enumerable: true, configurable: true, writable: true
+        });
+    });
+    active.delete(value);
+    return copy;
 }
 
 function resolveErrorCode(err, statusCode) {
@@ -113,6 +153,7 @@ function normalizeString(value) {
 }
 
 module.exports = {
+    redactText: redactText,
     normalizeError: normalizeError,
     handleNodeError: handleNodeError
 };

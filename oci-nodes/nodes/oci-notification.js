@@ -53,29 +53,16 @@ module.exports = function (RED) {
         node.msgTitle = config.msgTitle || "";
         node.msgBody = config.msgBody || "";
 
-        let client = null;
-        let clientPromise = null;
+        var clientManager = require("../lib/oci-client.js")(node);
 
-        async function getClient() {
-            if (client) return client;
-            if (clientPromise) return clientPromise;
-            clientPromise = (async function () {
-                const provider = await node.ociConfig.getAuthProvider();
-                const createdClient = new ons.NotificationDataPlaneClient({
-                    authenticationDetailsProvider: provider
-                });
-                const region = node.ociConfig.getRegion();
-                if (region) {
-                    createdClient.regionId = region;
-                }
-                client = createdClient;
-                return createdClient;
-            })();
-            try {
-                return await clientPromise;
-            } finally {
-                clientPromise = null;
-            }
+        function getClient() {
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new ons.NotificationDataPlaneClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
+            });
         }
 
         node.on("input", async (msg, send, done) => {
@@ -106,6 +93,7 @@ module.exports = function (RED) {
                 msg.payload = response.publishResult || {};
                 msg.statusCode = response.__httpStatusCode || 200;
                 node.status({ fill: "green", shape: "dot", text: "published" });
+                clientManager.assertOpen();
                 send(msg);
                 done();
             } catch (err) {

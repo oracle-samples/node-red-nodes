@@ -67,6 +67,9 @@ module.exports = function (RED) {
                 var message;
                 try {
                     message = kafkaSupport.buildMessage(msg.payload, kafkaInput);
+                    if (message.headers && Object.prototype.hasOwnProperty.call(message.headers, "__proto__")) {
+                        throw new Error("Kafka header __proto__ is not supported because the Kafka client cannot serialize it safely");
+                    }
                 } catch (err) {
                     validationFailure = true;
                     throw err;

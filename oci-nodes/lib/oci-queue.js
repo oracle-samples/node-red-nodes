@@ -73,7 +73,12 @@ function normalizeMetadata(value) {
             if (typeof value.customProperties[name] !== "string") {
                 throw validationError("Queue metadata customProperties values must be strings");
             }
-            properties[name] = value.customProperties[name];
+            Object.defineProperty(properties, name, {
+                value: value.customProperties[name],
+                enumerable: true,
+                writable: true,
+                configurable: true
+            });
         });
         metadata.customProperties = properties;
     }

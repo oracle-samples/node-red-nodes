@@ -18,8 +18,7 @@ module.exports = function (RED) {
             return;
         }
 
-        var client = null;
-        var clientPromise = null;
+        var clientManager = require("../lib/oci-client.js")(node);
 
         node.getQueueOcid = function () {
             if (!node.queueOcid.trim()) {
@@ -29,11 +28,13 @@ module.exports = function (RED) {
         };
 
         async function createClient(signal) {
-            var endpoint = queueSupport.validateEndpoint(node.messagesEndpoint);
+            clientManager.assertOpen();
+            queueSupport.validateEndpoint(node.messagesEndpoint);
             node.getQueueOcid();
             if (signal && signal.aborted) throw new Error("Queue receive client creation cancelled");
             var provider = await node.ociConfig.getAuthProvider();
             if (signal && signal.aborted) throw new Error("Queue receive client creation cancelled");
+            clientManager.assertOpen();
             var createdClient = new queue.QueueClient(
                 { authenticationDetailsProvider: provider },
                 // Queue In owns retry backoff; use direct fetch for abortable long polls.
@@ -42,40 +43,23 @@ module.exports = function (RED) {
                     circuitBreaker: new common.CircuitBreaker({ disableClientCircuitBreaker: true })
                 } : undefined
             );
-            createdClient.endpoint = endpoint;
             return createdClient;
         }
 
         node.getClient = async function (signal) {
             // Receivers own cancellation; publishers and acknowledgements share the cached client.
-            if (signal) return createClient(signal);
-            if (client) return client;
-            if (clientPromise) return clientPromise;
-            clientPromise = (async function () {
-                client = await createClient();
-                return client;
-            })();
-            try {
-                return await clientPromise;
-            } finally {
-                clientPromise = null;
+            function configure(client) {
+                client.endpoint = queueSupport.validateEndpoint(node.messagesEndpoint);
             }
+            if (signal) {
+                // The receiver owns this client; its circuit breaker is disabled.
+                var receiver = await createClient(signal);
+                configure(receiver);
+                return receiver;
+            }
+            return clientManager.get("default", createClient, configure);
         };
 
-        node.on("close", async function (removed, done) {
-            try {
-                if (clientPromise) {
-                    try { await clientPromise; } catch (err) { /* Creation failure needs no close. */ }
-                }
-                if (client && typeof client.shutdownCircuitBreaker === "function") {
-                    client.shutdownCircuitBreaker();
-                }
-                client = null;
-                done();
-            } catch (err) {
-                done(err);
-            }
-        });
     }
 
     RED.nodes.registerType("oci-queue-config", OciQueueConfigNode);

@@ -123,64 +123,64 @@ RED.nodes.registerType("scm-server", {
 
 <script type="text/x-red" data-template-name="scm-server">
     <div class="form-row">
-        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-config-input-name" placeholder="Optional display name">
+        <label for="node-config-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Optional display name" style="width:calc(100% - 167px);">
     </div>
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
     <div class="form-row">
-        <label for="node-config-input-hostname"><i class="fa fa-server"></i> Hostname</label>
-        <input type="text" id="node-config-input-hostname" placeholder="<fusion-host>">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Enter the Fusion hostname only, without <code>https://</code> or a path.</div>
+        <label for="node-config-input-hostname" style="width:160px;"><i class="fa fa-server"></i> Hostname</label>
+        <input type="text" id="node-config-input-hostname" placeholder="<fusion-host>" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Enter the Fusion hostname only, without <code>https://</code> or a path.</div>
     </div>
     <div class="form-row">
-        <label for="node-config-input-version"><i class="fa fa-code-fork"></i> API Version</label>
-        <input type="text" id="node-config-input-version" placeholder="<api-version>">
+        <label for="node-config-input-version" style="width:160px;"><i class="fa fa-code-fork"></i> API Version</label>
+        <input type="text" id="node-config-input-version" placeholder="<api-version>" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> REST Base</label>
-        <code id="scm-server-rest-base-preview" style="font-size:11px;overflow-wrap:anywhere;"></code>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">The fixed <code>/fscmRestApi/resources</code> segment and resource paths are appended automatically.</div>
+        <label style="width:160px;"><i class="fa fa-link"></i> REST Base</label>
+        <code id="scm-server-rest-base-preview" style="font-size:11px;overflow-wrap:anywhere;display:inline-block;width:calc(100% - 167px);vertical-align:top;"></code>
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">The fixed <code>/fscmRestApi/resources</code> segment and resource paths are appended automatically.</div>
     </div>
     </fieldset>
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
     <div class="form-row">
-        <label for="node-config-input-username"><i class="fa fa-user"></i> Client ID</label>
-        <input type="text" id="node-config-input-username">
+        <label for="node-config-input-username" style="width:160px;"><i class="fa fa-user"></i> Client ID</label>
+        <input type="text" id="node-config-input-username" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-config-input-password"><i class="fa fa-key"></i> Client Secret</label>
-        <input type="password" id="node-config-input-password">
+        <label for="node-config-input-password" style="width:160px;"><i class="fa fa-key"></i> Client Secret</label>
+        <input type="password" id="node-config-input-password" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-config-input-tokenUrl"><i class="fa fa-link"></i> Token URL</label>
-        <input type="text" id="node-config-input-tokenUrl">
+        <label for="node-config-input-tokenUrl" style="width:160px;"><i class="fa fa-link"></i> Token URL</label>
+        <input type="text" id="node-config-input-tokenUrl" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-config-input-scope"><i class="fa fa-shield"></i> Scope</label>
-        <input type="text" id="node-config-input-scope">
+        <label for="node-config-input-scope" style="width:160px;"><i class="fa fa-shield"></i> Scope</label>
+        <input type="text" id="node-config-input-scope" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-config-input-useExpiryFallback" style="width:auto;"><i class="fa fa-clock-o"></i> Use Expiry Fallback</label>
-        <input type="checkbox" id="node-config-input-useExpiryFallback" style="margin-left:6px;width:auto;vertical-align:middle;">
+        <label for="node-config-input-useExpiryFallback" style="width:160px;"><i class="fa fa-clock-o"></i> Use Expiry Fallback</label>
+        <input type="checkbox" id="node-config-input-useExpiryFallback" style="margin-left:0;width:auto;vertical-align:middle;">
     </div>
     <div class="form-row" id="expiry-fallback-row">
-        <label for="node-config-input-tokenExpiryMins"><i class="fa fa-clock-o"></i> Fallback (min)</label>
+        <label for="node-config-input-tokenExpiryMins" style="width:160px;"><i class="fa fa-clock-o"></i> Fallback (min)</label>
         <input type="number" id="node-config-input-tokenExpiryMins" value="60" min="1" style="width:80px;">
-        <div style="font-size:11px;color:#888;margin-top:2px;">
-            Used only when the token response does not include <code>expires_in</code>.
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
+            Used only when Use Expiry Fallback is enabled and the token response does not include <code>expires_in</code>.
         </div>
     </div>
     </fieldset>
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Network</legend>
     <div class="form-row">
-        <label for="node-config-input-useProxy" style="width:120px;"><i class="fa fa-exchange"></i> Use Proxy</label>
+        <label for="node-config-input-useProxy" style="width:160px;"><i class="fa fa-exchange"></i> Use Proxy</label>
         <input type="checkbox" id="node-config-input-useProxy" style="margin-left:0;width:auto;">
     </div>
     <div class="form-row" id="proxy-row">
-        <label for="node-config-input-proxyUrl"><i class="fa fa-globe"></i> Proxy URL</label>
-        <input type="text" id="node-config-input-proxyUrl" placeholder="http://proxy.example.com:80">
+        <label for="node-config-input-proxyUrl" style="width:160px;"><i class="fa fa-globe"></i> Proxy URL</label>
+        <input type="text" id="node-config-input-proxyUrl" placeholder="http://proxy.example.com:80" style="width:calc(100% - 167px);">
     </div>
     </fieldset>
     <div class="config-test-actions">
@@ -217,8 +217,8 @@ RED.nodes.registerType("scm-server", {
     <dd>OAuth token endpoint URL for your Fusion environment.</dd>
     <dt>Scope</dt>
     <dd>OAuth scope string required by your Fusion tenant.</dd>
-    <dt>Expiry Fallback (min)</dt>
-    <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer.</dd>
+    <dt>Use Expiry Fallback / Fallback (min)</dt>
+    <dd>Enable to cache tokens for the configured fallback duration when the OAuth response does not include <code>expires_in</code>. Disabled by default: tokens without a reported expiry serve the current request and concurrent callers sharing that fetch, but are not reused for later requests. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer; a lifetime of 30 seconds or less is not cached for reuse.</dd>
     <dt>Test SCM Connection</dt>
     <dd>Tests OAuth token acquisition and Fusion REST host reachability with the deployed configuration. Click <strong>Update</strong> then <strong>Deploy</strong> after changing fields, then test.</dd>
 </dl>

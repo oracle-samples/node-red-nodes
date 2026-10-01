@@ -64,49 +64,48 @@ RED.nodes.registerType("iot-send-command", {
 
 <script type="text/x-red" data-template-name="iot-send-command">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:210px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 217px);">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig" />
+        <label for="node-input-ociConfig" style="width:210px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 217px);" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-digitalTwinOcid" style="width:140px;"><i class="fa fa-microchip"></i> Digital Twin OCID</label>
-        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
-        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
-            The OCID of the digital twin instance to send the command to.
-            If empty, reads from <code>msg.digitalTwinOcid</code>.
+        <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
+        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>" style="width:calc(100% - 217px);">
+        <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
+            Set the instance OCID here or override it with <code>msg.digitalTwinInstanceOcid</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-requestEndpoint" style="width:140px;"><i class="fa fa-road"></i> Request Endpoint</label>
-        <input type="text" id="node-input-requestEndpoint" placeholder="/endpoints/device-001/commands">
-        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-requestEndpoint" style="width:210px;"><i class="fa fa-road"></i> Request Endpoint</label>
+        <input type="text" id="node-input-requestEndpoint" placeholder="/endpoints/device-001/commands" style="width:calc(100% - 217px);">
+        <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Exact MQTT endpoint/topic the device or gateway subscribes to. <code>msg.requestEndpoint</code> can override this value.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-waitForResponse" style="width:140px;"><i class="fa fa-reply"></i> Wait for Response</label>
+        <label for="node-input-waitForResponse" style="width:210px;"><i class="fa fa-reply"></i> Wait for Response</label>
         <input type="checkbox" id="node-input-waitForResponse" style="width:auto;vertical-align:middle;">
         <span style="font-size:12px;color:#666;"> Include response endpoint so the platform waits for a device acknowledgment</span>
     </div>
     <div class="form-row response-wait-row">
-        <label for="node-input-responseEndpoint" style="width:140px;"><i class="fa fa-reply"></i> Response Endpoint</label>
-        <input type="text" id="node-input-responseEndpoint" placeholder="/endpoints/device-001/responses">
-        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-responseEndpoint" style="width:210px;"><i class="fa fa-reply"></i> Response Endpoint</label>
+        <input type="text" id="node-input-responseEndpoint" placeholder="/endpoints/device-001/responses" style="width:calc(100% - 217px);">
+        <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Exact MQTT endpoint/topic the device or gateway publishes back to. <code>msg.responseEndpoint</code> can override this value.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-requestDuration" style="width:140px;"><i class="fa fa-clock-o"></i> Request Duration</label>
+        <label for="node-input-requestDuration" style="width:210px;"><i class="fa fa-clock-o"></i> Request Duration</label>
         <input type="text" id="node-input-requestDuration" placeholder="PT10M" style="width:120px;">
         <span style="font-size:12px;color:#666;margin-left:8px;">ISO 8601 duration (e.g. PT10M = 10 minutes, PT1H = 1 hour)</span>
     </div>
     <div class="form-row response-wait-row">
-        <label for="node-input-responseDuration" style="width:140px;"><i class="fa fa-clock-o"></i> Response Duration</label>
+        <label for="node-input-responseDuration" style="width:210px;"><i class="fa fa-clock-o"></i> Response Duration</label>
         <input type="text" id="node-input-responseDuration" placeholder="PT10M" style="width:120px;">
         <span style="font-size:12px;color:#666;margin-left:8px;">How long the platform waits for the device to respond</span>
     </div>
@@ -118,25 +117,19 @@ RED.nodes.registerType("iot-send-command", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>OCI Config</dt>
-    <dd>References an OCI Config node for authentication (Config File, Instance Principal, or API Key).</dd>
-    <dt>Digital Twin OCID</dt>
-    <dd>The OCID of the digital twin instance to send the command to.
-    If empty, reads from <code>msg.digitalTwinOcid</code>.</dd>
+    <dd>References an OCI Config node for OCI authentication.</dd>
+    <dt>Digital Twin Instance OCID</dt>
+    <dd>Default target instance. See Runtime overrides for identifier precedence.</dd>
     <dt>Request Endpoint</dt>
-    <dd>The exact endpoint/topic the device or gateway subscribes to for commands, for example <code>/endpoints/device-001/commands</code>. <code>msg.requestEndpoint</code> can override this value.</dd>
+    <dd>Exact MQTT topic the device subscribes to for commands, such as <code>/endpoints/&lt;device-id&gt;/commands</code>.</dd>
     <dt>Wait for Response</dt>
-    <dd>When enabled, includes a response endpoint so the platform waits for the device
-    to send an acknowledgment. When disabled, the command is fire-and-forget.</dd>
+    <dd>Includes a response endpoint so OCI can wait for the device acknowledgment. Disabled means fire-and-forget.</dd>
     <dt>Response Endpoint</dt>
-    <dd>The exact endpoint/topic the device or gateway publishes responses to, for example <code>/endpoints/device-001/responses</code>. Required when Wait for Response is enabled. <code>msg.responseEndpoint</code> can override this value.</dd>
+    <dd>Exact MQTT topic the device publishes responses to. Required when Wait for Response is enabled.</dd>
     <dt>Request Duration</dt>
-    <dd>How long the platform tries to deliver the command (ISO 8601 duration, e.g. <code>PT10M</code>, <code>PT1H</code>, <code>P1D</code>).
-    Default: <code>PT10M</code> (10 minutes). Validated before API submission.</dd>
+    <dd>Delivery window as an ISO 8601 duration, such as <code>PT10M</code>, <code>PT1H</code>, or <code>P1D</code>. Default: <code>PT10M</code> (10 minutes).</dd>
     <dt>Response Duration</dt>
-    <dd>How long the platform waits for the device to respond (ISO 8601 duration).
-    Default: <code>PT10M</code> (10 minutes). Only used when Wait for Response is enabled.</dd>
-    <dt>Payload</dt>
-    <dd><code>msg.payload</code> is the command data sent to the device (e.g. <code>{"action": "blink", "duration": 5}</code>).</dd>
+    <dd>Device response window as an ISO 8601 duration. Default: <code>PT10M</code>; used only with Wait for Response.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -163,35 +156,16 @@ RED.nodes.registerType("iot-send-command", {
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt><dd>Overrides Digital Twin OCID when provided.</dd>
+    <dt>msg.digitalTwinInstanceOcid <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
+    <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt><dd>Legacy fallback when the configured identifier is empty and the new override is absent.</dd>
     <dt>msg.requestEndpoint <span class="property-type">string</span></dt><dd>Overrides Request Endpoint when provided.</dd>
     <dt>msg.responseEndpoint <span class="property-type">string</span></dt><dd>Overrides Response Endpoint when provided.</dd>
-    <dt>msg.payload <span class="property-type">object</span></dt><dd>The command data sent to the device.</dd>
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Command data, for example <code>{"action": "blink", "duration": 5}</code>. Non-object or null input is wrapped as <code>{value: &lt;input&gt;}</code>.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>This node calls the OCI IoT Platform's <code>invokeRawCommand</code> API to send a command
-to a digital twin instance. The platform delivers the command to the device over MQTT
-on the configured Request Endpoint. If the device is connected and listening (for example
-via the <b>subscribe</b> node or another MQTT client), it receives the command and can
-publish an acknowledgment to the configured Response Endpoint.</p>
-<p>This node uses the OCI REST API (via the <b>oci-config</b> node), not the MQTT connection.
-It sends commands <em>to</em> the device through the IoT Platform — the cloud-to-device direction.
-Equivalent to running <code>oci iot digital-twin-instance invoke-raw-json-command</code> from the CLI.</p>
+<p>Uses OCI REST authentication to call <code>invokeRawCommand</code>; OCI then delivers the command over MQTT. The device must subscribe to Request Endpoint and publish acknowledgments to Response Endpoint when requested. Endpoint presence and ISO 8601 durations are validated before API submission.</p>
+<p>To check command delivery, connect the output to <b>oci ords poll</b> in Command Status mode; it uses <code>msg.recordId</code>. The equivalent CLI operation is:</p>
+<pre>oci iot digital-twin-instance invoke-raw-json-command</pre>
 
-<h3>Prerequisites</h3>
-<p>Install the OCI SDK in your Node-RED directory:</p>
-<pre>cd ~/.node-red
-npm install oci-sdk</pre>
-
-<h3>Typical Flows</h3>
-<p><b>Send a command from an inject node:</b><br/>
-<code>inject</code> (JSON payload) → <code>iot send command</code> → <code>debug</code></p>
-<p><b>Dynamic command routing:</b><br/>
-<code>function</code> (sets msg.requestEndpoint, msg.responseEndpoint, and msg.payload) → <code>iot send command</code> → <code>debug</code></p>
-<p><b>Full round-trip test:</b><br/>
-<code>inject</code> → <code>iot send command</code> → <code>debug</code> (command sent)<br/>
-<code>subscribe</code> → <code>debug</code> (message received on device side)</p>
-<p><b>Check delivery through ORDS:</b><br/>
-<code>iot send command</code> (outputs <code>msg.recordId</code>) → <code>oci ords poll</code> (Command Status) → <code>debug</code></p>
 </script>

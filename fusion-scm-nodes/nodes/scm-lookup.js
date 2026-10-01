@@ -37,7 +37,7 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps, ensureAllowedScmResourceUrl } = require("../lib/url.js");
+    const { ensureHttps, ensureAllowedScmResourceUrl, appendPathSegments } = require("../lib/url.js");
     const scmQuery = require("../lib/scm-query.js");
     const scmError = require("../lib/scm-error.js");
 
@@ -217,7 +217,9 @@ module.exports = function(RED) {
                         }
                         finalUrl = parsed.toString();
                     } else {
-                        const baseUrl = node.server.buildUrl(lookupRequest.endpoint);
+                        const baseUrl = lookupRequest.path
+                            ? appendPathSegments(node.server.buildUrl(""), lookupRequest.path)
+                            : node.server.buildUrl(lookupRequest.endpoint);
                         const params = new URLSearchParams();
                         const queryParam = lookupType === "organizationId"
                             ? getOrganizationQueryField(config.organizationQueryField)
@@ -466,11 +468,11 @@ module.exports = function(RED) {
                 return part;
             }
             var value = resolvePathValue(part, config, msg);
-            return encodeURIComponent(value);
+            return value;
         });
 
         return {
-            endpoint: endpointParts.join("/"),
+            path: endpointParts,
             queryFilters: remainingFilters
         };
     }

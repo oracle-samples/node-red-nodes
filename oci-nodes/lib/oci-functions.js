@@ -1,4 +1,5 @@
 var endpointSupport = require("./oci-endpoint.js");
+var responseSupport = require("./oci-response.js");
 
 function validateEndpoint(value) {
     if (typeof value !== "string" || !value.trim()) {
@@ -55,31 +56,9 @@ function serializeBody(value) {
     throw new Error("msg.payload has an unsupported value type");
 }
 
-async function readResponse(value) {
-    if (value === undefined || value === null) return "";
-    if (typeof value === "string" || Buffer.isBuffer(value) || value instanceof Uint8Array) {
-        return parseBody(Buffer.isBuffer(value) ? value : Buffer.from(value));
-    }
-
-    var chunks = [];
-    if (typeof value[Symbol.asyncIterator] === "function") {
-        for await (var chunk of value) {
-            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        }
-        return parseBody(Buffer.concat(chunks));
-    }
-    if (typeof value.getReader === "function") {
-        var reader = value.getReader();
-        while (true) {
-            var result = await reader.read();
-            if (result.done) break;
-            chunks.push(Buffer.from(result.value));
-        }
-        return parseBody(Buffer.concat(chunks));
-    }
-    throw new Error("Function response body is not a readable stream");
+async function readResponse(value, maxResponseBytes, contentLength) {
+    return parseBody(await responseSupport.readBuffer(value, maxResponseBytes, contentLength));
 }
-
 function parseBody(buffer) {
     if (!buffer.length) return "";
     if (!isUtf8(buffer)) return buffer;

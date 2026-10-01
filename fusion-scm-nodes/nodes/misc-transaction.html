@@ -443,15 +443,15 @@ window.scmEndpointPreview = (function () {
 
 <script type="text/x-red" data-template-name="misc-transaction">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:140px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 147px);">
     </div>
     <div class="form-row">
-        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server" />
+        <label for="node-input-server" style="width:140px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 147px);" />
     </div>
     <div class="form-row">
-        <label for="node-input-mode"><i class="fa fa-list"></i> Mode</label>
+        <label for="node-input-mode" style="width:140px;"><i class="fa fa-list"></i> Mode</label>
         <select id="node-input-mode" style="width:200px;">
             <option value="custom">Custom</option>
             <option value="receipt">Miscellaneous Receipt</option>
@@ -462,26 +462,26 @@ window.scmEndpointPreview = (function () {
     </div>
     <hr/>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="scm-url-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <label style="width:140px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="scm-url-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 147px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-payloadSource"><i class="fa fa-sign-in"></i> Payload Source</label>
+        <label for="node-input-payloadSource" style="width:140px;"><i class="fa fa-sign-in"></i> Payload Source</label>
         <select id="node-input-payloadSource" style="width:200px;">
             <option value="mappings">Mapped fields</option>
             <option value="msgPayload">Entire msg.payload</option>
         </select>
     </div>
     <div class="form-row scm-direct-payload-hint" style="display:none;">
-        <div style="margin-left:105px;font-size:11px;color:#888;">
+        <div style="margin-left:145px;font-size:11px;color:#888;">
             Uses the complete <code>msg.payload</code> object. The selected mode still applies its transaction type. Saved mappings are retained but ignored.
         </div>
     </div>
     <div class="scm-payload-mappings">
         <div class="form-row">
-            <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+            <label style="width:140px;"><i class="fa fa-list-ul"></i> Payload Mappings</label>
+            <div style="margin-left:145px;font-size:11px;color:#888;margin-bottom:4px;">
                 Map SCM API fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
             </div>
         </div>

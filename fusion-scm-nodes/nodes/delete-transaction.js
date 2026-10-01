@@ -37,7 +37,7 @@
 module.exports = function(RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
-    const { ensureHttps, ensureAllowedHost } = require("../lib/url.js");
+    const { ensureHttps, ensureAllowedHost, appendPathSegments } = require("../lib/url.js");
     const scmError = require("../lib/scm-error.js");
 
     function DeleteTransactionNode(config) {
@@ -109,11 +109,7 @@ module.exports = function(RED) {
                     msg.error = { message: err.message, code: err.code };
                     return done(err);
                 }
-                const basePath = parsedUrl.pathname.endsWith("/") && parsedUrl.pathname.length > 1
-                    ? parsedUrl.pathname.slice(0, -1)
-                    : parsedUrl.pathname;
-                parsedUrl.pathname = basePath + "/" + encodeURIComponent(resourceId);
-                const finalUrl = parsedUrl.toString();
+                const finalUrl = appendPathSegments(parsedUrl.toString(), [resourceId]);
 
                 node.status({ fill: "yellow", shape: "dot", text: "deleting..." });
                 const response = await axios.delete(finalUrl, {

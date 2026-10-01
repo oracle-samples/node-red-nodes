@@ -56,27 +56,27 @@ RED.nodes.registerType("iot-get-content", {
 
 <script type="text/x-red" data-template-name="iot-get-content">
     <div class="form-row">
-        <label for="node-input-name" style="width:170px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:210px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 217px);">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig" style="width:170px;"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig">
+        <label for="node-input-ociConfig" style="width:210px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 217px);">
     </div>
     <div class="form-row">
-        <label for="node-input-digitalTwinOcid" style="width:170px;"><i class="fa fa-microchip"></i> Digital Twin OCID</label>
-        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
-        <div style="margin-left:175px;font-size:11px;color:#888;margin-top:2px;">
-            If empty, reads from <code>msg.digitalTwinOcid</code>.
+        <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
+        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>" style="width:calc(100% - 217px);">
+        <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
+            Set the instance OCID here or override it with <code>msg.digitalTwinInstanceOcid</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-shouldIncludeMetadata" style="width:170px;"><i class="fa fa-info-circle"></i> Include Metadata</label>
+        <label for="node-input-shouldIncludeMetadata" style="width:210px;"><i class="fa fa-info-circle"></i> Include Metadata</label>
         <input type="checkbox" id="node-input-shouldIncludeMetadata" style="width:auto;vertical-align:middle;">
         <span style="font-size:12px;color:#666;"> Include model metadata in the content response</span>
     </div>
-    <div class="form-tips" style="margin-left:175px;">
-        <b>Tip:</b> Runtime overrides are supported via <code>msg.digitalTwinOcid</code> and <code>msg.shouldIncludeMetadata</code>.
+    <div class="form-tips" style="margin-left:215px;">
+        <b>Tip:</b> <code>msg.shouldIncludeMetadata</code> can override Include Metadata.
     </div>
 </script>
 
@@ -87,8 +87,8 @@ RED.nodes.registerType("iot-get-content", {
 <dl class="message-properties">
     <dt>OCI Config</dt>
     <dd>References an <code>oci-config</code> node for authentication and region.</dd>
-    <dt>Digital Twin OCID</dt>
-    <dd>Digital twin instance OCID. If empty, reads from <code>msg.digitalTwinOcid</code>.</dd>
+    <dt>Digital Twin Instance OCID</dt>
+    <dd>Digital twin instance OCID. Can be supplied or overridden using <code>msg.digitalTwinInstanceOcid</code>.</dd>
     <dt>Include Metadata</dt>
     <dd>When enabled, requests metadata in addition to content values.</dd>
 </dl>
@@ -109,8 +109,9 @@ RED.nodes.registerType("iot-get-content", {
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
+    <dt>msg.digitalTwinInstanceOcid <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
     <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt>
-    <dd>Overrides the configured Digital Twin OCID.</dd>
+    <dd>Legacy override for existing flows; overrides the configured identifier when <code>msg.digitalTwinInstanceOcid</code> is absent.</dd>
     <dt>msg.shouldIncludeMetadata <span class="property-type">boolean|string</span></dt>
     <dd>Overrides Include Metadata. Accepts booleans or true/false-like strings.</dd>
 </dl>

@@ -26,12 +26,12 @@ RED.nodes.registerType("oci-streaming-in", {
 
 <script type="text/x-red" data-template-name="oci-streaming-in">
     <div class="form-row">
-        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+        <label for="node-input-name" style="width:155px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 162px);">
     </div>
     <div class="form-row">
-        <label for="node-input-streamingConfig" style="width:120px;"><i class="fa fa-cloud"></i> Streaming Config</label>
-        <input type="text" id="node-input-streamingConfig">
+        <label for="node-input-streamingConfig" style="width:155px;"><i class="fa fa-cloud"></i> Streaming Config</label>
+        <input type="text" id="node-input-streamingConfig" style="width:calc(100% - 162px);">
     </div>
     <hr/>
     <div class="form-row">
@@ -111,13 +111,14 @@ RED.nodes.registerType("oci-streaming-in", {
 </dl>
 
 <h3>Details</h3>
-<p>Expired cursors and lost reservations rejoin the same consumer group and invalidate old manual tokens. Existing committed offsets are preserved; if the group has expired, recovery starts from the oldest retained records. An error indicating offsets outside retention stops consumption for administrator review and an explicit group reset/redeploy. The node never resets a group's position automatically.</p>
-<p>Read starts are spaced at least 210 ms apart per node. Request time and manual processing/commit time count toward that interval; no extra pause is added when they already take 210 ms or longer. Empty responses add a 1 second idle pause. Waits are non-blocking and cancelled on stop or redeploy. SDK retries remain enabled; Retry Delay applies after a failed request reaches the node, with the read-start interval also enforced. Other consumers sharing the stream/group can still cause throttling.</p>
-<p>Automatic mode commits delivered records without waiting for downstream success. Manual mode keeps one record or batch pending and sends heartbeats while waiting for Streaming Commit. Loss of the cursor or partition reservation can invalidate the token and cause replay. Preserve the original metadata and commit once, after every record succeeds. A token for <code>[A, B, C]</code> commits all three even if the payload now contains only A.</p>
-<p>A stopped or redeployed source invalidates its runtime token and can replay the uncommitted record or batch, including records whose downstream work had already succeeded. Commit failures retain the pending token for retry while the source remains active.</p>
-<p>In Manual mode, this running source suppresses repeated records at or below its successfully committed offset for each partition, scoped to its stream and consumer group. Duplicate-only reads follow the next read cursor with a 1 second pause; five consecutive duplicate-only reads report a Catch error once until progress resumes. Uncommitted records are not suppressed. Stop all affected consumers before intentionally resetting a group, then restart them to clear local committed history. Numeric offsets outside JavaScript's safe integer range are rejected in Manual mode.</p>
-<p>Both modes provide at-least-once delivery. Keep downstream side effects idempotent because a failure after processing but before commit can produce a duplicate.</p>
+<p>Automatic mode commits without waiting for downstream success. Manual mode keeps one record or batch pending and sends heartbeats until Streaming Commit. Preserve the metadata and commit once after every record succeeds: a token for <code>[A, B, C]</code> commits all three even if the payload now contains only A.</p>
+<p>Cursor expiry or reservation loss rejoins the same group, invalidates old tokens, and preserves committed offsets; an expired group recovers from the oldest retained records. Offsets outside retention stop consumption for administrator review and an explicit group reset/redeploy. The node does not automatically reset group positions.</p>
+<p>Stop/redeploy invalidates the pending token; uncommitted work can replay, including records already processed downstream. Other commit failures retain the token for retry while its source remains active and owns it.</p>
+<p>Reads start at least 210 ms apart. Request and manual processing/commit time count toward this interval; empty reads add a 1-second pause. Waits cancel on stop/redeploy. SDK retries remain enabled; Retry Delay applies after a failed request, alongside the read interval. Other consumers can still cause throttling.</p>
+<p>Manual mode suppresses records at or below this running source's committed offset per partition, stream and group. Duplicate-only reads follow the next cursor with a 1-second pause; five consecutive such reads report one Catch error until progress resumes. Uncommitted records are not suppressed. Stop affected consumers before intentionally resetting a group, then restart to clear local committed history. Manual mode rejects offsets outside JavaScript's safe integer range.</p>
+<p>Both modes provide at-least-once delivery. Keep downstream side effects idempotent: processing can succeed before a commit fails.</p>
 
 <h3>Prerequisites</h3>
-<p>The OCI principal selected by Streaming Config must have <code>stream-pull</code> permission for the target native OCI stream.</p>
+<p>The principal selected by Streaming Config needs <code>stream-pull</code> permission on the native OCI stream.</p>
+
 </script>

@@ -60,6 +60,7 @@ RED.nodes.registerType("enqueue", {
         payloadType: { value: "json" },
         adtTypeName: { value: "" },
         enableOutput: { value: true },
+        independentTransaction: { value: false },
         outputs: { value: 1 }
     },
     inputs: 1, outputs: 1,
@@ -68,6 +69,14 @@ RED.nodes.registerType("enqueue", {
     label: function () { return this.name || "enqueue"; },
     oneditprepare: function () {
         var node = this;
+        $("#node-input-mode").val(node.independentTransaction === true ? "auto-commit" : "transactional");
+        function updateMode() {
+            var autoCommit = $("#node-input-mode").val() === "auto-commit";
+            $("#enqueue-transactional-note").toggle(!autoCommit);
+            $("#enqueue-auto-commit-note").toggle(autoCommit);
+        }
+        $("#node-input-mode").on("change", updateMode);
+        updateMode();
         $("#node-input-outputs").val(node.outputs);
         $("#node-input-enableOutput").prop("checked", node.enableOutput !== false);
         $("#node-input-enableOutput").on("change", function () {
@@ -119,45 +128,61 @@ RED.nodes.registerType("enqueue", {
         }
         $("#node-input-deliveryMode").on("change", updateDeliveryWarning);
         updateDeliveryWarning();
+    },
+    oneditsave: function () {
+        this.independentTransaction = $("#node-input-mode").val() === "auto-commit";
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="enqueue">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <label for="node-input-name" style="width:130px;"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
     <div class="form-row">
-        <label for="node-input-connection"><i class="fa fa-database"></i> DB Connection</label>
+        <label for="node-input-connection" style="width:130px;"><i class="fa fa-database"></i> DB Connection</label>
         <input type="text" id="node-input-connection" />
+    </div>
+    <div class="form-row">
+        <label for="node-input-mode" style="width:130px;"><i class="fa fa-exchange"></i> Mode</label>
+        <select id="node-input-mode" style="width:200px;">
+            <option value="transactional">Transactional</option>
+            <option value="auto-commit">Auto-commit</option>
+        </select>
+    </div>
+    <div id="enqueue-transactional-note" style="margin:0 0 8px 135px;font-size:11px;color:#888;">
+        Uses the incoming Begin Transaction; otherwise opens a standalone transaction and commits automatically.
+    </div>
+    <div id="enqueue-auto-commit-note" style="display:none;margin:0 0 8px 135px;font-size:11px;color:#856404;background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:5px 8px;">
+        <i class="fa fa-exclamation-triangle"></i> Commits each input in a separate transaction. Does not commit or roll back an incoming Begin Transaction; it still needs its own End.
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-queueName"><i class="fa fa-list-ul"></i> Queue Name</label>
+        <label for="node-input-queueName" style="width:130px;"><i class="fa fa-list-ul"></i> Queue Name</label>
         <input type="text" id="node-input-queueName">
     </div>
     <div class="form-row">
-        <label for="node-input-recipients"><i class="fa fa-users"></i> Recipients</label>
+        <label for="node-input-recipients" style="width:130px;"><i class="fa fa-users"></i> Recipients</label>
         <input type="text" id="node-input-recipients">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Comma-separated subscriber names, applied to every message. Leave blank to use the queue's subscriptions.</div>
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Comma-separated subscriber names, applied to every message. Leave blank to use the queue's subscriptions.</div>
     </div>
     <div class="form-row">
-        <label for="node-input-deliveryMode"><i class="fa fa-tachometer"></i> Delivery Mode</label>
+        <label for="node-input-deliveryMode" style="width:130px;"><i class="fa fa-tachometer"></i> Delivery Mode</label>
         <select id="node-input-deliveryMode" style="width:200px;">
             <option value="persistent">Persistent (default)</option>
             <option value="buffered">Buffered</option>
         </select>
     </div>
-    <div id="enqueue-persistent-note" style="margin-left:105px;font-size:11px;color:#888;margin-top:-6px;">
+    <div id="enqueue-persistent-note" style="margin-left:135px;font-size:11px;color:#888;margin-top:-6px;">
         Messages are written to the queue table and committed to disk — durable across database restarts.
     </div>
-    <div id="enqueue-buffered-warning" style="margin-left:105px;font-size:11px;color:#c47a00;margin-top:-6px;display:none;">
+    <div id="enqueue-buffered-warning" style="margin-left:135px;font-size:11px;color:#c47a00;margin-top:-6px;display:none;">
         Buffered messages require immediate visibility and do not support JSON payloads. This node does not configure immediate visibility; use Persistent for the documented workflow.
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-payloadType"><i class="fa fa-file-code-o"></i> Payload Type</label>
+        <label for="node-input-payloadType" style="width:130px;"><i class="fa fa-file-code-o"></i> Payload Type</label>
         <select id="node-input-payloadType" style="width:200px;">
             <option value="json">JSON</option>
             <option value="raw">RAW</option>
@@ -165,9 +190,9 @@ RED.nodes.registerType("enqueue", {
         </select>
     </div>
     <div id="enqueue-adt-row" class="form-row" style="display:none">
-        <label for="node-input-adtTypeName"><i class="fa fa-cube"></i> Object Type</label>
+        <label for="node-input-adtTypeName" style="width:130px;"><i class="fa fa-cube"></i> Object Type</label>
         <input type="text" id="node-input-adtTypeName" placeholder="SCHEMA.TYPE_NAME">
-        <div style="font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
     </div>
     <div class="form-row">
         <label for="node-input-userPayload" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-code"></i> Payload</label>
@@ -195,34 +220,28 @@ RED.nodes.registerType("enqueue", {
 
 <h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
-    <dt>Queue Name</dt><dd>Name of the AQ to enqueue into.</dd>
-    <dt>Recipients</dt><dd>Optional comma-separated subscriber names for multi-consumer queues, applied to each message in the batch. Surrounding spaces are removed; names retain their case. Empty list entries and control characters are rejected. Leave blank to use the queue's subscriptions.</dd>
+    <dt>DB Connection</dt><dd>Shared database connection configuration.</dd>
+    <dt>Mode</dt>
+    <dd><b>Transactional</b> (default) uses the incoming Begin Transaction; End commits or rolls back. Without transaction context, it opens a connection, enqueues, commits and closes. <b>Auto-commit</b> always uses a separate connection and commits each input, including inputs carrying a closed transaction reference. It neither finalizes nor marks the original transaction rollback-only on failure; an active original still needs its own End.</dd>
+    <dt>Queue Name</dt><dd>Existing destination AQ.</dd>
+    <dt>Recipients</dt><dd>Optional comma-separated subscribers for each message in a multi-consumer queue. Spaces are trimmed; case is preserved. Empty entries and control characters are invalid. Blank uses the queue's subscriptions.</dd>
     <dt>Delivery Mode</dt>
-    <dd><strong>Persistent</strong> (default): messages are written to the queue table and committed to disk — durable across database restarts.
-    <strong>Buffered</strong>: in-memory messages requiring immediate visibility; JSON payloads are not supported. This node uses <code>enqMany</code> and does not configure immediate visibility, so buffered delivery may fail with <code>ORA-25298</code>. Thin mode also does not support immediate visibility with <code>enqMany</code>. Use Persistent for the documented workflow; switching driver mode alone does not configure visibility.</dd>
-    <dt>Payload Type</dt>
-    <dd><strong>JSON</strong> (default): payload is a JS object enqueued as <code>DB_TYPE_JSON</code>.
-    <strong>RAW</strong>: payload is a string encoded to a UTF-8 Buffer.
-    <strong>ADT</strong>: payload is a JS object instantiated as an Oracle DbObject using the specified Object Type. Field names must match the Oracle type's attribute names (uppercase).</dd>
-    <dt>Object Type</dt>
-    <dd>ADT only. Schema-qualified Oracle object type name, e.g. <code>ADMIN.MY_MSG_TYPE</code>. Must exist in the database and match the queue's payload type.</dd>
+    <dd><b>Persistent</b> (default) survives database restarts after commit. <b>Buffered</b> requires immediate visibility and does not support JSON. This node uses <code>enqMany</code> without immediate visibility, so Buffered may fail with <code>ORA-25298</code>. Thin mode does not support immediate visibility with <code>enqMany</code>; switching modes does not configure it. Use Persistent for the documented workflow.</dd>
+    <dt>Payload Type / Object Type</dt>
+    <dd><b>JSON</b> (default) uses <code>DB_TYPE_JSON</code>. <b>RAW</b> accepts a Buffer or UTF-8 string. <b>ADT</b> converts objects to the specified Oracle Object Type; use uppercase attribute names. The schema-qualified type must exist and match the queue.</dd>
     <dt>Payload</dt>
-    <dd>JSON: a single object or array — each element becomes one AQ message. RAW: a plain string encoded to a Buffer. ADT: a single object or array with uppercase field names matching the Oracle type. If empty, <code>msg.payload</code> is used instead. For JSON/ADT payload types, use <code>...</code> to open the JSON editor.</dd>
+    <dd>Configured value, or <code>msg.payload</code> when blank. JSON/ADT accepts one object or an array: each array element becomes one AQ message. RAW accepts plain text. Use <code>...</code> for the JSON/ADT editor.</dd>
 </dl>
 
 <h3>Outputs</h3>
-<p><strong>Pass Message</strong> is enabled by default and sends a msg after a successful enqueue. Disable it to use the node as a terminal sink.</p>
+<p><b>Pass Message</b> (enabled by default) forwards the input after success, adding <code>msg.count</code>. Disable it for a terminal sink.</p>
 <dl class="message-properties">
-    <dt>count <span class="property-type">number</span></dt>
-    <dd>Number of messages enqueued.</dd>
-    <dt>error <span class="property-type">object</span></dt>
-    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+    <dt>count <span class="property-type">number</span></dt><dd>Number of messages enqueued.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Failure details: <code>{ message, code }</code>, routed through Catch.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>If <code>msg.transaction</code> is timed out, ended, or has no connection, the node reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Handle the error and start a new transaction before retrying. Messages with no transaction context keep their normal standalone behavior.</p>
-<p>When <code>msg.transaction.connection</code> exists (from <code>begin-transaction</code>), enqueue uses that shared connection and does not auto-commit. The enqueue is finalized by <code>end-transaction</code> commit/rollback.</p>
-<p>Without a transaction context, enqueue opens its own connection, enqueues, commits, and closes.</p>
-<p>Each element of the JSON array is enqueued as a separate AQ message with <code>DB_TYPE_JSON</code> payload type.</p>
+<p>Transactional mode rejects inactive references with <code>DB_TRANSACTION_INACTIVE</code>; it does not silently start standalone work. Auto-commit preserves the incoming transaction reference on success and Catch paths. End cannot roll back an independently committed enqueue.</p>
+<p><b>Payload recovery:</b> If <code>msg.dequeued</code> still contains the required payload, set <code>msg.payload = [msg.dequeued]</code> in a Function and leave editor Payload blank. Check the property exists and match the queue's Payload Type. The outer array keeps an original JSON array as one AQ record.</p>
+<p>Use Auto-commit when the source transaction has closed. This recovers content, not the original AQ message ID or delivery metadata. Re-enqueueing is replay, not rollback; it is not crash-safe until its commit succeeds. External side effects may need application-level deduplication.</p>
 </script>

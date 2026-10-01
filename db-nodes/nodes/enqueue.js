@@ -48,6 +48,7 @@ module.exports = function(RED) {
         node.recipients = config.recipients;
         node.userPayload = config.userPayload;
         node.enableOutput = config.enableOutput !== false;
+        node.independentTransaction = config.independentTransaction === true;
         node.deliveryMode = config.deliveryMode || "persistent";
         node.payloadType = config.payloadType || "json";
         node.adtTypeName = config.adtTypeName || "";
@@ -66,11 +67,19 @@ module.exports = function(RED) {
             var lease;
 
             try {
-                lease = await transactions.acquire(msg, config.connection);
-                dbError.assertActiveTransaction(msg.transaction);
+                if (!node.independentTransaction) transactions.get(msg, config.connection);
+                if (config.recoverOriginalPayload === true) {
+                    var unavailable = new Error("Original Payload is unavailable. Remove recoverOriginalPayload from the imported configuration and set msg.payload explicitly for recovery.");
+                    unavailable.code = "DB_AQ_RECOVERY_UNAVAILABLE";
+                    throw unavailable;
+                }
+                if (!node.independentTransaction) {
+                    lease = await transactions.acquire(msg, config.connection);
+                    dbError.assertActiveTransaction(msg.transaction);
+                }
                 var recipients = oracleAq.normalizeRecipients(node.recipients);
                 node.status({ fill: "yellow", shape: "dot", text: "enqueueing..." });
-                if (msg.transaction && msg.transaction.connection) {
+                if (!node.independentTransaction && msg.transaction && msg.transaction.connection) {
                     connection = msg.transaction.connection;
                 } else {
                     connection = await node.connection.getConnection();
@@ -82,7 +91,8 @@ module.exports = function(RED) {
                 } catch (parseErr) {
                     return dbError.handleNodeError(node, msg, parseErr, done, {
                         statusText: "invalid payload",
-                        statusShape: "ring"
+                        statusShape: "ring",
+                        markRollbackOnly: !node.independentTransaction
                     });
                 }
 
@@ -120,7 +130,14 @@ module.exports = function(RED) {
                 }
                 done();
             } catch (err) {
-                dbError.handleNodeError(node, msg, err, done, { statusText: "enqueue failed" });
+                if (connection && ownConnection) {
+                    try { await connection.rollback(); } catch (rollbackErr) { /* preserve enqueue failure */ }
+                }
+                dbError.handleNodeError(node, msg, err, done, {
+                    statusText: err.code === "DB_AQ_RECOVERY_UNAVAILABLE" ? "invalid configuration" : "enqueue failed",
+                    statusShape: err.code === "DB_AQ_RECOVERY_UNAVAILABLE" ? "ring" : "dot",
+                    markRollbackOnly: !node.independentTransaction
+                });
             } finally {
                 if (lease) lease.release();
                 if (connection && ownConnection) {

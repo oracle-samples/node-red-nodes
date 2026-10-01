@@ -11,6 +11,19 @@ function ensureHttps(urlString) {
     return parsedUrl;
 }
 
+function appendPathSegments(urlString, segments) {
+    var parsed = ensureHttps(urlString);
+    var encoded = segments.map(function (segment) {
+        var value = String(segment);
+        if (value === "." || value === "..") {
+            throw new Error("Resource IDs must not be dot path segments");
+        }
+        return encodeURIComponent(value);
+    });
+    parsed.pathname = parsed.pathname.replace(/\/$/, "") + "/" + encoded.join("/");
+    return parsed.toString();
+}
+
 // Restrict a user-supplied custom URL to the configured Fusion host so the SCM
 // bearer token cannot be sent to an arbitrary host.
 function ensureAllowedHost(urlString, allowedHostname) {
@@ -104,6 +117,7 @@ function formatFusionRestBaseUrl(hostname, version) {
 
 module.exports = {
     ensureHttps,
+    appendPathSegments,
     ensureAllowedHost,
     ensureAllowedScmResourceUrl,
     parseFusionRestBaseUrl,

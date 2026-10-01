@@ -44,9 +44,14 @@ module.exports = function (RED) {
             var decoded = {};
             Object.keys(headers).forEach(function (name) {
                 var value = headers[name];
-                decoded[name] = Array.isArray(value)
-                    ? value.map(kafkaSupport.decodeText)
-                    : kafkaSupport.decodeText(value);
+                Object.defineProperty(decoded, name, {
+                    value: Array.isArray(value)
+                        ? value.map(kafkaSupport.decodeText)
+                        : kafkaSupport.decodeText(value),
+                    enumerable: true,
+                    writable: true,
+                    configurable: true
+                });
             });
             return decoded;
         }

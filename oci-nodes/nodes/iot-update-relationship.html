@@ -58,22 +58,22 @@ RED.nodes.registerType("iot-update-relationship", {
 <script type="text/x-red" data-template-name="iot-update-relationship">
     <div class="form-row">
         <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <input type="text" id="node-input-name" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
         <label for="node-input-ociConfig" style="width:160px;"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig">
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
         <label for="node-input-iotDomainId" style="width:160px;"><i class="fa fa-sitemap"></i> IoT Domain ID</label>
-        <input type="text" id="node-input-iotDomainId" placeholder="<iot-domain-ocid>">
+        <input type="text" id="node-input-iotDomainId" placeholder="<iot-domain-ocid>" style="width:calc(100% - 167px);">
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.iotDomainId</code>.
         </div>
     </div>
     <div class="form-row">
         <label for="node-input-relationshipKey" style="width:160px;"><i class="fa fa-link"></i> Default Relationship Key</label>
-        <input type="text" id="node-input-relationshipKey" placeholder="sourceTwinOcid->targetTwinOcid:contentPath">
+        <input type="text" id="node-input-relationshipKey" placeholder="sourceTwinOcid->targetTwinOcid:contentPath" style="width:calc(100% - 167px);">
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Optional fallback if <code>msg.relationshipKey</code> and <code>msg.payload.relationshipKey</code> are missing.
         </div>

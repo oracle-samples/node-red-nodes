@@ -28,7 +28,7 @@ Open the flow's tab properties and setup comments before running. Replace sample
 
 ## Running the examples
 
-- **AQ Subscriber and Message Processing:** use an existing multi-consumer JSON queue in the connected schema. The first run may create the subscriber; run it again to enqueue and dequeue a message. An empty dequeue produces no output.
+- **AQ Subscriber and Message Processing:** see [setup, run steps and expected output](#aq-subscriber-and-message-processing) below.
 - **AQ Meter Reading Submission:** enqueue sample data, dequeue it, and submit the reading. See [setup and missing-asset recovery](#aq-meter-reading-submission) below.
 - **Conditional Asset Creation:** only a successful lookup with an empty `items` array proceeds to asset creation. A malformed response or reported lookup error stops the flow. Two simultaneous runs may both find no asset and try to create it; the lookup does not reserve the asset number.
 - **Inventory Transactions:** test the issue and transfer branches independently. The issue uses a negative quantity; the transfer uses a positive quantity. Replace organization and source identifiers and confirm transaction requirements for your Fusion setup.
@@ -36,6 +36,19 @@ Open the flow's tab properties and setup comments before running. Replace sample
 - **Device Telemetry and Commands:** this sample intentionally alerts below 30. A successful notification is followed by a shutdown command request. At 30 or above, no alert or command is sent. The subscription displays received commands; it does not implement device shutdown or send its response.
 
 The AQ examples do not use a managed transaction block. Standalone dequeue commits message removal before downstream processing, so a later Fusion error does not put the message back on the queue.
+
+### AQ Subscriber and Message Processing
+
+Use the supplied [AQ example flow](../db-nodes/examples/sql-enqueue-dequeue.json). Its **Enqueue sample message** node already contains the sample payload, including `data.source: "test_data"`; you do not need to add it yourself.
+
+| Step | Instructions |
+|---|---|
+| **Before running** | Select the same DB Connection on both SQL nodes, Enqueue and Dequeue. Use an existing, dedicated non-production multi-consumer JSON queue in the connected schema. The supplied queue and subscriber names are `JSON_QUEUE` and `MY_DEVICE`; if you change them, update the SQL statements and relevant node fields consistently. Creating the subscriber requires queue administration privileges. |
+| **Run** | Click **Deploy**, open the Debug sidebar, and click **Run AQ example**. If the subscriber does not exist, the first run creates it and stops on that branch; click **Run AQ example** again to enqueue and dequeue the sample. If it already exists, the same run proceeds to enqueue and dequeue. |
+| **Expected result** | **Dequeued message** displays the sample payload with `data.source: "test_data"`. The subscriber rule matches the supplied payload's `endpoint`; keep them consistent if you edit the sample. Other matching messages already queued for this consumer may be returned first. An empty dequeue produces no output. |
+| **If it fails** | Inspect **AQ processing error**, which displays `msg.error`. Check the DB connection, matching queue/subscriber names, subscriber rule and permissions to create the subscriber. No dequeued output is expected on the run that only creates the subscriber. |
+
+This example commits standalone dequeue consumption before downstream processing. It does not demonstrate managed rollback or batch-completion tracking.
 
 ### AQ Meter Reading Submission
 

@@ -111,16 +111,16 @@ RED.nodes.registerType("delete-transaction", {
 
 <script type="text/x-red" data-template-name="delete-transaction">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:140px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 147px);">
     </div>
     <div class="form-row">
-        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server" />
+        <label for="node-input-server" style="width:140px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 147px);" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-mode"><i class="fa fa-list"></i> Delete Type</label>
+        <label for="node-input-mode" style="width:140px;"><i class="fa fa-list"></i> Delete Type</label>
         <select id="node-input-mode" style="width:200px;">
             <option value="custom">Custom</option>
             <option value="asset">Installed Base Asset</option>
@@ -131,22 +131,22 @@ RED.nodes.registerType("delete-transaction", {
     </div>
     <hr/>
     <div class="form-row scm-custom-endpoint-section" id="custom-path-row" style="display:none;">
-        <label for="node-input-customPath" style="vertical-align:top;margin-top:2px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
-        <textarea id="node-input-customPath" rows="3" style="width:calc(100% - 107px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-customPath" style="vertical-align:top;margin-top:2px;width:140px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
+        <textarea id="node-input-customPath" rows="3" style="width:calc(100% - 147px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
+        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
             Used only when Delete Type is <code>Custom</code>.
             Enter the base endpoint only (no query string).
         </div>
     </div>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="delete-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <label style="width:140px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="delete-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 147px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-resourceId"><i class="fa fa-hashtag"></i> Resource ID</label>
-        <input type="text" id="node-input-resourceId" style="width:70%;">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-resourceId" style="width:140px;"><i class="fa fa-hashtag"></i> Resource ID</label>
+        <input type="text" id="node-input-resourceId" style="width:calc(100% - 147px);">
+        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
             Leave empty to read from <code>msg.resourceId</code>.
         </div>
     </div>
@@ -159,7 +159,7 @@ RED.nodes.registerType("delete-transaction", {
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Delete Type</dt><dd>Selects the REST endpoint for the resource type being deleted. Use <code>Custom</code> to provide your own base URL.</dd>
-    <dt>Resource ID</dt><dd>Identifier to append to the selected endpoint. If left blank, reads from <code>msg.resourceId</code>.</dd>
+    <dt>Resource ID</dt><dd>Identifier appended to the endpoint; <code>msg.resourceId</code> takes precedence.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Delete Type and SCM Server.</dd>
     <dt>Custom URL</dt><dd>Custom base endpoint used only when Delete Type is <code>Custom</code>. Query parameters are not allowed. Must use HTTPS and target the configured SCM server host; requests to any other host are rejected so the bearer token is not sent elsewhere.</dd>
 </dl>
@@ -173,7 +173,7 @@ RED.nodes.registerType("delete-transaction", {
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>msg.resourceId <span class="property-type">string</span></dt><dd>Resource ID — used when the Resource ID field is left blank.</dd>
+    <dt>msg.resourceId <span class="property-type">string</span></dt><dd>Overrides the configured Resource ID for this message.</dd>
     <dt>msg.mode <span class="property-type">string</span></dt><dd>Overrides the Delete Type for this message. Accepted values: <code>asset</code>, <code>meter</code>, <code>misc</code>, <code>subinventory</code>, <code>custom</code>.</dd>
 </dl>
 
@@ -181,4 +181,5 @@ RED.nodes.registerType("delete-transaction", {
 <p>Sends a <code>DELETE</code> request to the appropriate SCM REST endpoint based on the selected mode.
 The Resource ID can be hardcoded in the config or passed dynamically via <code>msg.resourceId</code>
 (e.g. from a previous create node's response). The resource ID is URL-encoded before path append, and delete requests use a 30-second timeout.</p>
+<p>Resource IDs are treated as one URL path segment. The values <code>.</code> and <code>..</code> are rejected before a resource request is sent.</p>
 </script>

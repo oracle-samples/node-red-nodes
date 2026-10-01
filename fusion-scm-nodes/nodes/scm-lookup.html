@@ -465,16 +465,16 @@ RED.nodes.registerType("scm-lookup", {
 
 <script type="text/x-red" data-template-name="scm-lookup">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server">
+        <label for="node-input-server" style="width:160px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 167px);">
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-lookupType"><i class="fa fa-list"></i> Lookup Type</label>
+        <label for="node-input-lookupType" style="width:160px;"><i class="fa fa-list"></i> Lookup Type</label>
         <select id="node-input-lookupType" style="width:200px;">
             <option value="custom">Custom</option>
             <option value="installedBaseAsset">Installed Base Asset</option>
@@ -496,46 +496,46 @@ RED.nodes.registerType("scm-lookup", {
         </select>
     </div>
     <div class="form-row work-order-id-section" style="display:none;">
-        <label for="node-input-workOrderId"><i class="fa fa-key"></i> Work Order ID</label>
-        <input type="text" id="node-input-workOrderId" placeholder="Fusion work order resource ID">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. This is the Fusion resource ID, not the displayed work order or batch number. <code>msg.workOrderId</code> overrides this field.</div>
+        <label for="node-input-workOrderId" style="width:160px;"><i class="fa fa-key"></i> Work Order ID</label>
+        <input type="text" id="node-input-workOrderId" placeholder="Fusion work order resource ID" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. This is the Fusion resource ID, not the displayed work order or batch number. <code>msg.workOrderId</code> overrides this field.</div>
     </div>
     <div class="form-row work-order-operation-id-section" style="display:none;">
-        <label for="node-input-workOrderOperationId"><i class="fa fa-key"></i> Operation ID</label>
-        <input type="text" id="node-input-workOrderOperationId" placeholder="Fusion operation resource ID">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Required for this nested lookup. This is the Fusion operation resource ID, not the operation sequence. <code>msg.workOrderOperationId</code> overrides this field.</div>
+        <label for="node-input-workOrderOperationId" style="width:160px;"><i class="fa fa-key"></i> Operation ID</label>
+        <input type="text" id="node-input-workOrderOperationId" placeholder="Fusion operation resource ID" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Required for this nested lookup. This is the Fusion operation resource ID, not the operation sequence. <code>msg.workOrderOperationId</code> overrides this field.</div>
     </div>
     <div class="form-row organization-query-section">
-        <label for="node-input-organizationQueryField"><i class="fa fa-filter"></i> Find by</label>
+        <label for="node-input-organizationQueryField" style="width:160px;"><i class="fa fa-filter"></i> Find by</label>
         <select id="node-input-organizationQueryField" style="width:200px;">
             <option value="OrganizationName">Organization Name</option>
             <option value="OrganizationCode">Organization Code</option>
             <option value="OrganizationId">Organization ID</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;">Controls the Fusion query field. The output remains the full inventory organization response.</div>
+        <div style="margin-left:165px;font-size:11px;color:#888;">Controls the Fusion query field. The output remains the full inventory organization response.</div>
     </div>
     <hr/>
     <div class="custom-section scm-custom-endpoint-section" style="display:none;">
         <div class="form-row">
-            <label for="node-input-customUrl" style="width:125px;vertical-align:top;margin-top:2px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
-            <textarea id="node-input-customUrl" rows="3" style="width:calc(100% - 132px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
-            <div style="margin-left:130px;font-size:11px;color:#888;margin-top:2px;">Paste a complete Fusion GET URL or enter its base endpoint. A pasted query string is moved into the editable rows below.</div>
+            <label for="node-input-customUrl" style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
+            <textarea id="node-input-customUrl" rows="3" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
+            <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Paste a complete Fusion GET URL or enter its base endpoint. A pasted query string is moved into the editable rows below.</div>
         </div>
         <div class="form-row">
-            <label style="width:125px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Query Parameters</label>
-            <div style="display:inline-block;width:calc(100% - 132px);">
+            <label style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-filter"></i> Query Parameters</label>
+            <div style="display:inline-block;width:calc(100% - 167px);">
                 <input type="hidden" id="node-input-customQueryParams">
                 <div id="custom-query-params-container"></div>
                 <button type="button" class="editor-button" id="add-custom-query-param">
                     <i class="fa fa-plus"></i> Add Parameter
                 </button>
             </div>
-            <div style="margin-left:130px;font-size:11px;color:#888;margin-top:2px;">Optional ordered parameters such as <code>finder</code>, <code>q</code>, <code>fields</code>, <code>limit</code>, or <code>offset</code>. Repeated names are preserved.</div>
+            <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional ordered parameters such as <code>finder</code>, <code>q</code>, <code>fields</code>, <code>limit</code>, or <code>offset</code>. Repeated names are preserved.</div>
         </div>
     </div>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="lookup-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <label style="width:160px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="lookup-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 167px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row predefined-query-section">
@@ -564,85 +564,67 @@ RED.nodes.registerType("scm-lookup", {
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional on-hand scope. Leave empty to read from <code>msg.subinventoryCode</code>.</div>
     </div>
     <div class="form-row query-filters-section">
-        <label for="node-input-queryFilters" style="width:160px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Additional Filters</label>
+        <label for="node-input-queryFilters" style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-filter"></i> Additional Filters</label>
         <textarea id="node-input-queryFilters" rows="4" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional JSON object appended to the REST <code>q</code> expression for extra narrowing. Field names may contain letters, numbers, underscores, and dots. Dedicated fields above take precedence over matching keys. Values containing <code>;</code> are rejected. Can be overridden by <code>msg.queryFilters</code>.</div>
     </div>
 </script>
 
 <script type="text/x-red" data-help-name="scm-lookup">
-<p>Performs a GET lookup against Oracle Fusion SCM REST endpoints. Supports common lookups (assets, meters, organizations) and custom endpoints.</p>
-
+<p>Looks up Oracle Fusion SCM records using predefined business keys or a custom GET endpoint.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Lookup Type</dt><dd>Selects the REST endpoint and query parameter:
-        <ul>
-            <li><b>Installed Base Asset</b> — queries by SerialNumber and ItemNumber</li>
-            <li><b>Meter Reading</b> — uses <code>MetersByAssetMeterUserKey</code> with Asset Number and Meter Code and returns the complete reading history</li>
-            <li><b>Inventory Organization</b> — queries by the selected Organization Name, Organization Code, or Organization ID field and returns the full matching record</li>
-            <li><b>Item</b> — queries itemsV2 by ItemNumber and OrganizationCode</li>
-            <li><b>Subinventory</b> — queries subinventories by SecondaryInventoryName and OrganizationCode</li>
-            <li><b>On-Hand Quantity</b> — queries inventoryOnhandBalances by ItemNumber and OrganizationCode, optionally scoped by SubinventoryCode</li>
-            <li><b>Work Definition</b> — queries workDefinitions by WorkDefinitionName, OrganizationCode, and ItemNumber</li>
-            <li><b>Recipe / Work Definition</b> — Redwood alias for Work Definition with the same required fields</li>
-            <li><b>Manufacturing Work Order</b> — queries workOrders by WorkOrderNumber and OrganizationCode</li>
-            <li><b>Batch / Manufacturing Work Order</b> — Redwood alias for Manufacturing Work Order with the same required fields</li>
-            <li><b>Batch Operation by Sequence</b> — queries a work order operation by OperationSequenceNumber. Requires <code>WorkOrderId</code>.</li>
-            <li><b>Batch Material / Ingredient Line</b> — queries operation materials by InventoryItemNumber. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
-            <li><b>Batch Resource Line</b> — queries operation resources by ResourceCode. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
-            <li><b>Batch Output Product Line</b> — queries operation outputs by InventoryItemNumber. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
-            <li><b>Batch Material Reservation Status</b> — reads operation material lines, including reservation fields such as <code>ReservedQuantity</code>. Requires <code>WorkOrderId</code> and <code>WorkOrderOperationId</code>.</li>
-            <li><b>Maintenance Work Order</b> — queries maintenanceWorkOrders by WorkOrderNumber and OrganizationCode</li>
-            <li><b>Custom</b> — paste a complete Fusion GET URL, or enter a base endpoint and optional ordered Query Parameters. Pasted query strings are normalized into editable rows.</li>
-        </ul>
-    </dd>
-    <dt>Work Order ID</dt><dd>Fusion resource ID for the parent work order. Required by manufacturing child lookups. This is not the displayed work order or batch number.</dd>
-    <dt>Operation ID</dt><dd>Fusion resource ID for the parent operation. Required by material, resource, output, and reservation child lookups. This is not the operation sequence.</dd>
-    <dt>Organization Code</dt><dd>Required organization scope for item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups.</dd>
-    <dt>Item Number</dt><dd>Required with Installed Base Asset and Work Definition/Recipe lookups.</dd>
-    <dt>Meter Code</dt><dd>Required with Meter Reading lookups and combined with Asset Number in the documented business-key finder.</dd>
-    <dt>Subinventory Code</dt><dd>Optional subinventory scope for On-Hand Quantity lookups.</dd>
-    <dt>Custom Endpoint</dt><dd>Complete Fusion GET URL or base resource endpoint for Custom mode. It must use HTTPS and remain within the configured SCM Server origin and API-version resource path.</dd>
-    <dt>Query Parameters</dt><dd>Optional static Custom-mode rows. Names such as <code>finder</code>, <code>q</code>, <code>fields</code>, <code>limit</code>, and <code>offset</code> use the same mechanism; order and repeated names are preserved.</dd>
-    <dt>Query Value</dt><dd>The primary value for predefined lookups. If left blank, reads from <code>msg.queryValue</code>.</dd>
-    <dt>Additional Filters</dt><dd>Optional JSON object appended as a REST <code>q</code> expression for predefined lookups. Field names may contain letters, numbers, underscores, and dots; values containing <code>;</code> are rejected. Dedicated lookup fields take precedence over matching keys.</dd>
-    <dt>Endpoint</dt><dd>Read-only preview of the complete request URL.</dd>
+    <dt>SCM Server</dt><dd>Connection and OAuth authentication.</dd>
+    <dt>Lookup Type</dt><dd>Selects the endpoint and required business keys:</dd>
 </dl>
-
+<ul>
+    <li><b>Installed Base Asset:</b> SerialNumber + ItemNumber.</li>
+    <li><b>Meter Reading:</b> Asset Number + Meter Code, using <code>MetersByAssetMeterUserKey</code>.</li>
+    <li><b>Inventory Organization:</b> selected Organization Name, Code or ID; returns the full record.</li>
+    <li><b>Item:</b> ItemNumber + OrganizationCode (<code>itemsV2</code>).</li>
+    <li><b>Subinventory:</b> SecondaryInventoryName + OrganizationCode (<code>subinventories</code>).</li>
+    <li><b>On-Hand Quantity:</b> ItemNumber + OrganizationCode, optional SubinventoryCode (<code>inventoryOnhandBalances</code>).</li>
+    <li><b>Work Definition / Recipe:</b> WorkDefinitionName + OrganizationCode + ItemNumber (<code>workDefinitions</code>).</li>
+    <li><b>Manufacturing Work Order / Batch:</b> WorkOrderNumber + OrganizationCode (<code>workOrders</code>).</li>
+    <li><b>Maintenance Work Order:</b> WorkOrderNumber + OrganizationCode (<code>maintenanceWorkOrders</code>).</li>
+    <li><b>Batch Operation by Sequence:</b> OperationSequenceNumber + Work Order ID.</li>
+    <li><b>Batch Material / Ingredient Line, Output Product Line, Material Reservation Status:</b> InventoryItemNumber + Work Order ID + Operation ID. Reservation Status reads material lines including fields such as <code>ReservedQuantity</code>.</li>
+    <li><b>Batch Resource Line:</b> ResourceCode + Work Order ID + Operation ID.</li>
+</ul>
+<dl class="message-properties">
+    <dt>Query Value</dt><dd>Primary lookup key. Other required keys use dedicated editor fields; message overrides take precedence. Recipe and Batch are aliases for Work Definition and Manufacturing Work Order.</dd>
+    <dt>Work Order ID / Operation ID</dt><dd>Parent resource IDs for child lookups, not displayed work order numbers or operation sequences.</dd>
+    <dt>Additional Filters</dt><dd>Optional JSON object of REST <code>q</code> criteria. Dedicated fields take precedence over matching keys. Names allow letters, numbers, underscores and dots. Query/filter values reject <code>;</code>; meter finder values also reject <code>,</code>.</dd>
+    <dt>Custom Endpoint</dt><dd>Complete GET URL or base endpoint. Requires HTTPS, no credentials or fragment, and the SCM Server's exact origin and API-version resource path. Redirects are not followed.</dd>
+    <dt>Query Parameters</dt><dd>Optional static Custom-mode rows, such as <code>finder</code>, <code>q</code>, <code>fields</code>, <code>limit</code> and <code>offset</code>. Pasted query strings become rows; order and repeated names are preserved.</dd>
+    <dt>Endpoint</dt><dd>Read-only preview of the complete URL.</dd>
+</dl>
 <h3>Outputs</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object</span></dt><dd>API response body containing matching records.</dd>
+    <dt>payload <span class="property-type">object</span></dt><dd>Fusion response containing matching records.</dd>
     <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
-    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
-
 <h3>Runtime overrides</h3>
+<p>For predefined lookups, message values override the corresponding editor fields:</p>
 <dl class="message-properties">
-    <dt>msg.queryValue <span class="property-type">string</span></dt><dd>Overrides the Query Value for predefined lookups.</dd>
-    <dt>msg.queryFilters <span class="property-type">object|string</span></dt><dd>Overrides Additional Filters for predefined lookups. Provide an object or a JSON object string.</dd>
-    <dt>msg.organizationCode <span class="property-type">string</span></dt><dd>Overrides Organization Code for lookup types that require organization scope.</dd>
-    <dt>msg.itemNumber <span class="property-type">string</span></dt><dd>Overrides Item Number for asset and work definition/recipe lookups.</dd>
-    <dt>msg.meterCode <span class="property-type">string</span></dt><dd>Overrides Meter Code for meter reading lookups.</dd>
-    <dt>msg.subinventoryCode <span class="property-type">string</span></dt><dd>Overrides the optional Subinventory Code for on-hand lookups.</dd>
-    <dt>msg.workOrderId <span class="property-type">string|number</span></dt><dd>Overrides Work Order ID for manufacturing child lookups.</dd>
-    <dt>msg.workOrderOperationId <span class="property-type">string|number</span></dt><dd>Overrides Operation ID for material, resource, output, and reservation child lookups.</dd>
+    <dt>msg.queryValue <span class="property-type">string</span></dt><dd>Primary business key for the selected Lookup Type.</dd>
+    <dt>msg.queryFilters <span class="property-type">object|string</span></dt><dd>Additional Filters as an object or JSON object string.</dd>
+    <dt>msg.organizationCode <span class="property-type">string</span></dt><dd>Organization scope where required.</dd>
+    <dt>msg.itemNumber <span class="property-type">string</span></dt><dd>Item Number for asset and work definition/recipe lookups.</dd>
+    <dt>msg.meterCode <span class="property-type">string</span></dt><dd>Meter Code for meter readings.</dd>
+    <dt>msg.subinventoryCode <span class="property-type">string</span></dt><dd>Optional On-Hand Quantity subinventory scope.</dd>
+    <dt>msg.workOrderId <span class="property-type">string|number</span></dt><dd>Parent work order resource ID for manufacturing child lookups, not its displayed number.</dd>
+    <dt>msg.workOrderOperationId <span class="property-type">string|number</span></dt><dd>Parent operation resource ID for material, resource, output and reservation lookups, not its sequence number.</dd>
 </dl>
-
 <h3>Details</h3>
-<p>A unified lookup node that replaces the need for separate get-ib-asset, get-meter-reading,
-and get-organization-id nodes. Select a lookup type to auto-configure the endpoint, or use
-Custom mode for a GET request to a resource under the configured Fusion REST base. A Custom
-request may be parameterless. Query Parameters are static node configuration; use a predefined
-lookup or the Fusion Request node when values must come from each incoming message.</p>
-<p>Custom URLs cannot contain credentials or fragments, must match the configured origin and
-API version exactly, and do not follow redirects. These restrictions prevent the SCM bearer
-token from being sent outside the configured Fusion REST boundary.</p>
-<p>Required business keys and organization scope are shown as dedicated fields for each predefined lookup.
-Use Additional Filters only for optional criteria beyond those fields.</p>
-<p>Primary Query Values and Additional Filter values containing <code>;</code> are rejected because Fusion uses semicolons to separate <code>q</code> filter expressions.</p>
-<p>Meter Reading lookups fetch every Fusion page. For multi-page results, the node returns one normalized
+<p>Custom requests may omit query parameters. Their parameters are static configuration; use a
+predefined lookup or Fusion Request when values must come from each message.</p>
+
+<p>Meter Reading fetches every page. Single-page responses are unchanged. Multiple pages produce one
 collection: <code>items</code> and <code>count</code> cover the full history, <code>hasMore</code> is false,
 <code>offset</code> is zero, <code>limit</code> remains the Fusion page size, and page-specific
 <code>links</code> are omitted.</p>
+<p>Failures go to Catch with <code>msg.error</code> (<code>message</code>, <code>code</code>).
+Request failures also put error details in <code>msg.payload</code> and set <code>msg.statusCode</code>
+(0 when unavailable).</p>
 </script>

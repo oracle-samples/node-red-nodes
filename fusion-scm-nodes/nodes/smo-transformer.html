@@ -1142,61 +1142,61 @@
   <input type="hidden" id="node-input-requiredFields" />
   <input type="hidden" id="node-input-splitFields" />
   <div class="form-row">
-    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-    <input type="text" id="node-input-name" />
+    <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" style="width:calc(100% - 167px);" />
   </div>
   <hr />
   <div class="form-row">
-    <label for="node-input-selectedPreset"><i class="fa fa-bolt"></i> Event Type</label>
+    <label for="node-input-selectedPreset" style="width:160px;"><i class="fa fa-bolt"></i> Event Type</label>
     <select id="node-input-selectedPreset" style="width:260px;"></select>
   </div>
   <div class="form-row" id="custom-event-type-row" style="display:none;">
-    <label>&nbsp;</label>
-    <div style="display:inline-flex;gap:8px;width:70%;">
-      <input type="text" id="node-input-customEventType" style="flex:1;" />
+    <label style="width:160px;">&nbsp;</label>
+    <div style="display:inline-flex;gap:8px;width:calc(100% - 167px);">
+      <input type="text" id="node-input-customEventType" style="flex:1;min-width:0;" />
       <button type="button" class="red-ui-button" id="btn-add-custom-event">Add</button>
     </div>
   </div>
   <hr />
   <div class="form-row">
-    <label style="width:130px;"><i class="fa fa-id-card"></i> Entity Code Fields</label>
-    <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the entity identifier. First match wins. Dot paths like <code>device.id</code> are supported.</div>
+    <label style="width:160px;"><i class="fa fa-id-card"></i> Entity Code Fields</label>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the entity identifier. First match wins. Dot paths like <code>device.id</code> are supported.</div>
   </div>
   <div class="form-row">
-    <div id="entity-code-fields-container" style="margin-left:135px;"></div>
-    <div style="margin-left:135px;margin-top:4px;">
+    <div id="entity-code-fields-container" style="margin-left:165px;"></div>
+    <div style="margin-left:165px;margin-top:4px;">
       <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-entity-field">+ Add Field</button>
     </div>
   </div>
   <div class="form-row">
-    <label style="width:130px;"><i class="fa fa-clock-o"></i> Event Time Fields</label>
-    <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the event timestamp. Leave empty to emit <code>null</code> unless Default Time is enabled.</div>
+    <label style="width:160px;"><i class="fa fa-clock-o"></i> Event Time Fields</label>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the event timestamp. Leave empty to emit <code>null</code> unless Default Time is enabled.</div>
   </div>
   <div class="form-row">
-    <div id="event-time-fields-container" style="margin-left:135px;"></div>
-    <div style="margin-left:135px;margin-top:4px;">
+    <div id="event-time-fields-container" style="margin-left:165px;"></div>
+    <div style="margin-left:165px;margin-top:4px;">
       <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-event-time-field">+ Add Field</button>
     </div>
   </div>
   <div class="form-row">
-    <label for="node-input-defaultEventTime" style="width:130px;"><i class="fa fa-calendar-plus-o"></i> Default Time</label>
+    <label for="node-input-defaultEventTime" style="width:160px;"><i class="fa fa-calendar-plus-o"></i> Default Time</label>
     <input type="checkbox" id="node-input-defaultEventTime" style="width:auto;vertical-align:middle;" />
     <span style="font-size:12px;color:#666;"> Use the current time when no event time field has a value</span>
   </div>
   <div class="form-row">
-    <label for="node-input-outputTarget" style="width:130px;"><i class="fa fa-sign-out"></i> Output Target</label>
+    <label for="node-input-outputTarget" style="width:160px;"><i class="fa fa-sign-out"></i> Output Target</label>
     <select id="node-input-outputTarget" style="width:200px;">
       <option value="smoEvent">msg.smoEvent</option>
       <option value="payload">msg.payload</option>
     </select>
   </div>
   <div class="form-row" id="smo-transformer-validation-row" style="display:none;">
-    <div id="smo-transformer-validation" class="form-tips" style="margin-left:135px;"></div>
+    <div id="smo-transformer-validation" class="form-tips" style="margin-left:165px;"></div>
   </div>
   <hr />
   <div class="form-row">
-    <label><i class="fa fa-exchange"></i> Field Mappings</label>
-    <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">Map incoming field paths to outgoing <code>data.*</code> fields. Drag ☰ to reorder. First match wins when multiple input paths write to the same output field.</div>
+    <label style="width:160px;"><i class="fa fa-exchange"></i> Field Mappings</label>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">Map incoming field paths to outgoing <code>data.*</code> fields. Drag ☰ to reorder. First match wins when multiple input paths write to the same output field.</div>
   </div>
   <div class="form-row">
     <div id="field-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
@@ -1206,30 +1206,30 @@
   </div>
   <hr />
   <div class="form-row">
-    <label for="node-input-samplePayload" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-flask"></i> Sample Payload</label>
-    <textarea id="node-input-samplePayload" rows="7" style="width:calc(100% - 137px);font-family:monospace;font-size:12px;"></textarea>
-    <div style="margin-left:135px;font-size:11px;color:#888;margin-top:4px;">Paste one payload object, or an array of payload objects to preview composite fragments. Runtime still expects one message at a time.</div>
+    <label for="node-input-samplePayload" style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-flask"></i> Sample Payload</label>
+    <textarea id="node-input-samplePayload" rows="7" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-top:4px;">Paste one payload object, or an array of payload objects to preview composite fragments. Runtime still expects one message at a time.</div>
   </div>
   <div class="form-row">
-    <label style="width:130px;"><i class="fa fa-list"></i> Detected Paths</label>
-    <div id="smo-sample-paths" style="margin-left:135px;"></div>
+    <label style="width:160px;"><i class="fa fa-list"></i> Detected Paths</label>
+    <div id="smo-sample-paths" style="margin-left:165px;"></div>
   </div>
   <div class="form-row">
-    <label style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-eye"></i> Preview</label>
-    <div style="display:inline-block;width:calc(100% - 137px);vertical-align:top;">
+    <label style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-eye"></i> Preview</label>
+    <div style="display:inline-block;width:calc(100% - 167px);vertical-align:top;">
       <pre id="smo-preview-output">Paste a sample payload to preview the transformed event.</pre>
       <div id="smo-preview-status" class="form-tips" style="display:none;margin-top:6px;"></div>
     </div>
   </div>
   <hr />
   <div class="form-row">
-    <label for="node-input-enableNesting"><i class="fa fa-indent"></i> Nesting</label>
+    <label for="node-input-enableNesting" style="width:160px;"><i class="fa fa-indent"></i> Nesting</label>
     <input type="checkbox" id="node-input-enableNesting" style="width:auto;vertical-align:middle;" />
     <span style="font-size:12px;color:#666;"> Wrap mapped fields in a nested object</span>
   </div>
   <div class="form-row" id="nesting-key-row" style="display:none;">
-    <label>&nbsp;</label>
-    <input type="text" id="node-input-nestingKey" style="width:70%;" />
+    <label style="width:160px;">&nbsp;</label>
+    <input type="text" id="node-input-nestingKey" style="width:calc(100% - 167px);" />
   </div>
   <hr />
   <div class="form-row">
@@ -1237,73 +1237,100 @@
   </div>
   <div id="advanced-section" style="display:none;">
     <div class="form-row">
-      <label for="node-input-enableComposite"><i class="fa fa-link"></i> Composite</label>
+      <label for="node-input-enableComposite" style="width:160px;"><i class="fa fa-link"></i> Composite</label>
       <input type="checkbox" id="node-input-enableComposite" style="width:auto;vertical-align:middle;" />
       <span style="font-size:12px;color:#666;"> Enable composite message joining</span>
     </div>
     <div class="composite-config" style="display:none;">
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Required Fields (all must be present for a complete message)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Required Fields (all must be present for a complete message)</label>
         <div id="required-fields-container" style="margin-top:4px;"></div>
         <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-required-field" style="margin-top:4px;">+ Add Required Field</button>
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Split Field Parsing (optional)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Split Field Parsing (optional)</label>
         <div style="font-size:11px;color:#888;margin:4px 0;">Read From supports dot paths.</div>
         <div id="split-fields-container" style="margin-top:4px;"></div>
         <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-split-field" style="margin-top:4px;">+ Add Split Field</button>
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = Max Pending Age)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Stale Timeout (seconds, 0 = Max Pending Age)</label>
         <input type="number" id="node-input-staleTimeout" value="0" min="0" style="width:100px;" />
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Composites</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Max Pending Composites</label>
         <input type="number" id="node-input-maxCompositeEntries" value="1000" min="1" style="width:100px;" />
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Age (seconds)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Max Pending Age (seconds)</label>
         <input type="number" id="node-input-maxCompositeAgeSec" value="3600" min="1" style="width:100px;" />
       </div></div>
     </div>
     <hr />
     <div class="form-row">
-      <label for="node-input-customJsonata"><i class="fa fa-code"></i> JSONata Override</label>
-      <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">If provided, this JSONata expression replaces all field mapping configuration above. The full <code>msg</code> object is available.</div>
+      <label for="node-input-customJsonata" style="width:160px;"><i class="fa fa-code"></i> JSONata Override</label>
+      <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">If provided, this JSONata expression replaces all field mapping configuration above. The full <code>msg</code> object is available.</div>
     </div>
     <div class="form-row">
-      <textarea id="node-input-customJsonata" rows="8" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+      <textarea id="node-input-customJsonata" rows="8" style="margin-left:165px;width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
     </div>
   </div>
 </script>
 
 
 <script type="text/html" data-help-name="smo-transformer">
-  <p>Transforms incoming telemetry or message data into structured event payloads.</p>
-  <h3>Important: Use a Split Node for Batch Messages</h3>
-  <p>This node processes <b>one message at a time</b>. If the upstream node produces an array of messages
-  (e.g. from a dequeue with batch size greater than 1), you must place a <b>split</b> node before this node
-  configured with a <b>fixed length of 1</b>. Without the split node, the transformer receives the entire
-  array as a single payload and will not process individual messages correctly.</p>
-  <p>Typical flow: <code>dequeue</code> → <code>split</code> (fixed length: 1) → <code>smo-transformer</code> → <code>smo-event</code></p>
-  <h3>Quick Start</h3>
-  <p>Select an event type from the dropdown to auto-populate field mappings, transforms, and composite settings. Paste a sample payload to see detected paths and preview the transformed event. Drag ☰ handles to reorder mappings.</p>
-  <h3>Key Behaviors</h3>
+  <p>Maps telemetry into Smart Operations event payloads. Composite mode combines fragments of the same event.</p>
+  <h3>Configuration</h3>
+  <p>Select an event type to populate mappings, transforms and composite settings. Paste a sample object
+  or array into Mapping Assistant to detect paths and preview results; click a path to fill the last
+  focused path field. Drag mapping handles to change their order. Array previews simulate composite
+  grouping; JSONata Override disables preview because evaluation runs server-side.</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt><dd>One record per message. Dequeue already emits individual records; use Split for arrays from other nodes. Arrays and non-object payloads reach Catch.</dd>
+  </dl>
+  <h3>Outputs</h3>
+  <dl class="message-properties">
+    <dt>smoEvent <span class="property-type">object</span></dt><dd>Transformed event (default target), preserving <code>msg.payload</code>. Select Output Target <code>msg.payload</code> to replace it instead.</dd>
+    <dt>smoTransactionResults <span class="property-type">array</span></dt><dd>Finalization history when composite fragments had different transaction owners; see Transactions below.</dd>
+  </dl>
+  <h3>Details</h3>
+
   <ul>
-    <li><b>Dot paths:</b> Entity Code Fields, Event Time Fields, mapping Read From values, split fields, and collect fields can read nested input values such as <code>device.id</code>.</li>
-    <li><b>Mapping Assistant:</b> The sample payload box accepts one JSON object or an array of JSON objects, lists detected paths, and inserts a clicked path into the last focused path field.</li>
-    <li><b>Preview:</b> The preview panel applies the configured mappings to the sample payload. In Composite mode, array samples simulate fragment grouping and merging. Preview is unavailable while JSONata Override is set because runtime JSONata evaluation happens server-side.</li>
-    <li><b>Event time:</b> The node checks configured Event Time Fields in order. It emits <code>null</code> when no value is found unless Default Time is explicitly enabled.</li>
-    <li><b>Output target:</b> By default, transformed events are written to <code>msg.smoEvent</code> so the original <code>msg.payload</code> remains available. Select <code>msg.payload</code> to overwrite the payload instead.</li>
-    <li><b>First match wins:</b> When multiple incoming fields map to the same outgoing field, the first one found in the payload is used.</li>
-    <li><b>Default values:</b> If an incoming field is missing from the payload, the default value is used instead.</li>
-    <li><b>Static Value:</b> Writes a constant value to the outgoing field with no incoming field required.</li>
-    <li><b>Presence-based value maps:</b> Use <code>__present__</code> in a value map to map based on field existence.</li>
-    <li><b>Invalid payloads:</b> Non-object and array payloads raise an error and can be routed to a Catch node.</li>
-    <li><b>Composite identity:</b> For incomplete composite fragments, both <code>entityCode</code> and <code>eventTime</code> must be present. Missing key parts now fail fast instead of using a shared fallback key.</li>
-    <li><b>Pending bounds:</b> Composite pending entries are bounded by stale timeout, max pending age, and max pending count to prevent unbounded memory growth.</li>
-    <li><b>Complete input:</b> A complete event replaces pending partial data with the same identity and cancels its timer.</li>
-    <li><b>Incomplete input:</b> Stale Timeout <code>0</code> uses Max Pending Age, not an unlimited wait. With Max Pending Age <code>60</code> and no further input, the timer emits the partial data after about 60 seconds and removes the pending entry.</li>
-    <li><b>Status:</b> Successful output reports <code>transformed</code>; incomplete composites report <code>waiting: key</code>; validation and execution failures retain their latest error status. Older expiry timers do not clear a newer status.</li>
+    <li><b>Paths:</b> Entity Code Fields, Event Time Fields, mapping Read From, split and collect fields support dot paths such as <code>device.id</code>.</li>
+    <li><b>Mappings:</b> The first matching input for an output field wins. Missing inputs use configured defaults. Static Value needs no input; <code>__present__</code> in a value map matches field existence.</li>
+    <li><b>Event time:</b> Fields are checked in order. Missing time becomes <code>null</code> unless Default Time is enabled.</li>
   </ul>
+  <h4>Composite buffering</h4>
+  <p>Incomplete fragments require both <code>entityCode</code> and <code>eventTime</code>.
+  A complete event replaces any pending partial with that identity and cancels its timer.</p>
+  <p>Stale Timeout measures inactivity and restarts on each incomplete fragment. Max Pending Age measures
+  time from the first fragment and never restarts. The earlier deadline emits valid partial data and
+  removes the buffered entry, even without new input. Stale Timeout <code>0</code> still uses Max Pending
+  Age; for example, an age of 60 seconds flushes an idle partial after about 60 seconds.</p>
+  <p>Max Pending Entries bounds stored composites and admitted input operations separately. Excess
+  inputs reach Catch with <code>SMO_COMPOSITE_BUSY</code>, retaining their payload and active reference
+  without starting transaction work. Each key processes inputs in order; expiry waits for its admitted
+  work. Other keys can proceed while a commit waits. Close discards buffered fragments, waits for
+  admitted work and prevents late normal output; a hung database operation can delay close.</p>
+  <h4>Transactions and recovery</h4>
+  <p>Fragments with the same managed transaction retain it. When owners differ, including managed and
+  unmanaged fragments, the node commits each active source transaction before merging and removes
+  finalized references. <b>This commits the whole transaction and dequeue batch, including other work.</b>
+  Join required branches before this boundary. Separate commits are not atomic together; later Fusion
+  failures cannot undo them.</p>
+  <p><code>msg.smoTransactionResults</code> preserves prior outcomes across merges. Each finalized source
+  records <code>outcome</code> (<code>committed</code>, <code>rolledBack</code>, or <code>unknown</code>),
+  <code>closed</code> (connection cleanup succeeded), and <code>failed</code>. It contains no source records.
+  Do not retry completed commits; rolled-back sources may redeliver, and unknown outcomes need reconciliation.</p>
+  <p>Merged outputs and commit-failure messages preserve incoming-fragment properties.
+  <code>msg.dequeued</code> represents that fragment, not every source record. No separate recovery copy
+  is retained for each original; arrange storage before aggregation if recovery needs them all.</p>
+  <h4>Errors and status</h4>
+  <ul>
+    <li><code>SMO_COMPOSITE_COMMIT_FAILED</code>: commit or cleanup failed. One Catch message includes transaction results; the buffered fragment is removed and no successful composite is emitted.</li>
+    <li><code>SMO_COMPOSITE_TRANSACTION_INVALID</code>: an invalid incoming reference leaves the buffered fragment intact. An expired buffered fragment is removed; Catch preserves the incoming message and active reference for rollback, recording the expired source as <code>unknown</code>. Timer/capacity flushes send expired references to Catch instead of normal output.</li>
+  </ul>
+  <p>Status is <code>transformed</code> on output or <code>waiting: key</code> while incomplete. Failures
+  retain their latest status; older timers do not clear newer statuses.</p>
 </script>

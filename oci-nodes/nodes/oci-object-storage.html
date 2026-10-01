@@ -48,7 +48,15 @@ RED.nodes.registerType("oci-object-storage", {
         filePath: { value: "" },
         contentType: { value: "" },
         downloadOutput: { value: "buffer" },
-        encoding: { value: "utf8" }
+        encoding: { value: "utf8" },
+        maxResponseBytes: {
+            value: 16777216,
+            required: true,
+            validate: function (value) {
+                return (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
+                    Number.isSafeInteger(Number(value)) && Number(value) > 0;
+            }
+        }
     },
     inputs: 1,
     outputs: 1,
@@ -92,78 +100,84 @@ RED.nodes.registerType("oci-object-storage", {
 
 <script type="text/x-red" data-template-name="oci-object-storage">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig" />
+        <label for="node-input-ociConfig" style="width:160px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 167px);" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-operation"><i class="fa fa-exchange"></i> Operation</label>
+        <label for="node-input-operation" style="width:160px;"><i class="fa fa-exchange"></i> Operation</label>
         <select id="node-input-operation" style="width:200px;">
             <option value="upload">Upload</option>
             <option value="download">Download</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.operation</code>.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-namespace"><i class="fa fa-database"></i> Namespace</label>
-        <input type="text" id="node-input-namespace" placeholder="your-tenancy-namespace">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-namespace" style="width:160px;"><i class="fa fa-database"></i> Namespace</label>
+        <input type="text" id="node-input-namespace" placeholder="your-tenancy-namespace" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.namespace</code>. Find with <code>oci os ns get</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-bucketName"><i class="fa fa-folder-o"></i> Bucket</label>
-        <input type="text" id="node-input-bucketName" placeholder="my-bucket">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-bucketName" style="width:160px;"><i class="fa fa-folder-o"></i> Bucket</label>
+        <input type="text" id="node-input-bucketName" placeholder="my-bucket" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.bucketName</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-objectName"><i class="fa fa-file-o"></i> Object Name</label>
-        <input type="text" id="node-input-objectName" placeholder="path/to/file.txt">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-objectName" style="width:160px;"><i class="fa fa-file-o"></i> Object Name</label>
+        <input type="text" id="node-input-objectName" placeholder="path/to/file.txt" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.objectName</code>.
         </div>
     </div>
     <hr/>
         <div class="form-row">
-            <label for="node-input-filePath"><i class="fa fa-hdd-o"></i> File Path</label>
-            <input type="text" id="node-input-filePath" placeholder="/tmp/example.bin">
-            <div id="file-path-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;"></div>
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            <label for="node-input-filePath" style="width:160px;"><i class="fa fa-hdd-o"></i> File Path</label>
+            <input type="text" id="node-input-filePath" placeholder="/tmp/example.bin" style="width:calc(100% - 167px);">
+            <div id="file-path-hint" style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;"></div>
+            <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
                 Use a full absolute path (for example <code>/path/to/example.bin</code>). Do not use shorthand or relative paths.
             </div>
         </div>
     <div class="form-row" id="row-content-type">
-        <label for="node-input-contentType"><i class="fa fa-file-code-o"></i> Content Type</label>
-        <input type="text" id="node-input-contentType" placeholder="application/octet-stream">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-contentType" style="width:160px;"><i class="fa fa-file-code-o"></i> Content Type</label>
+        <input type="text" id="node-input-contentType" placeholder="application/octet-stream" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Upload only. If empty, can be provided via <code>msg.contentType</code>.
         </div>
     </div>
     <div class="form-row" id="row-download-output">
-        <label for="node-input-downloadOutput"><i class="fa fa-list"></i> Download Output</label>
+        <label for="node-input-downloadOutput" style="width:160px;"><i class="fa fa-list"></i> Download Output</label>
         <select id="node-input-downloadOutput" style="width:200px;">
             <option value="buffer">Buffer</option>
             <option value="text">Text</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Download only. <b>Buffer</b> keeps binary-safe output. <b>Text</b> converts bytes to a string.
         </div>
     </div>
     <div class="form-row" id="row-encoding">
-        <label for="node-input-encoding"><i class="fa fa-font"></i> Text Encoding</label>
-        <input type="text" id="node-input-encoding" placeholder="utf8">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-encoding" style="width:160px;"><i class="fa fa-font"></i> Text Encoding</label>
+        <input type="text" id="node-input-encoding" placeholder="utf8" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Used only when Download Output is <b>Text</b>. <code>msg.encoding</code> can override this value.
         </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-maxResponseBytes" style="width:160px;"><i class="fa fa-database"></i> Max Response Bytes</label>
+        <input type="number" id="node-input-maxResponseBytes" min="1" step="1" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Maximum buffered successful download size. Default: 16 MiB (16777216 bytes). Uploads are unaffected.</div>
     </div>
 </script>
 
@@ -177,29 +191,25 @@ RED.nodes.registerType("oci-object-storage", {
     <dt>Operation</dt>
     <dd><code>upload</code> or <code>download</code>. <code>msg.operation</code> can override this value.</dd>
     <dt>Namespace</dt>
-    <dd>Required at runtime. Set in node config or provide <code>msg.namespace</code>.</dd>
+    <dd>Required tenancy namespace.</dd>
     <dt>Bucket</dt>
-    <dd>Bucket name. If empty, reads from <code>msg.bucketName</code>.</dd>
+    <dd>Required bucket name.</dd>
     <dt>Object Name</dt>
-    <dd>Object path/name in the bucket. If empty, reads from <code>msg.objectName</code>.</dd>
+    <dd>Required object path/name within the bucket.</dd>
     <dt>File Path</dt>
     <dd>
-        Optional local path.
-        For upload, used only when <code>msg.payload</code> is absent or null. An empty string uploads zero bytes instead of reading the file.
-        For download, writes the downloaded object to this path (while still returning it in <code>msg.payload</code>).
-        Provide the full absolute path, for example <code>/path/to/nodered-downloaded.txt</code>.
+        Optional absolute local path. Upload reads it only when <code>msg.payload</code> is absent or null; an empty string payload uploads zero bytes. Download saves a copy here and returns the content as described below.
     </dd>
     <dt>Content Type</dt>
-    <dd>Upload-only optional MIME type. <code>msg.contentType</code> can override this value.</dd>
+    <dd>Optional upload MIME type.</dd>
     <dt>Download Output</dt>
     <dd>
-        Download-only output mode.
-        <code>buffer</code> (default) keeps <code>msg.payload</code> as a Buffer.
-        <code>text</code> converts payload bytes to a string using the selected encoding.
-        <code>msg.downloadOutput</code> can override this value.
+        <code>buffer</code> (default) returns bytes; <code>text</code> decodes them using Text Encoding.
     </dd>
     <dt>Text Encoding</dt>
-    <dd>Download-only when output is <code>text</code>. Default <code>utf8</code>. <code>msg.encoding</code> can override this value.</dd>
+    <dd>Used for text downloads. Default: <code>utf8</code>.</dd>
+    <dt>Max Response Bytes</dt>
+    <dd>Maximum buffered successful download size. Default: 16777216 bytes (16 MiB), including saved flows without this field. Messages cannot override it. Uploads are unaffected; SDK-handled service error bodies are outside this limit.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -221,6 +231,7 @@ RED.nodes.registerType("oci-object-storage", {
 </dl>
 
 <h3>Runtime overrides</h3>
+<p>Message overrides of editor fields ignore undefined, null, and empty strings. <code>msg.payload</code> follows the separate upload rules below.</p>
 <p><b>File access:</b> Paths use the Node-RED process's filesystem permissions, and downloads can overwrite existing files. Validate incoming operation and path overrides against an allowlist before this node; editor settings do not restrict them.</p>
 <dl class="message-properties">
     <dt>msg.operation <span class="property-type">string</span></dt><dd>Overrides the Operation field: <code>upload</code> or <code>download</code>.</dd>
@@ -231,17 +242,10 @@ RED.nodes.registerType("oci-object-storage", {
     <dt>msg.contentType <span class="property-type">string</span></dt><dd>Overrides Content Type (upload only).</dd>
     <dt>msg.downloadOutput <span class="property-type">string</span></dt><dd>Overrides Download Output: <code>buffer</code> or <code>text</code> (download only).</dd>
     <dt>msg.encoding <span class="property-type">string</span></dt><dd>Overrides Text Encoding for text downloads (e.g. <code>utf8</code>, <code>ascii</code>).</dd>
-    <dt>msg.payload <span class="property-type">any</span></dt><dd>Upload body when operation is <code>upload</code>. If absent and File Path is set, the file is uploaded instead.</dd>
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Upload body. Absent or null input uses File Path; other values, including an empty string, take precedence.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>For uploads, the node sends <code>msg.payload</code> unless the payload is absent and File Path points to a local file. For downloads, <code>msg.payload</code> receives the object content even when a File Path is also used to save a copy locally.</p>
+<p>Downloads are buffered even when File Path is set. Exceeding Max Response Bytes stops reading and reaches Catch with <code>OCI_RESPONSE_TOO_LARGE</code>, with no normal output or file write. Raise the limit only for trusted larger objects and available memory.</p>
 
-<h3>Typical Flows</h3>
-<p><b>Upload JSON payload:</b><br/>
-<code>inject</code> (JSON) &rarr; <code>oci object storage</code> (upload) &rarr; <code>debug</code></p>
-<p><b>Upload from local file:</b><br/>
-<code>inject</code> (JSON null payload) &rarr; <code>oci object storage</code> (upload + file path) &rarr; <code>debug</code></p>
-<p><b>Download file:</b><br/>
-<code>inject</code> &rarr; <code>oci object storage</code> (download) &rarr; <code>file</code> / <code>debug</code></p>
 </script>

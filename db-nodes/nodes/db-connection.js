@@ -38,10 +38,11 @@ module.exports = function (RED) {
     const oracledb = require("oracledb");
     const common = require("oci-common");
     const identitydataplane = require("oci-identitydataplane");
-    const { generateKeyPair } = require("crypto");
+    const { generateKeyPair, createHash } = require("crypto");
     const os = require("os");
     const path = require("path");
     const oracleAuth = require("../lib/oracle-auth");
+    const dbError = require("../lib/db-error");
     // Required so oracledb recognises tokenAuthConfigOci on connection options.
     require('oracledb/plugins/token/extensionOci');
     const MAX_ADVANCED_INIT_SQL_LENGTH = 1000;
@@ -151,8 +152,8 @@ module.exports = function (RED) {
         node.nlsTsFmt = config.nlsTsFmt || "";
         node.nlsTsTzFmt = config.nlsTsTzFmt || "";
         node.sessionInitSql = config.sessionInitSql || "";
-        // _nlsTag: null = not yet computed; "" = computed but no NLS settings active;
-        // "NLSv1|..." = computed with settings. Checked on every getConnection call so
+        // _nlsTag: null = not yet computed; "" = computed but no initialization active;
+        // otherwise an opaque session fingerprint. Checked on every getConnection call so
         // _computeNlsInit() only runs once per node instance.
         node._nlsTag = null;
         node._nlsAlterStmts = [];
@@ -171,29 +172,38 @@ module.exports = function (RED) {
             const client = new identitydataplane.DataplaneClient({
                 authenticationDetailsProvider: provider
             });
-            const keyPair = await new Promise((resolve, reject) => {
-                generateKeyPair('rsa', {
-                    modulusLength: 4096,
-                    publicKeyEncoding: { type: 'spki', format: 'pem' },
-                    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-                }, (err, publicKey, privateKey) => {
-                    if (err) return reject(err);
-                    resolve({ publicKey, privateKey });
+            try {
+                const keyPair = await new Promise((resolve, reject) => {
+                    generateKeyPair('rsa', {
+                        modulusLength: 4096,
+                        publicKeyEncoding: { type: 'spki', format: 'pem' },
+                        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+                    }, (err, publicKey, privateKey) => {
+                        if (err) return reject(err);
+                        resolve({ publicKey, privateKey });
+                    });
                 });
-            });
-            const response = await client.generateScopedAccessToken({
-                generateScopedAccessTokenDetails: {
-                    scope: config.scope || "urn:oracle:db::id::*",
-                    publicKey: keyPair.publicKey
+                const response = await client.generateScopedAccessToken({
+                    generateScopedAccessTokenDetails: {
+                        scope: config.scope || "urn:oracle:db::id::*",
+                        publicKey: keyPair.publicKey
+                    }
+                });
+                const token = response.securityToken.token;
+                node.tokenCache = {
+                    token,
+                    privateKey: keyPair.privateKey,
+                    expiry: parseTokenExpiry(token)
+                };
+                return { token, privateKey: keyPair.privateKey };
+            } finally {
+                // The client owns its breaker; the authentication provider may be shared.
+                try {
+                    client.shutdownCircuitBreaker();
+                } catch (closeErr) {
+                    node.warn("DB token client circuit-breaker cleanup failed");
                 }
-            });
-            const token = response.securityToken.token;
-            node.tokenCache = {
-                token,
-                privateKey: keyPair.privateKey,
-                expiry: parseTokenExpiry(token)
-            };
-            return { token, privateKey: keyPair.privateKey };
+            }
         }
 
         function getConnectString() {
@@ -248,18 +258,14 @@ module.exports = function (RED) {
         }
 
         function _computeNlsInit() {
-            const parts = [];
-            const push = (k, v) => { if (v) parts.push(k + "=" + String(v)); };
-            push("LANG", node.nlsLanguage);
-            push("TERR", node.nlsTerritory);
-            push("TZ", node.timeZone);
-            push("NUM", node.nlsNumeric);
-            push("DF", node.nlsDateFmt);
-            push("TS", node.nlsTsFmt);
-            push("TSTZ", node.nlsTsTzFmt);
-            node._nlsTag = parts.length ? "NLSv1|" + parts.join(";") : "";
             node._nlsAlterStmts = buildNlsAlterStatements();
             node._extraInitStmts = validateAdvancedInitSql(node.sessionInitSql);
+            const statements = node._nlsAlterStmts.concat(node._extraInitStmts);
+            // Thick tags require name=value properties; hash structured SQL so values
+            // cannot introduce tag delimiters, expose SQL or create ambiguous identities.
+            node._nlsTag = statements.length
+                ? "NR_INIT=" + createHash("sha256").update(JSON.stringify(statements)).digest("hex")
+                : "";
         }
 
         async function _applyNlsToConnection(connection) {
@@ -366,13 +372,13 @@ module.exports = function (RED) {
                     try {
                         await conn.close();
                     } catch (closeErr) {
-                        node.warn("Error closing standalone connection after init failure: " + closeErr.message);
+                        node.warn("Error closing standalone connection after init failure: " + dbError.redactText(closeErr.message));
                     }
                     throw initErr;
                 }
                 return conn;
             } catch (err) {
-                node.error("DB Standalone Connection Failed: " + err.message);
+                node.error("DB Standalone Connection Failed: " + dbError.redactText(err.message));
                 throw err;
             }
         };
@@ -388,13 +394,16 @@ module.exports = function (RED) {
             if (node.poolIncrement !== undefined) options.poolIncrement = node.poolIncrement;
             if (node.queueTimeout !== undefined) options.queueTimeout = node.queueTimeout;
             if (node._nlsTag === null) { _computeNlsInit(); }
-            // Only register sessionCallback when NLS settings are active; otherwise
+            // Only register sessionCallback when session initialization is active; otherwise
             // pool connections are reused without any session init overhead.
             if (node._nlsTag) {
-                options.sessionCallback = async function (connection) {
-                    if (connection.tag === node._nlsTag) return;
-                    await _applyNlsToConnection(connection);
-                    connection.tag = node._nlsTag;
+                options.sessionCallback = function (connection, requestedTag, callback) {
+                    // The driver waits for callback completion, not a returned Promise.
+                    _applyNlsToConnection(connection).then(function () {
+                        if (effectiveMode === "thick") connection.tag = node._nlsTag;
+                    }).then(function () {
+                        callback();
+                    }, callback);
                 };
             }
             poolPromise = (async function () {
@@ -412,11 +421,11 @@ module.exports = function (RED) {
         node.getPoolConnection = async function () {
             const p = await initPool();
             if (!p) throw new Error("Pool is not enabled or failed");
-            // Passing tag lets Oracle prefer a connection already configured for this
-            // NLS fingerprint, avoiding an unnecessary sessionCallback round-trip.
+            // Thick tagging selects sessions with this initialization fingerprint.
+            // Thin supports new-session callbacks, but does not support tags.
             // When untagged, call with no argument: an explicit undefined still counts
             // as one argument and node-oracledb rejects it as a non-object (NJS-005).
-            if (node._nlsTag) {
+            if (node._nlsTag && !p.thin) {
                 return await p.getConnection({ tag: node._nlsTag });
             }
             return await p.getConnection();
@@ -433,7 +442,7 @@ module.exports = function (RED) {
                     try {
                         await poolPromise;
                     } catch (err) {
-                        node.warn(`Pool creation did not complete before close: ${err.message}`);
+                        node.warn("Pool creation did not complete before close: " + dbError.redactText(err.message));
                     }
                 }
 
@@ -442,7 +451,7 @@ module.exports = function (RED) {
                     node.debug("Connection pool closed");
                 }
             } catch (err) {
-                node.warn(`Error closing pool: ${err.message}`);
+                node.warn("Error closing pool: " + dbError.redactText(err.message));
             }
             done();
         });
@@ -468,7 +477,7 @@ module.exports = function (RED) {
             await connection.execute("SELECT 1 FROM DUAL");
             res.json({ success: true, message: "Connection successful" });
         } catch (err) {
-            res.json({ success: false, message: err.message });
+            res.json({ success: false, message: dbError.redactText(err.message) });
         } finally {
             if (connection) {
                 try { await connection.close(); } catch (e) { /* ignore */ }

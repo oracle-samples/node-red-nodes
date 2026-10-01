@@ -21,71 +21,59 @@ RED.nodes.registerType("oci-api-request", {
     inputs: 1,
     outputs: 1,
     color: "#F0CC72",
-    icon: "font-awesome/fa-cloud",
+    icon: "font-awesome/fa-globe",
     label: function () {
         return this.name || "api request";
     }
 });
 </script>
 
-<script type="text/x-red" data-template-name="oci-api-request">
+<script type="text/html" data-template-name="oci-api-request">
     <div class="form-row">
-        <label style="width:120px;" for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Optional display name">
+        <label for="node-input-name" style="width:140px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 147px);">
     </div>
     <div class="form-row">
-        <label style="width:120px;" for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig">
+        <label for="node-input-ociConfig" style="width:140px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 147px);">
+    </div>
+    <fieldset><legend style="font-size:12px;font-weight:bold;">Request</legend>
+    <div class="form-row">
+        <label for="node-input-method" style="width:140px;"><i class="fa fa-tasks"></i> Method</label>
+        <select id="node-input-method" style="width:200px;"><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="PATCH">PATCH</option><option value="DELETE">DELETE</option><option value="HEAD">HEAD</option></select>
     </div>
     <div class="form-row">
-        <label style="width:120px;" for="node-input-endpoint"><i class="fa fa-link"></i> Endpoint</label>
-        <input type="text" id="node-input-endpoint" placeholder="https://&lt;service-endpoint&gt;">
-        <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
-            Full HTTPS OCI endpoint. It is not limited by a service registry.
-        </div>
+        <label for="node-input-endpoint" style="width:140px;"><i class="fa fa-globe"></i> Endpoint URL</label>
+        <input type="text" id="node-input-endpoint" placeholder="https://&lt;service-endpoint&gt;" style="width:calc(100% - 147px);">
+        <div style="margin-left:145px;font-size:11px;margin-top:4px;">Full HTTPS service endpoint. The relative path below is appended to this URL.</div>
     </div>
     <div class="form-row">
-        <label style="width:120px;" for="node-input-method"><i class="fa fa-exchange"></i> Method</label>
-        <select id="node-input-method" style="width:200px;">
-            <option value="GET">GET</option>
-            <option value="HEAD">HEAD</option>
-            <option value="POST">POST</option>
-            <option value="PUT">PUT</option>
-            <option value="PATCH">PATCH</option>
-            <option value="DELETE">DELETE</option>
-        </select>
+        <label for="node-input-path" style="width:140px;"><i class="fa fa-code-fork"></i> Relative path</label>
+        <input type="text" id="node-input-path" placeholder="Optional API path" style="width:calc(100% - 147px);">
+    </div>
+    </fieldset>
+    <fieldset><legend style="font-size:12px;font-weight:bold;">Request options</legend>
+    <div class="form-row">
+        <label for="node-input-query" style="width:140px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Query</label>
+        <textarea id="node-input-query" rows="3" style="width:calc(100% - 147px);font-family:monospace;" placeholder="{}"></textarea>
+        <div style="margin-left:145px;font-size:11px;margin-top:4px;">JSON object; arrays create repeated query parameters.</div>
     </div>
     <div class="form-row">
-        <label style="width:120px;" for="node-input-path"><i class="fa fa-code-fork"></i> Relative Path</label>
-        <input type="text" id="node-input-path" placeholder="Optional path appended to Endpoint">
+        <label for="node-input-headers" style="width:140px;vertical-align:top;margin-top:2px;"><i class="fa fa-list"></i> Headers</label>
+        <textarea id="node-input-headers" rows="3" style="width:calc(100% - 147px);font-family:monospace;" placeholder="{}"></textarea>
+        <div style="margin-left:145px;font-size:11px;margin-top:4px;">JSON object of unsigned headers. Authentication and signing headers are protected.</div>
+    </div>
+    </fieldset>
+    <fieldset><legend style="font-size:12px;font-weight:bold;">Response</legend>
+    <div class="form-row">
+        <label for="node-input-responseType" style="width:140px;"><i class="fa fa-arrow-left"></i> Return</label>
+        <select id="node-input-responseType" style="width:200px;"><option value="auto">Automatic</option><option value="json">Parsed JSON object</option><option value="text">UTF-8 text</option><option value="buffer">Binary buffer</option></select>
     </div>
     <div class="form-row">
-        <label style="width:120px;vertical-align:top;margin-top:2px;" for="node-input-query"><i class="fa fa-filter"></i> Query</label>
-        <textarea id="node-input-query" rows="4" style="width:calc(100% - 127px);font-family:monospace;" placeholder="{}"></textarea>
-        <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
-            JSON object. Array values create repeated query parameters.
-        </div>
+        <label for="node-input-timeoutMs" style="width:140px;"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
+        <input type="number" id="node-input-timeoutMs" placeholder="30000" style="width:120px;" min="1" max="300000">
     </div>
-    <div class="form-row">
-        <label style="width:120px;vertical-align:top;margin-top:2px;" for="node-input-headers"><i class="fa fa-list-alt"></i> Headers</label>
-        <textarea id="node-input-headers" rows="4" style="width:calc(100% - 127px);font-family:monospace;" placeholder="{}"></textarea>
-        <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
-            Optional request headers. Signing and host headers are protected.
-        </div>
-    </div>
-    <div class="form-row">
-        <label style="width:120px;" for="node-input-responseType"><i class="fa fa-file-code-o"></i> Response</label>
-        <select id="node-input-responseType" style="width:200px;">
-            <option value="auto">Automatic</option>
-            <option value="json">JSON</option>
-            <option value="text">Text</option>
-            <option value="buffer">Buffer</option>
-        </select>
-    </div>
-    <div class="form-row">
-        <label style="width:120px;" for="node-input-timeoutMs"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
-        <input type="number" id="node-input-timeoutMs" min="1" max="300000" style="width:120px;">
-    </div>
+    </fieldset>
 </script>
 
 <script type="text/x-red" data-help-name="oci-api-request">
@@ -125,5 +113,5 @@ RED.nodes.registerType("oci-api-request", {
 </dl>
 
 <h3>Details</h3>
-<p>The endpoint must use a domain belonging to an OCI realm known to the installed OCI SDK. Redirects are not followed and automatic retries are not performed, preventing ambiguous write operations from being repeated. The endpoint is configured on the node and cannot be replaced by an input message.</p>
+<p>The endpoint must use a known OCI realm domain. Redirects are not followed and automatic retries are not performed, preventing ambiguous write operations from being repeated. The endpoint is configured on the node and cannot be replaced by an input message.</p>
 </script>

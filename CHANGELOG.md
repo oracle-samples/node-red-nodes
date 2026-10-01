@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.7.1] - 2026-10-01
+
+### Added
+- `dequeue` can filter messages in the database using a condition set in the editor or `msg.dequeueCondition`.
+- `enqueue` lets you choose Transactional or Auto-commit mode.
+- `iot-send-command` and `iot-get-content` accept `msg.digitalTwinInstanceOcid`; existing flows using `msg.digitalTwinOcid` still work.
+
+### Changed
+- `dequeue` puts optional settings in collapsible Filtering and Advanced sections and keeps transaction guidance visible.
+- `package.json` installs only the OCI SDK components used by the nodes.
+- `iot-send-command` and `iot-get-content` label the identifier field Digital Twin Instance OCID.
+- `oci-api-request` replaces its cloud icon with a globe and groups request and response settings.
+- `oci-object-storage` and `oci-functions-invoke` reject oversized successful responses (default limit: 16 MiB, configurable), stop reading, and send `OCI_RESPONSE_TOO_LARGE` to Catch before output or download file writes.
+
+### Fixed
+- `DB`, `OCI` and `Fusion SCM` editors align input fields and their hints consistently.
+- `dequeue` no longer reports a queue as empty when Browse or Locked batches contain messages.
+- `smo-transformer` keeps custom mapped field names intact and only counts required fields that are present in the event data.
+- `db-connection` stops token-client background timers after both successful and failed token requests.
+- `iot-config` keeps the highest requested QoS when nodes share a subscription and matches system topics according to MQTT wildcard rules.
+- `iot-update-relationship` uses message overrides and configured default content as documented.
+- `oci-logging` and `oci-log-analytics` keep supported mapped field names intact instead of dropping special names.
+- `dequeue` closes connections that arrive after Continuous mode has stopped, without reading more messages.
+- `dequeue` closes empty managed transactions and sends errors that stop Continuous mode to Catch.
+- `sql` correctly handles Oracle alternative quotes and comments before anonymous PL/SQL blocks.
+- `db-connection`, `oci-error` and `scm-error` hide sensitive details in processing errors and connection-test results.
+- `dequeue` uses a batch size of at least one when given a positive fraction.
+- `smo-transformer` commits separate source transactions before combining message fragments and reports which commits succeeded or failed if recovery is needed.
+- `SCM lookup, work-order, child and delete nodes` correctly encode IDs in request URLs and reject IDs that could navigate to another path.
+- `ords-config` respects short token lifetimes instead of caching them for the longer fallback lifetime.
+- `oci-ords-poll` includes queue waiting time in its timeout and cancels local requests on timeout or shutdown.
+- `OCI SDK nodes` stop client background timers on shutdown or redeploy, including clients that finish starting during shutdown.
+- `oci-monitoring-publish` keeps supported dimension and metadata names intact instead of dropping special names.
+- `oci-config` hides sensitive credential-test errors and stops test-client background timers while keeping shared authentication available.
+- `db-connection` finishes pooled session setup and reports setup failures instead of leaving requests waiting.
+- `db-connection` applies Advanced Init SQL even without other session settings and uses the correct session setup in Thin and Thick pools.
+- `scm-server` avoids caching tokens with no expiry when Expiry Fallback is off and shares one token request across concurrent callers.
+- `smo-transformer` measures Max Pending Age from the first fragment, so later fragments or a longer Stale Timeout cannot extend the wait.
+- `oci-queue-out` and `oci-kafka-consumer` keep supported property and header names intact; `oci-kafka-producer` rejects `__proto__` headers instead of silently losing them.
+- `package.json` lists the files allowed in each package, keeping unlisted files out of the download.
+
+---
+
 ## [0.7.0] - 2026-09-16
 
 ### Added

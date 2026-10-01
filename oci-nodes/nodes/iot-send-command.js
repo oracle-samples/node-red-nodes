@@ -36,6 +36,7 @@
 
 module.exports = function (RED) {
     const iot = require("oci-iot");
+    var twinIdentity = require("../lib/iot-identity.js");
     const ociError = require("../lib/oci-error.js");
     const ISO_8601_DURATION_REGEX = /^P(?=\d|T\d)(?:\d+Y)?(?:\d+M)?(?:\d+W)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/;
 
@@ -95,28 +96,25 @@ module.exports = function (RED) {
         node.responseDuration = config.responseDuration || "PT10M";
         node.waitForResponse = config.waitForResponse !== false;
 
-        let client = null;
+        var clientManager = require("../lib/oci-client.js")(node);
 
-        async function getClient() {
-            if (client) return client;
-            const provider = await node.ociConfig.getAuthProvider();
-            client = new iot.IotClient({
-                authenticationDetailsProvider: provider
+        function getClient() {
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new iot.IotClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
             });
-            const region = node.ociConfig.getRegion();
-            if (region) {
-                client.regionId = region;
-            }
-            return client;
         }
 
         node.on("input", async function (msg, send, done) {
             try {
                 node.status({ fill: "yellow", shape: "dot", text: "sending command" });
 
-                const digitalTwinId = node.digitalTwinOcid || msg.digitalTwinOcid;
+                const digitalTwinId = twinIdentity.resolve(node.digitalTwinOcid, msg);
                 if (!digitalTwinId) {
-                    const err = new Error("No Digital Twin Instance OCID configured or provided in msg.digitalTwinOcid");
+                    const err = new Error("No Digital Twin Instance OCID configured or provided in msg.digitalTwinInstanceOcid or msg.digitalTwinOcid");
                     node.status({ fill: "red", shape: "ring", text: "no twin OCID" });
                     msg.error = { message: err.message, code: null };
                     msg.statusCode = 0;
@@ -199,10 +197,14 @@ module.exports = function (RED) {
                 }
 
                 node.status({ fill: "green", shape: "dot", text: "sent" });
+                clientManager.assertOpen();
                 send(msg);
                 done();
             } catch (err) {
-                ociError.handleNodeError(node, msg, err, done, { statusText: "send failed" });
+                ociError.handleNodeError(node, msg, err, done, {
+                    statusShape: err.code === "OCI_INPUT_INVALID" ? "ring" : "dot",
+                    statusText: err.code === "OCI_INPUT_INVALID" ? "invalid twin identifier" : "send failed"
+                });
             }
         });
     }

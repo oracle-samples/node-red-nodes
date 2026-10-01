@@ -35,12 +35,12 @@ RED.nodes.registerType("oci-kafka-consumer", {
 
 <script type="text/x-red" data-template-name="oci-kafka-consumer">
     <div class="form-row">
-        <label for="node-input-name" style="width:120px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 127px);">
+        <label for="node-input-name" style="width:155px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional display name" style="width:calc(100% - 162px);">
     </div>
     <div class="form-row">
-        <label for="node-input-kafkaConfig" style="width:120px;"><i class="fa fa-cloud"></i> Kafka Config</label>
-        <input type="text" id="node-input-kafkaConfig">
+        <label for="node-input-kafkaConfig" style="width:155px;"><i class="fa fa-cloud"></i> Kafka Config</label>
+        <input type="text" id="node-input-kafkaConfig" style="width:calc(100% - 162px);">
     </div>
     <hr/>
     <div class="form-row">
@@ -111,9 +111,9 @@ RED.nodes.registerType("oci-kafka-consumer", {
 </dl>
 
 <h3>Details</h3>
-<p>Commit a manual batch only after every record succeeds. Its token commits the entire original batch, even if the payload has been split or edited. Preserve <code>msg.kafka.commitToken</code> and <code>msg.kafka.consumerNodeId</code> for Kafka Commit.</p>
-<p>While a batch awaits commit, its partition pauses, but polling and other partitions continue. Batches may contain fewer records than Batch Limit; the consumer does not wait to fill them. Shutdown or ownership loss discards queued work without committing it.</p>
-<p>Automatic mode records source-node delivery, not completion of downstream Node-RED processing. Manual mode pauses only the record's partition until Kafka Commit succeeds. The client continues polling and other assigned partitions can progress. A restart or ownership change invalidates affected commit tokens and can replay records from the group's last committed offset. Wire processing before Kafka Commit and do not reuse tokens after redeploy or reassignment.</p>
-<p>Kafka commits the next offset and therefore confirms every earlier offset in that partition. Manual delivery preserves partition order, but at-least-once processing can still create duplicates after a downstream side effect succeeds and its commit does not. Keep downstream handling idempotent.</p>
-<p>The installed native client represents offsets as JavaScript numbers. Record offsets must be between 0 and 9007199254740990 so that both the record and its next offset are safe integers. Larger offsets are unsupported and reported as errors; they are not emitted to downstream nodes.</p>
+<p>Automatic commits confirm delivery by this node, not downstream completion. In Manual mode, process successfully before Kafka Commit and preserve <code>msg.kafka.commitToken</code> and <code>msg.kafka.consumerNodeId</code>. A batch token commits the entire original batch, even after splitting or editing its payload; commit only after every record succeeds.</p>
+<p>A pending manual record or batch pauses its partition; polling and other partitions continue. Shutdown or ownership loss discards queued work without committing, invalidates affected tokens, and can replay records from the last committed offset. Do not reuse tokens after redeploy or reassignment.</p>
+<p>Kafka commits the next offset, confirming every earlier offset in that partition. Manual delivery preserves partition order. Keep downstream work idempotent: a side effect can succeed before its commit fails, causing duplicate processing.</p>
+<p>Offsets must be between 0 and 9007199254740990 so the native client's record and next offsets are safe integers. Larger offsets report errors and are not emitted.</p>
+
 </script>

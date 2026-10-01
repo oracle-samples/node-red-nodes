@@ -50,13 +50,13 @@ gh repo clone oracle-samples/node-red-nodes
 
 ### Prerequisites
 
-- Node-RED v3.0+
-- Node.js v18+
+- Node-RED v2.0+
+- Node.js v18+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md))
 - npm
 
 ### Install the Node Package
 
-Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 ## Payload Sources and Mappings
 
@@ -98,6 +98,18 @@ Other predefined lookup modes expose all required business keys directly: organi
 
 Meter lookups follow all Fusion pages. Multi-page results are combined into one collection with complete `items` and `count`, `hasMore: false`, `offset: 0`, the original Fusion page-size `limit`, and no page-specific `links`.
 
+Work-order, child, delete and lookup nodes encode resource IDs as individual URL path segments. Enter the original ID, without URL encoding; `.` and `..` are not valid resource IDs.
+
+Smart Operations composites preserve a shared managed transaction when all fragments have the same owner. When owners differ, including a managed fragment joining an unmanaged fragment, the transformer commits each active source transaction before merging and removes the finalized references. Each commit covers that transaction's entire work and dequeued batch, including work outside this composite. Complete all required work on other branches before this boundary. Separate commits are not atomic together; later Fusion failures cannot undo them.
+
+A commit or cleanup failure emits one Catch message with `SMO_COMPOSITE_COMMIT_FAILED` and `msg.smoTransactionResults`; no successful composite is emitted and the buffered fragment is removed. Each finalized source transaction records `outcome` (`committed`, `rolledBack`, or `unknown`), `closed` (connection cleanup succeeded), and `failed`. Outcome history survives subsequent merges. Do not retry completed commits: rolled-back sources may already redeliver, and unknown outcomes require reconciliation. These results do not contain the source records.
+
+Invalid or expired transaction references reach Catch with `SMO_COMPOSITE_TRANSACTION_INVALID`. Invalid incoming input leaves the buffered fragment intact. An expired buffered fragment is removed; Catch preserves the incoming message and its active reference for explicit rollback, and records the expired source outcome as `unknown`. Expiry or capacity eviction likewise sends an invalid buffered reference to Catch instead of emitting it. Inputs for each composite key are processed in order; other keys and their timers can proceed while a commit waits. Max Pending Entries bounds both stored composites and admitted input operations separately. Additional inputs reach Catch with `SMO_COMPOSITE_BUSY`, retaining their original payload and active reference without starting transaction work.
+
+Pending fragments are held in memory and discarded when the node closes. Close waits for admitted operations and prevents late normal output; a hung database operation can delay that wait. A merged output or commit-failure message preserves upstream properties from the incoming fragment; `msg.dequeued`, when present, represents that fragment, not all source records. The transformer does not retain a separate recovery copy of every original. If recovery requires every source record, arrange that storage before aggregation.
+
+Fusion error responses retain their useful messages and payload structure, with credential fields and common authentication strings redacted from error payloads and Catch diagnostics.
+
 Custom lookup mode accepts either a complete Fusion GET URL or a base resource
 endpoint with optional ordered **Query Parameters**. Pasted query strings are
 normalized into editable rows; `q`, `finder`, field selection, paging, empty
@@ -110,6 +122,8 @@ mappings for per-message parameter values.
 Manufacturing child lookups expose **Work Order ID** and, for nested lines, **Operation ID**. These fields take Fusion `WorkOrderId` and `WorkOrderOperationId` resource IDs from parent lookup responses; they are distinct from the displayed batch number and operation sequence.
 
 ## Error Handling
+
+On older Node-RED versions, read a supplied error code with `msg.error?.code || msg._error?.code`; not every external error includes a code.
 
 Fusion SCM REST nodes route failures to Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when Fusion returns a validation response body, that text is promoted into `msg.error.message`, while the raw response body remains available in `msg.payload`.
 
@@ -125,7 +139,7 @@ The smo-transformer converts incoming telemetry or message data into structured 
 
 **Typical flow:** `dequeue` → `split` (fixed length: 1) → `smart operations transformer` → `smart operations event`
 
-See [Node Reference](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/node-reference.md) for full configuration details.
+See [Node Reference](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/node-reference.md) for full configuration details.
 
 ## Documentation
 
@@ -143,7 +157,7 @@ The package includes four importable Node-RED examples:
 The device-fault example uses injected sample data, not a live telemetry subscription. Command submission and work-order creation run on separate branches; the flow does not wait for confirmation that the device has shut down.
 
 Examples can be imported directly into the Node-RED editor.
-See [Import Examples Guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/import-examples.md).
+See [Import Examples Guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/import-examples.md).
 
 ## Contributing
 
