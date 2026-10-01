@@ -9,11 +9,13 @@ This project provides custom Node-RED nodes for Oracle Database and Advanced Que
 | **db-connection** | Oracle Database authentication and connection config. Supports Basic and DB Token proxy users, TNS aliases or descriptors, and optional extracted wallet directories. Includes a Test Database Connection action directly below the visible fields on every editor tab. |
 | **begin-transaction** | Opens a managed connection with optional timeout for leak protection. |
 | **end-transaction** | Commits or rolls back and closes the connection. Shows elapsed time. |
-| **dequeue** | Retrieves messages from Oracle AQ. Supports transactional mode and continuous mode with optional reconnect/retry controls. |
+| **dequeue** | Retrieves messages from Oracle AQ with an optional database-side condition. Supports transactional mode and continuous mode with optional reconnect/retry controls. |
 | **enqueue** | Publishes messages to Oracle AQ in Transactional or Auto-commit mode. Supports static payload or `msg.payload` (JSON/ADT editor includes `...` JSON editor helper). |
 | **sql** | Executes SQL statements. Supports Editor or `msg.sql` as source (Binds Mapping JSONata rows include `...` expression editor helper). |
 
 ## Error Handling
+
+On older Node-RED versions, read a supplied error code with `msg.error?.code || msg._error?.code`; not every external error includes a code.
 
 Message-triggered DB nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }` using Oracle/node-oracledb error text when available, and DB nodes leave the current `msg.payload` unchanged on failure.
 
@@ -25,7 +27,15 @@ The first End commits or rolls back the entire managed transaction, including al
 
 Enqueue defaults to **Transactional** mode: it uses an incoming Begin Transaction, or opens and commits a standalone transaction when no transaction context exists. **Auto-commit** commits each input on a separate connection. It preserves the incoming transaction reference and does not finalize an active Begin Transaction, which still needs its own End.
 
-For optional error-queue recovery, enable **Retain Original** on Dequeue, then **Original Payload** and **Auto-commit** mode on the recovery Enqueue. Each JSON or RAW original survives payload transformations and can be enqueued to an existing queue on a separate connection. SMO aggregation preserves all retained originals for recovery together; incomplete originals fail clearly. Retain Original and Original Payload are off by default. ADT and values that cannot be retained losslessly are rejected when retention is enabled. Retained originals use memory, contain the original data, and are not durable until the recovery enqueue commits. Recovery preserves the original transaction reference; an active original transaction still needs its own End.
+Dequeue also exposes each payload as `msg.dequeued`. If processing replaces `msg.payload` but preserves `msg.dequeued`, a Function or Change node can select it for recovery. This is the same original payload reference, not an immutable snapshot: in-place changes can affect it, and aggregation does not preserve every contributing record there. For a recovery Enqueue after the source transaction ends, use **Auto-commit**. See [AQ recovery guidance](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/best-practice.md#recovering-a-dequeued-record) for array handling and memory use.
+
+## Dequeue Filtering
+
+Open **Filtering** to select **None** (default), **Editor**, or **Message**. Message reads `msg.dequeueCondition` on each input and is available only in Transactional mode. Oracle evaluates the condition during dequeue; the node does not fetch and discard unrelated messages or create subscriber rules. Use a nonblank, single-line SQL predicate supported by your queue and payload type, without `SELECT` or `WHERE`, up to 4000 UTF-8 bytes. Supply message conditions only from trusted flow configuration. An empty filtered result also finalizes a managed transaction, even if unmatched messages remain in the queue.
+
+Browse and Locked read up to Batch Size one message at a time. Only the first read waits; remaining reads collect available messages without waiting or removing them. Locked holds locks until the transaction ends.
+
+**Advanced** contains dequeue operation and wait/retry controls. Filtering opens automatically for a configured filter and its summary indicates when filtering is enabled.
 
 ## Driver Mode
 
@@ -60,14 +70,14 @@ gh repo clone oracle-samples/node-red-nodes
 
 ### Prerequisites
 
-- Node-RED v3.0+
-- Node.js v18+
+- Node-RED v2.0+
+- Node.js v18+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md))
 - npm
 - Oracle Client libraries supported by node-oracledb (required only when DB `Driver Mode` is `Thick`)
 
 ### Install the Node Package
 
-Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 > If your DB connections use `Driver Mode = Thin`, Oracle Instant Client is not required.
 >
@@ -84,7 +94,7 @@ The package includes one example: [AQ Subscriber and Message Processing](./examp
 The queue must already exist. Queue-creation SQL and the begin/end transaction pattern are documented separately in the shared guides; they are not additional example flows in this package.
 
 Examples can be imported directly into the Node-RED editor.
-See [Import Examples Guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/import-examples.md).
+See [Import Examples Guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/import-examples.md).
 
 ## Contributing
 

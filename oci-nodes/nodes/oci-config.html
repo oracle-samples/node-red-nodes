@@ -208,7 +208,7 @@ RED.nodes.registerType("oci-config", {
     <dt>Region</dt>
     <dd>Optional default OCI region for child nodes.</dd>
     <dt>Compartment OCID</dt>
-    <dd>Stored shared setting. Current public service nodes do not consume this default; configure each service's resource identifiers instead.</dd>
+    <dd>Default compartment for Monitoring nodes when their own Compartment OCID is blank. Other services use their configured resource identifiers.</dd>
     <dt>Test OCI Credentials</dt>
     <dd>Validates the current configuration and credentials against OCI after deploy.</dd>
 </dl>

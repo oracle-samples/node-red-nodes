@@ -135,15 +135,16 @@ module.exports = function (RED) {
 
         node.on("input", async function (msg, send, done) {
             var domainId = String((msg.iotDomainId !== undefined && msg.iotDomainId !== null) ? msg.iotDomainId : node.iotDomainId || "").trim();
-            var relationshipKey = (msg.relationshipKey !== undefined && msg.relationshipKey !== null)
-                ? msg.relationshipKey
-                : node.defaultRelationshipKey;
+            var relationshipKey = msg.relationshipKey;
             if ((relationshipKey === undefined || relationshipKey === null || relationshipKey === "") && isObject(msg.payload)) {
                 relationshipKey = msg.payload.relationshipKey;
             }
-            var content = (msg.content !== undefined)
-                ? msg.content
-                : (isObject(msg.payload) ? msg.payload.content : node.defaultContent);
+            if (relationshipKey === undefined || relationshipKey === null || relationshipKey === "") {
+                relationshipKey = node.defaultRelationshipKey;
+            }
+            var content = msg.content;
+            if (content === undefined && isObject(msg.payload)) content = msg.payload.content;
+            if (content === undefined) content = node.defaultContent;
             var validatingInput = true;
 
             try {

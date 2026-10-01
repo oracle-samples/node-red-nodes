@@ -87,7 +87,9 @@ module.exports = function (RED) {
                 } else {
                     val = m.value || "";
                 }
-                payload[m.logField] = val;
+                Object.defineProperty(payload, m.logField, {
+                    value: val, enumerable: true, writable: true, configurable: true
+                });
             }
             return payload;
         }

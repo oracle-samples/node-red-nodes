@@ -69,6 +69,7 @@ module.exports = function (RED) {
 
     function mqttTopicMatches(pattern, topic) {
         if (!isValidSubscriptionPattern(pattern)) return false;
+        if (topic.charAt(0) === "$" && pattern.charAt(0) !== "$") return false;
         if (pattern === "#") return true;
         var patternParts = pattern.split("/");
         var topicParts = topic.split("/");
@@ -183,11 +184,7 @@ module.exports = function (RED) {
 
                 // Re-subscribe all registered topic listeners.
                 Object.keys(topicSubscriptions).forEach(function (t) {
-                    var maxQos = topicSubscriptions[t].reduce(function (m, s) {
-                        var q = (s.qos === 0 || s.qos === 1 || s.qos === 2) ? s.qos : 1;
-                        return Math.max(m, q);
-                    }, 0);
-                    client.subscribe(t, { qos: maxQos }, function (err) {
+                    client.subscribe(t, { qos: subscriptionQos(t) }, function (err) {
                         if (err) node.error("Subscribe failed for " + t + ": " + err.message);
                         else node.log("Subscribed to " + t);
                     });
@@ -255,6 +252,12 @@ module.exports = function (RED) {
             client.publish(topic, payload, pubOpts, callback);
         };
 
+        function subscriptionQos(topic) {
+            return topicSubscriptions[topic].reduce(function (maximum, subscription) {
+                return Math.max(maximum, subscription.qos);
+            }, 0);
+        }
+
         /**
          * Subscribe to an MQTT topic. The callback is called for each matching message.
          * On reconnect, all registered subscriptions are restored automatically.
@@ -280,7 +283,7 @@ module.exports = function (RED) {
             if (!topicSubscriptions[normalizedTopic]) topicSubscriptions[normalizedTopic] = [];
             topicSubscriptions[normalizedTopic].push({ qos: normalizedQos, callback: callback });
             if (client && client.connected) {
-                client.subscribe(normalizedTopic, { qos: normalizedQos }, function (err) {
+                client.subscribe(normalizedTopic, { qos: subscriptionQos(normalizedTopic) }, function (err) {
                     if (err) node.error("Subscribe failed for " + normalizedTopic + ": " + err.message);
                 });
             }

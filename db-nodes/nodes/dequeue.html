@@ -40,6 +40,21 @@
 -->
 
 <script type="text/javascript">
+(function () {
+    function editorValue(node, property) {
+        var input = $("#node-input-" + property);
+        if ($("#dequeue-filtering").data("node-id") === node.id && input.length) {
+            return input.val();
+        }
+        return node[property];
+    }
+
+    function validCondition(value) {
+        return typeof value === "string" && !!value.trim() &&
+            !/[\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(value) &&
+            new TextEncoder().encode(value).length <= 4000;
+    }
+
 RED.nodes.registerType("dequeue", {
     category: "oracle db",
     color: "#4C825C",
@@ -50,6 +65,14 @@ RED.nodes.registerType("dequeue", {
         inputs: { value: 1 },
         queueName: { value: "", required: true },
         subscriber: { value: "" },
+        conditionSource: { value: "none", validate: function (value) {
+            if (value === undefined) { value = "none"; }
+            return ["none", "editor", "msg"].indexOf(value) !== -1 &&
+                !(value === "msg" && editorValue(this, "mode") === "continuous");
+        } },
+        condition: { value: "", validate: function (value) {
+            return editorValue(this, "conditionSource") !== "editor" || validCondition(value);
+        } },
         wait: { value: 0 },
         waitForever: { value: false },
         batchSize: { value: 1 },
@@ -58,14 +81,58 @@ RED.nodes.registerType("dequeue", {
         adtTypeName: { value: "" },
         retryEnabled: { value: true },
         retryDelayMs: { value: 5000 },
-        maxRetries: { value: 0 },
-        retainOriginalPayload: { value: false }
+        maxRetries: { value: 0 }
     },
     inputs: 1, outputs: 1,
     icon: "font-awesome/fa-download",
     label: function () { return this.name || "dequeue"; },
     paletteLabel: "dequeue",
     oneditprepare: function () {
+        $("#dequeue-filtering").data("node-id", this.id);
+        var conditionSource = this.conditionSource === undefined ? "none" : this.conditionSource;
+        if (["none", "editor", "msg"].indexOf(conditionSource) === -1) {
+            $("#node-input-conditionSource").append(new Option("Invalid saved source", conditionSource));
+        }
+        $("#node-input-conditionSource").val(conditionSource);
+        $("#dequeue-filtering").prop("open", conditionSource !== "none");
+
+        function updateAdvancedSummary() {
+            var summary = [];
+            var mode = $("#node-input-deqMode").val();
+            if (mode !== "remove") {
+                summary.push(mode === "browse" ? "Browse" : "Locked");
+            }
+            if ($("#node-input-mode").val() === "continuous") {
+                if (!$("#node-input-retryEnabled").is(":checked")) {
+                    summary.push("retries off");
+                } else {
+                    var delay = Number($("#node-input-retryDelayMs").val());
+                    var retries = Number($("#node-input-maxRetries").val());
+                    if (delay !== 5000) { summary.push("retry " + delay + " ms"); }
+                    if (retries !== 0) { summary.push(retries + " retries"); }
+                }
+            } else if ($("#node-input-waitForever").is(":checked")) {
+                summary.push("wait indefinitely");
+            } else if (Number($("#node-input-wait").val()) !== 0) {
+                summary.push("wait " + $("#node-input-wait").val() + " s");
+            }
+            $("#dequeue-advanced-summary").text(summary.join("; ") || "Default settings");
+        }
+
+        function updateFiltering() {
+            var source = $("#node-input-conditionSource").val();
+            var continuousMessage = source === "msg" && $("#node-input-mode").val() === "continuous";
+            var invalidSource = ["none", "editor", "msg"].indexOf(source) === -1;
+            $("#dequeue-condition-row").toggle(source === "editor");
+            $("#dequeue-condition-message-hint").toggle(source === "msg");
+            $("#dequeue-filter-summary").text(source === "none" ? "Off" :
+                source === "editor" ? "Active — Editor" : source === "msg" ? "Active — Message" : "Invalid source");
+            $("#dequeue-condition-error").text(continuousMessage ?
+                "Message conditions are not available in Continuous mode. Select None or Editor, or use Transactional mode." :
+                "Select a valid condition source: None, Editor or Message.").toggle(continuousMessage || invalidSource);
+            $("#node-input-condition").trigger("change");
+        }
+        $("#node-input-conditionSource").on("change", updateFiltering);
         function updateMode() {
             var isContinuous = $("#node-input-mode").val() === "continuous";
             $("#wait-section").toggle(!isContinuous);
@@ -73,6 +140,8 @@ RED.nodes.registerType("dequeue", {
             $("#transactional-note").toggle(!isContinuous);
             $("#retry-section").toggle(isContinuous);
             updateRetryRows();
+            $("#node-input-conditionSource").trigger("change");
+            updateAdvancedSummary();
         }
         updateMode();
         $("#node-input-mode").on("change", updateMode);
@@ -111,11 +180,15 @@ RED.nodes.registerType("dequeue", {
             };
             $("#deq-mode-hint").text(hints[mode] || "");
         }).trigger("change");
+        $("#dequeue-advanced input, #dequeue-advanced select").on("change input", updateAdvancedSummary);
+        updateFiltering();
+        updateAdvancedSummary();
     },
     oneditsave: function () {
         this.inputs = ($("#node-input-mode").val() === "continuous") ? 0 : 1;
     }
 });
+}());
 </script>
 
 <script type="text/x-red" data-template-name="dequeue">
@@ -140,25 +213,6 @@ RED.nodes.registerType("dequeue", {
     <div id="continuous-note" style="display:none;margin:0 0 8px 135px;font-size:11px;color:#856404;background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:5px 8px;">
         <i class="fa fa-exclamation-triangle"></i> Continuous mode commits immediately — no rollback protection. Wire into begin/end-transaction is not supported.
     </div>
-    <div id="retry-section" style="display:none">
-    <div class="form-row">
-        <label for="node-input-retryEnabled" style="width:130px;"><i class="fa fa-repeat"></i> Enable Retries</label>
-        <input type="checkbox" id="node-input-retryEnabled" style="width:auto;vertical-align:middle;">
-        <span style="font-size:12px;color:#666;"> Retry DB/dequeue errors in continuous mode</span>
-    </div>
-    <div id="retry-options">
-        <div class="form-row">
-            <label for="node-input-retryDelayMs" style="width:130px;"><i class="fa fa-clock-o"></i> Retry Delay (ms)</label>
-            <input type="number" id="node-input-retryDelayMs" min="0" value="5000" style="width:120px;">
-        </div>
-        <div class="form-row">
-            <label for="node-input-maxRetries" style="width:130px;"><i class="fa fa-sort-numeric-asc"></i> Max Retries</label>
-            <input type="number" id="node-input-maxRetries" min="0" value="0" style="width:120px;">
-            <span style="font-size:12px;color:#666;margin-left:8px;">0 = unlimited retries</span>
-        </div>
-    </div>
-    </div>
-    <hr/>
     <div class="form-row">
         <label for="node-input-queueName" style="width:130px;"><i class="fa fa-inbox"></i> Queue Name</label>
         <input type="text" id="node-input-queueName" placeholder="SCHEMA.JSON_QUEUE">
@@ -184,7 +238,34 @@ RED.nodes.registerType("dequeue", {
         <input type="text" id="node-input-adtTypeName" placeholder="SCHEMA.TYPE_NAME">
         <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
     </div>
-    <hr/>
+    <div class="form-row">
+        <label for="node-input-batchSize" style="width:130px;"><i class="fa fa-list-ol"></i> Batch Size</label>
+        <input type="number" id="node-input-batchSize" min="1" value="1" style="width:100px;">
+    </div>
+    <details id="dequeue-filtering" style="margin:12px 0;border-top:1px solid var(--red-ui-form-input-border-color, #ddd);padding-top:10px;">
+        <summary style="cursor:pointer;font-weight:600;">Filtering <span id="dequeue-filter-summary" style="font-weight:normal;font-size:12px;margin-left:8px;"></span></summary>
+        <div style="padding-top:12px;">
+            <div class="form-row">
+                <label for="node-input-conditionSource" style="width:130px;"><i class="fa fa-filter"></i> Filter Source</label>
+                <select id="node-input-conditionSource" style="width:200px;" aria-describedby="dequeue-condition-error">
+                    <option value="none">None</option>
+                    <option value="editor">Editor</option>
+                    <option value="msg">Message</option>
+                </select>
+            </div>
+            <div class="form-row" id="dequeue-condition-row">
+                <label for="node-input-condition" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-code"></i> Condition</label>
+                <textarea id="node-input-condition" rows="2" placeholder="priority = 1" aria-describedby="dequeue-condition-hint" style="width:calc(100% - 137px);"></textarea>
+                <div id="dequeue-condition-hint" style="margin:4px 0 0 135px;font-size:11px;color:#888;">Oracle dequeue predicate, not a full SELECT. Use a nonblank single line, up to 4000 UTF-8 bytes. Oracle validates its syntax and queue support.</div>
+            </div>
+            <div id="dequeue-condition-message-hint" style="margin:0 0 8px 135px;font-size:11px;color:#888;">Reads <code>msg.dequeueCondition</code> on each Transactional input. A nonblank single-line string of up to 4000 UTF-8 bytes is required; there is no editor fallback.</div>
+            <div style="margin:0 0 8px 135px;font-size:11px;color:#888;">None ignores condition values. With filtering, no match can return an empty result even when other messages remain. An empty managed dequeue commits prior work and closes the transaction.</div>
+        </div>
+    </details>
+    <div id="dequeue-condition-error" role="alert" style="display:none;margin:0 0 8px 135px;color:var(--red-ui-form-input-border-error-color, #c00);"></div>
+    <details id="dequeue-advanced" style="margin:12px 0;border-top:1px solid var(--red-ui-form-input-border-color, #ddd);padding-top:10px;">
+        <summary style="cursor:pointer;font-weight:600;">Advanced <span id="dequeue-advanced-summary" style="font-weight:normal;font-size:12px;margin-left:8px;"></span></summary>
+        <div style="padding-top:12px;">
     <div class="form-row">
         <label for="node-input-deqMode" style="width:130px;"><i class="fa fa-cog"></i> Dequeue Mode</label>
         <select id="node-input-deqMode" style="width:200px;">
@@ -207,15 +288,26 @@ RED.nodes.registerType("dequeue", {
         <span style="font-size:12px;color:#666;margin-left:8px;">0 = return immediately if no messages</span>
     </div>
     </div>
+    <div id="retry-section" style="display:none">
     <div class="form-row">
-        <label for="node-input-batchSize" style="width:130px;"><i class="fa fa-list-ol"></i> Batch Size</label>
-        <input type="number" id="node-input-batchSize" min="1" value="1" style="width:100px;">
+        <label for="node-input-retryEnabled" style="width:130px;"><i class="fa fa-repeat"></i> Enable Retries</label>
+        <input type="checkbox" id="node-input-retryEnabled" style="width:auto;vertical-align:middle;">
+        <span style="font-size:12px;color:#666;"> Retry DB/dequeue errors in continuous mode</span>
     </div>
-    <div class="form-row">
-        <label for="node-input-retainOriginalPayload" style="width:130px;"><i class="fa fa-history"></i> Retain Original</label>
-        <input type="checkbox" id="node-input-retainOriginalPayload" style="width:auto;">
-        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Keep each JSON or RAW payload for Enqueue recovery after downstream changes. Uses additional memory.</div>
+    <div id="retry-options">
+        <div class="form-row">
+            <label for="node-input-retryDelayMs" style="width:130px;"><i class="fa fa-clock-o"></i> Retry Delay (ms)</label>
+            <input type="number" id="node-input-retryDelayMs" min="0" value="5000" style="width:120px;">
+        </div>
+        <div class="form-row">
+            <label for="node-input-maxRetries" style="width:130px;"><i class="fa fa-sort-numeric-asc"></i> Max Retries</label>
+            <input type="number" id="node-input-maxRetries" min="0" value="0" style="width:120px;">
+            <span style="font-size:12px;color:#666;margin-left:8px;">0 = unlimited retries</span>
+        </div>
     </div>
+    </div>
+        </div>
+    </details>
 </script>
 
 <script type="text/x-red" data-help-name="dequeue">
@@ -228,10 +320,10 @@ RED.nodes.registerType("dequeue", {
     <dt>Queue Name</dt><dd>Schema-qualified queue name, e.g. <code>ADMIN.MY_QUEUE</code>.</dd>
     <dt>Subscriber</dt><dd>Consumer name for multi-consumer queues. Leave empty only for single-consumer queues. <code>ORA-25231</code> means the queue requires this value.</dd>
     <dt>Payload Type</dt><dd><b>JSON</b> — plain JS object. <b>RAW</b> — Buffer. <b>ADT</b> — Oracle object type, automatically converted to a plain JS object with uppercase attribute names.</dd>
-    <dt>Dequeue Mode</dt><dd><b>Remove</b> (default) — message permanently deleted on commit. <b>Browse</b> — message read without locking or removal. <b>Locked</b> — message locked for processing but not removed on commit.</dd>
+    <dt>Filter Source / Condition</dt><dd><b>None</b> (default) ignores all condition values. <b>Editor</b> applies the configured Oracle dequeue predicate. <b>Message</b> reads <code>msg.dequeueCondition</code> on each Transactional input, with no editor fallback; it is unavailable in Continuous mode. Active conditions must be nonblank single-line strings of at most 4000 UTF-8 bytes, without control characters. Supply a predicate, not a full SELECT. This sets the native dequeue condition; it does not create or change subscriber rules. Oracle validates predicate syntax and support for the selected queue and payload.</dd>
+    <dt>Dequeue Mode</dt><dd><b>Remove</b> (default) — message permanently deleted on commit. <b>Browse</b> — messages read without locking or removal, one at a time up to Batch Size. Only the first read waits for a message; the remaining reads return available messages without waiting. <b>Locked</b> — message locked for processing but not removed on commit; uses the same single-message reads and wait behavior as Browse.</dd>
     <dt>Block Indefinitely / Wait (seconds)</dt><dd>In Transactional mode, how long to wait for a message. 0 = return immediately if empty.</dd>
     <dt>Enable Retries / Retry Delay / Max Retries</dt><dd>In Continuous mode, controls reconnect behavior for DB/dequeue errors. A missing Subscriber for a multi-consumer queue stops immediately. Max Retries 0 = unlimited retries.</dd>
-    <dt>Retain Original</dt><dd>Optional, off by default. Keeps an immutable serialized copy of each JSON or RAW payload in <code>msg._aqOriginal</code> for Enqueue's Original Payload option. ADT and JSON values that cannot be represented losslessly are rejected before the batch commits. Retaining originals increases memory use; it is not durable error storage.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -239,19 +331,24 @@ RED.nodes.registerType("dequeue", {
     <dt>payload <span class="property-type">object | Buffer | DbObject</span></dt>
     <dd>The dequeued message payload. Type depends on Payload Type setting.</dd>
     <dt>dequeued <span class="property-type">object | Buffer | DbObject</span></dt>
-    <dd>Same as <code>payload</code> — available for use with SCM payload mappings.</dd>
+    <dd>The same payload reference as <code>msg.payload</code> when emitted. Replacing <code>msg.payload</code> leaves this property available for mappings or recovery, provided downstream nodes preserve it. In-place changes to the object or Buffer also change <code>msg.dequeued</code>; it is not an immutable copy. A later Dequeue replaces it with that call's payload.</dd>
     <dt>error <span class="property-type">object</span></dt>
     <dd>Error details on failure: <code>{ message, code }</code>.</dd>
-    <dt>_aqOriginal <span class="property-type">string</span></dt>
-    <dd>Optional retained original payload. Preserve this property through processing and Catch. Each new Dequeue replaces it when retention is enabled or removes an earlier snapshot when disabled. A new Dequeue also clears inherited aggregate-original metadata. It contains the original data; avoid logging or forwarding it unnecessarily.</dd>
+</dl>
+
+<h3>Runtime overrides</h3>
+<dl class="message-properties">
+    <dt>dequeueCondition <span class="property-type">string</span></dt>
+    <dd>Required only with Filter Source set to Message. It does not override an Editor condition or enable filtering when None is selected.</dd>
 </dl>
 
 <h3>Details</h3>
 <p>If <code>msg.transaction</code> is timed out, ended, or has no connection, the node reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Handle the error and start a new transaction before retrying. Messages with no transaction context keep their normal standalone behavior.</p>
 <p>In <b>Transactional</b> mode, if <code>msg.transaction.connection</code> is present (set by a begin-transaction node), the dequeue uses that shared connection; non-empty results do not auto-commit and the messages stay locked until end-transaction commits or rolls back. Without a transaction context, dequeue creates its own connection, auto-commits, and closes. The node reports <code>dequeuing...</code>, followed by <code>dequeued N</code> or <code>no messages</code>.</p>
 <p><b>Batch processing:</b> Each item is emitted separately with the same transaction. The first End finalizes the whole transaction, including every dequeued record. It does not wait for later records or branches. If their results must determine rollback, gather their completion before End. Batch Size 1 reduces this to one dequeued record but does not wait for its parallel branches.</p>
-<p><b>Empty results:</b> A managed dequeue with no messages commits previous work in that transaction and closes the connection without emitting a message. Failed DB work still requires rollback. An empty result is not proof that other branches finished: already executing DB work is allowed to finish, but queued or later work using the closed reference reports <code>DB_TRANSACTION_INACTIVE</code>.</p>
-<p><b>Error queue recovery:</b> Enable Retain Original before processing, then route a scoped Catch to Enqueue with Original Payload enabled and Mode set to Auto-commit. That enqueue can persist the retained record after the original transaction has closed. It does not undo an earlier commit or external API call. An active original Begin Transaction still needs its own End. A crash before the recovery enqueue commits can still lose the in-memory original.</p>
+<p><b>Empty results:</b> With a condition, an empty result means no matching message was returned; unmatched messages can remain in the queue. A managed dequeue with no messages commits previous work in that transaction and closes the connection without emitting a message. Failed DB work still requires rollback. An empty result is not proof that other branches finished: already executing DB work is allowed to finish, but queued or later work using the closed reference reports <code>DB_TRANSACTION_INACTIVE</code>.</p>
+<p><b>Error queue recovery:</b> If the original payload remains available under <code>msg.dequeued</code>, a Function can set <code>msg.payload = [msg.dequeued]</code> before a normal Enqueue with its editor Payload left empty. Check that the property exists first. The outer array preserves one AQ record even for an original JSON array. Use Auto-commit when the source transaction is already closed; an active Begin Transaction still needs its own End. This recovers payload content, not the original AQ message ID or delivery metadata. Aggregation does not make <code>msg.dequeued</code> a collection of all source records.</p>
+<p><code>msg.dequeued</code> stays in memory while the message is referenced; it is not durable recovery storage or a bound on backlog memory. A crash before the recovery enqueue commits can lose the payload. Continuous mode does not wait for downstream processing before fetching more messages.</p>
 <p>In <b>Continuous</b> mode, the node starts on deploy and listens using <code>AQ_DEQ_WAIT_FOREVER</code>. Status reports <code>dequeued N</code> for each non-empty batch, keeps the count visible for two seconds while the next blocking dequeue starts, then returns to the blue-ring <code>listening</code> state. On redeploy or stop, the blocking call is interrupted for a prompt shutdown. Commits immediately after each batch — rollback protection is not available. If the queue is multi-consumer, set <b>Subscriber</b>; otherwise Oracle returns <code>ORA-25231</code>.</p>
-<p>Terminal operational errors, including retry exhaustion, reach a scoped Catch once. An original-payload retention error stops the listener without retrying or committing that batch. Configuration diagnostics such as a missing Subscriber or Retain Original with ADT remain separate status/log messages.</p>
+<p>Terminal operational errors, including retry exhaustion, reach a scoped Catch once. Configuration diagnostics such as a missing Subscriber remain separate status/log messages.</p>
 </script>

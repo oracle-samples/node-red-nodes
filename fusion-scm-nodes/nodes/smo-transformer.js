@@ -144,7 +144,7 @@ module.exports = function (RED) {
 
         if (node.enableNesting && node.nestingKey) {
           var wrapped = {};
-          wrapped[node.nestingKey] = data;
+          setOwnField(wrapped, node.nestingKey, data);
           data = wrapped;
         }
 
@@ -225,13 +225,27 @@ module.exports = function (RED) {
     done(doneErr);
   }
 
+  function hasOwnField(source, key) {
+    return Object.prototype.hasOwnProperty.call(source, key);
+  }
+
+  function setOwnField(target, key, value) {
+    Object.defineProperty(target, key, { value: value, enumerable: true, writable: true, configurable: true });
+  }
+
+  function assignOwnFields(target, source) {
+    if (source == null) return target;
+    Object.keys(source).forEach(function (key) { setOwnField(target, key, source[key]); });
+    return target;
+  }
+
   function getByPath(source, path) {
     if (!source || path === undefined || path === null || path === "") return undefined;
     if (Object.prototype.hasOwnProperty.call(source, path)) return source[path];
     var parts = String(path).split(".");
     var value = source;
     for (var i = 0; i < parts.length; i++) {
-      if (value === undefined || value === null) return undefined;
+      if (value === undefined || value === null || !hasOwnField(value, parts[i])) return undefined;
       value = value[parts[i]];
     }
     return value;
@@ -254,17 +268,17 @@ module.exports = function (RED) {
   }
 
   function applySplitFields(payload, splitFields) {
-    var output = Object.assign({}, payload);
+    var output = assignOwnFields({}, payload);
     for (var i = 0; i < splitFields.length; i++) {
       var sf = splitFields[i];
       var value = getByPath(payload, sf.incomingField);
       if (value != null && typeof value === "string") {
         var parts = value.split(sf.delimiter);
         if (parts.length >= 2) {
-          output[sf.outputField1] = parts[0];
+          setOwnField(output, sf.outputField1, parts[0]);
           var secondPart = parts.slice(1).join(sf.delimiter);
           var asNumber = Number(secondPart);
-          output[sf.outputField2] = isNaN(asNumber) ? secondPart : asNumber;
+          setOwnField(output, sf.outputField2, isNaN(asNumber) ? secondPart : asNumber);
         }
       }
     }
@@ -294,12 +308,12 @@ module.exports = function (RED) {
       var transformType = mapping.transformType || "none";
 
       // First match wins
-      if (data[smoField] !== undefined) continue;
+      if (hasOwnField(data, smoField) && data[smoField] !== undefined) continue;
 
       // staticValue: write a constant — no incoming field required
       if (transformType === "staticValue") {
         if (mapping.defaultValue !== undefined && mapping.defaultValue !== "") {
-          data[smoField] = mapping.defaultValue;
+          setOwnField(data, smoField, mapping.defaultValue);
         }
         continue;
       }
@@ -312,11 +326,11 @@ module.exports = function (RED) {
           var fieldName = collectFields[k];
           var collectedValue = getByPath(payload, fieldName);
           if (collectedValue !== undefined) {
-            collected[fieldName] = collectedValue;
+            setOwnField(collected, fieldName, collectedValue);
           }
         }
         if (Object.keys(collected).length > 0) {
-          data[smoField] = collected;
+          setOwnField(data, smoField, collected);
         }
         continue;
       }
@@ -327,59 +341,59 @@ module.exports = function (RED) {
 
       if (!hasValue) {
         if (mapping.defaultValue !== undefined && mapping.defaultValue !== "") {
-          data[smoField] = mapping.defaultValue;
+          setOwnField(data, smoField, mapping.defaultValue);
         }
         continue;
       }
 
       switch (transformType) {
         case "none":
-          data[smoField] = value;
+          setOwnField(data, smoField, value);
           break;
         case "string":
-          data[smoField] = String(value);
+          setOwnField(data, smoField, String(value));
           break;
         case "number":
-          data[smoField] = Number(value);
+          setOwnField(data, smoField, Number(value));
           break;
         case "valueMap":
           var valueMap = mapping.valueMap || {};
-          if (valueMap["__present__"] !== undefined) {
-            data[smoField] = valueMap["__present__"];
+          if (hasOwnField(valueMap, "__present__") && valueMap["__present__"] !== undefined) {
+            setOwnField(data, smoField, valueMap["__present__"]);
           } else {
             var sv = String(value);
-            data[smoField] = valueMap[sv] !== undefined ? valueMap[sv] : value;
+            setOwnField(data, smoField, hasOwnField(valueMap, sv) && valueMap[sv] !== undefined ? valueMap[sv] : value);
           }
           break;
         case "nestedObject":
-          data[smoField] = value;
+          setOwnField(data, smoField, value);
           break;
         case "dynamicSift":
           var excludeFields = mapping.excludeFields || [];
           var sifted = {};
           var keys = Object.keys(payload);
           for (var j = 0; j < keys.length; j++) {
-            if (excludeFields.indexOf(keys[j]) === -1) sifted[keys[j]] = payload[keys[j]];
+            if (excludeFields.indexOf(keys[j]) === -1) setOwnField(sifted, keys[j], payload[keys[j]]);
           }
-          data[smoField] = sifted;
+          setOwnField(data, smoField, sifted);
           break;
         default:
-          data[smoField] = value;
+          setOwnField(data, smoField, value);
       }
     }
     return data;
   }
 
   function mergeData(a, b) {
-    var result = Object.assign({}, a);
+    var result = assignOwnFields({}, a);
     var keys = Object.keys(b);
     for (var i = 0; i < keys.length; i++) {
       var k = keys[i];
-      if (result[k] != null && typeof result[k] === "object" && !Array.isArray(result[k]) &&
+      if (hasOwnField(result, k) && result[k] != null && typeof result[k] === "object" && !Array.isArray(result[k]) &&
           typeof b[k] === "object" && !Array.isArray(b[k])) {
-        result[k] = Object.assign({}, result[k], b[k]);
+        setOwnField(result, k, assignOwnFields(assignOwnFields({}, result[k]), b[k]));
       } else {
-        result[k] = b[k];
+        setOwnField(result, k, b[k]);
       }
     }
     return result;
@@ -387,7 +401,7 @@ module.exports = function (RED) {
 
   function isCompositeComplete(outputPayload, requiredFields) {
     for (var i = 0; i < requiredFields.length; i++) {
-      if (outputPayload.data[requiredFields[i]] == null) return false;
+      if (!hasOwnField(outputPayload.data, requiredFields[i]) || outputPayload.data[requiredFields[i]] == null) return false;
     }
     return true;
   }
@@ -441,55 +455,37 @@ module.exports = function (RED) {
     throw invalid;
   }
 
-  function originalIndexes(msg, offset) {
-    return recoveryMetadata(msg).snapshots.map(function (snapshot, index) { return offset + index; });
-  }
-
-  function transactionResults(msg, offset) {
+  function transactionResults(msg) {
     if (!Array.isArray(msg.smoTransactionResults)) return [];
     return msg.smoTransactionResults.map(function (result) {
       return {
         outcome: result.outcome,
         closed: result.closed === true,
-        failed: result.failed === true,
-        originalIndexes: (result.originalIndexes || []).map(function (index) { return offset + index; })
+        failed: result.failed === true
       };
     });
   }
 
   function mergeTransactionResults(previous, current) {
-    return transactionResults(previous, 0).concat(transactionResults(current, recoveryMetadata(previous).snapshots.length));
+    return transactionResults(previous).concat(transactionResults(current));
   }
 
   function addTransactionResults(combined, previous, current, owners, results) {
     var history = mergeTransactionResults(previous, current);
     var unique = [];
     owners.forEach(function (owner) { if (owner && unique.indexOf(owner) === -1) unique.push(owner); });
-    var indexes = [originalIndexes(previous, 0), originalIndexes(current, recoveryMetadata(previous).snapshots.length)];
     unique.forEach(function (owner, index) {
       var result = results[index] || { outcome: "unknown", closed: false, failed: true };
-      history.push({
-        outcome: result.outcome,
-        closed: result.closed,
-        failed: result.failed,
-        originalIndexes: owners.reduce(function (all, sourceOwner, sourceIndex) {
-          return sourceOwner === owner ? all.concat(indexes[sourceIndex]) : all;
-        }, [])
-      });
+      history.push({ outcome: result.outcome, closed: result.closed, failed: result.failed });
     });
     if (history.length) combined.smoTransactionResults = history;
     return combined;
   }
 
-  function recordUnknownTransaction(msg, source) {
-    var history = transactionResults(msg, 0);
-    history.push({ outcome: "unknown", closed: false, failed: true, originalIndexes: originalIndexes(source, 0) });
+  function recordUnknownTransaction(msg) {
+    var history = transactionResults(msg);
+    history.push({ outcome: "unknown", closed: false, failed: true });
     msg.smoTransactionResults = history;
-    var retained = recoveryMetadata(msg);
-    if (Object.prototype.hasOwnProperty.call(msg, "_aqOriginal") && retained.snapshots.length === 1) {
-      delete msg._aqOriginal;
-      msg._aqOriginals = retained.snapshots;
-    }
   }
 
   function clearTransactionReference(msg) {
@@ -498,10 +494,11 @@ module.exports = function (RED) {
   }
 
   function copyCompositeFailure(msg, combined) {
-    ["_aqOriginal", "_aqOriginals", "_aqOriginalsIncomplete", "smoTransactionResults"].forEach(function (field) {
-      if (Object.prototype.hasOwnProperty.call(combined, field)) msg[field] = combined[field];
-      else delete msg[field];
-    });
+    if (Object.prototype.hasOwnProperty.call(combined, "smoTransactionResults")) {
+      msg.smoTransactionResults = combined.smoTransactionResults;
+    } else {
+      delete msg.smoTransactionResults;
+    }
   }
 
   function flushCompositeEntry(node, statusState, compositeStore, staleTimers, key, reason, send, state) {
@@ -512,7 +509,7 @@ module.exports = function (RED) {
     try {
       captureCompositeOwner(entry.msg);
     } catch (err) {
-      recordUnknownTransaction(entry.msg, entry.msg);
+      recordUnknownTransaction(entry.msg);
       reportTransformError(node, statusState, entry.msg, err, function (reported) { node.error(reported, entry.msg); },
         { fill: "red", shape: "ring", text: "invalid transaction" });
       return false;
@@ -586,7 +583,7 @@ module.exports = function (RED) {
       return;
     }
     var pending = key && compositeStore[key];
-    var combinedMsg = pending ? mergeRecoveryMetadata(pending.msg, msg) : msg;
+    var combinedMsg = pending ? mergeCompositeMetadata(pending.msg, msg) : msg;
     if (pending) {
       var pendingOwner;
       try {
@@ -594,7 +591,7 @@ module.exports = function (RED) {
       } catch (err) {
         delete compositeStore[key];
         clearCompositeTimer(staleTimers, key);
-        recordUnknownTransaction(combinedMsg, pending.msg);
+        recordUnknownTransaction(combinedMsg);
         copyCompositeFailure(msg, combinedMsg);
         reportTransformError(node, statusState, msg, err, done,
           { fill: "red", shape: "ring", text: "invalid transaction" });
@@ -679,33 +676,10 @@ module.exports = function (RED) {
     send(createOutputMessage(msg, outputPayload, outputTarget, msg.transaction));
   }
 
-  function recoveryMetadata(msg) {
-    var has = Object.prototype.hasOwnProperty;
-    var single = has.call(msg, "_aqOriginal");
-    var multiple = has.call(msg, "_aqOriginals");
-    var incomplete = has.call(msg, "_aqOriginalsIncomplete");
-    var snapshots = single ? [msg._aqOriginal] : (multiple ? msg._aqOriginals : []);
-    var valid = single !== multiple && Array.isArray(snapshots) && snapshots.length > 0 &&
-      snapshots.every(function (snapshot) { return typeof snapshot === "string"; });
-    return {
-      present: single || multiple || incomplete,
-      complete: valid && !incomplete,
-      snapshots: valid ? snapshots : []
-    };
-  }
-
-  function mergeRecoveryMetadata(previous, current) {
-    var a = recoveryMetadata(previous);
-    var b = recoveryMetadata(current);
-    if (!a.present && !b.present && !previous.smoTransactionResults && !current.smoTransactionResults) return current;
-    // Keep every consumed record, including identical deliveries and replaced partials.
-    var combined = Object.assign({}, current);
-    delete combined._aqOriginal;
-    combined._aqOriginals = a.snapshots.concat(b.snapshots);
-    if (!a.complete || !b.complete) combined._aqOriginalsIncomplete = true;
-    else delete combined._aqOriginalsIncomplete;
+  function mergeCompositeMetadata(previous, current) {
     var results = mergeTransactionResults(previous, current);
-    if (results.length) combined.smoTransactionResults = results;
+    if (!results.length) return current;
+    var combined = Object.assign({}, current, { smoTransactionResults: results });
     if (current.transaction) {
       Object.defineProperty(combined, "transaction", {
         value: current.transaction, enumerable: false, writable: true, configurable: true

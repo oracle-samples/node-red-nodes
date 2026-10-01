@@ -6,25 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [Unreleased]
+## [0.7.1] - 2026-10-01
 
 ### Added
-- `dequeue` optionally retains original JSON/RAW payloads for recovery; `enqueue` can recover those originals and provides Transactional and Auto-commit modes.
+- `dequeue` accepts an optional database-side condition from the editor or `msg.dequeueCondition`.
+- `enqueue` provides Transactional and Auto-commit modes.
 - `iot-send-command` and `iot-get-content` accept `msg.digitalTwinInstanceId` without removing the legacy message property.
 
 ### Changed
+- `dequeue` groups optional controls into collapsible Filtering and Advanced sections while keeping transaction guidance visible.
 - `package.json` declares the used OCI SDK components directly instead of the umbrella `oci-sdk` dependency.
 - `iot-send-command` and `iot-get-content` display Digital Twin Instance OCID as the identifier label.
 - `oci-api-request` uses a distinct globe icon and grouped request and response fields.
 - `oci-object-storage` and `oci-functions-invoke` limit buffered successful responses to a configurable 16 MiB by default, cancel oversized reads, and report `OCI_RESPONSE_TOO_LARGE` through Catch before normal output or download file writes.
 
 ### Fixed
+- `dequeue` reads Browse and Locked batches one message at a time to avoid false empty results from native array operations.
+- `smo-transformer` preserves custom mapped field names and tests required fields against its own data properties.
+- `db-connection` releases request-owned token-client circuit breakers after successful or failed token requests.
+- `iot-config` preserves the highest requested QoS for shared subscriptions and applies MQTT wildcard rules to system topics.
+- `iot-update-relationship` honors documented message overrides and configured default content.
+- `oci-logging` and `oci-log-analytics` preserve accepted mapped field names as own properties.
+- `dequeue` releases late-acquired continuous connections without starting queue work after shutdown.
 - `dequeue` finalizes empty managed transactions and reports terminal continuous operational failures through Catch.
 - `sql` accepts Oracle alternative-quoted literals and comments before anonymous PL/SQL blocks.
 - `db-connection`, `oci-error` and `scm-error` redact sensitive diagnostics consistently across processing and connection-test paths.
 - `dequeue` normalizes positive fractional batch sizes to at least one.
 - `smo-transformer` finalizes distinct source transactions before merging fragments and reports partial commit outcomes for recovery.
-- `SCM child and lookup nodes` encode resource path identifiers once and reject path-navigation identifiers.
+- `SCM lookup, work-order, child and delete nodes` encode resource path identifiers once and reject path-navigation identifiers.
 - `ords-config` honors short token lifetimes without extending them to the fallback expiry.
 - `oci-ords-poll` applies its deadline to queued and active work and cancels local requests on timeout or close.
 - `OCI SDK nodes` release owned circuit-breaker resources on close, including clients initialized during shutdown.

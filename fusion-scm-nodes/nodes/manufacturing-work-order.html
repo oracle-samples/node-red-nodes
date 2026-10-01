@@ -478,4 +478,5 @@ window.scmMappingEditor = (function () {
 <h3>Details</h3>
 <p>This node manages the work order header resource. Default mapping rows provide common Fusion field names, while the Value column starts blank so users can choose the correct source type and path. Required create fields depend on the Fusion Manufacturing setup; common fields include item, organization, work definition, work order type, planned quantity, and planned dates. Use lookup nodes upstream when a flow needs to resolve item, work definition, or existing work order IDs before calling this node.</p>
 <p>Operations, resources, components, serials, and other child collections are not created or updated by this first-pass node.</p>
+<p>Resource IDs are treated as one URL path segment. The values <code>.</code> and <code>..</code> are rejected before a resource request is sent.</p>
 </script>

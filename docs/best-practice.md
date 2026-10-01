@@ -26,6 +26,8 @@ End waits for active database work, not messages that may arrive later.
 
 **Timeout and redeploy:** Cleanup waits for active DB work before rolling back and closing the connection. It cannot interrupt a stuck database call. Use finite AQ waits and database/network execution limits; a pool acquisition timeout only limits waiting for a connection, not SQL execution. Transaction references work only in the current runtime, not across restarts or other processes. External Fusion and OCI calls cannot be rolled back with the database transaction.
 
+**Catch error codes:** Some Node-RED versions rebuild `msg.error` and preserve the node's normalized diagnostic in `msg._error`. When routing by code, read `msg.error?.code || msg._error?.code`. This fallback applies only when the reporting node supplied a code.
+
 **Failed DB work**
 
 Once a DB node reports a processing error, that managed transaction can only roll back. A subsequent Commit rolls back instead and reports `DB_TRANSACTION_ROLLBACK_REQUIRED`. Still route Catch to Rollback explicitly.
@@ -36,13 +38,33 @@ An invalid transaction reference does not mark a different transaction as failed
 
 Normally, keep `enqueue` inside the same begin/end transaction path so the enqueue is finalized by that transaction. For a separate recovery write, select **Auto-commit** mode: Enqueue acquires its own connection, commits its enqueue and closes it, without finalizing or changing the incoming transaction. If the incoming transaction is still active, its owner must still finish it; if it has ended, do not route that stale reference to another End.
 
-**Recovering the original record without a copying Function:** Enable **Retain Original** on Dequeue, then enable **Original Payload** on the error-queue Enqueue. Select **Auto-commit** mode there if recovery must survive completion of the original transaction. Use a Catch scoped to processing nodes; handle recovery-node failures separately to avoid a retry loop. Original Payload selects the retained original rather than an API response or editor payload. An original JSON array is one recovered AQ record, not a batch of its elements.
+### Recovering a dequeued record
 
-Retention is optional and off by default. It supports plain JSON values and RAW Buffers, not ADT or extended/non-JSON values. The immutable snapshot travels in `msg._aqOriginal`; preserve message properties, do not send the snapshot as external request metadata, and do not alter it. Each later Dequeue replaces all recovery metadata or removes it when retention is disabled. SMO composites retain all contributing originals in `msg._aqOriginals`; Enqueue validates all of them before writing them together. A missing fragment snapshot makes recovery fail explicitly. Each original remains one AQ record, and identical originals are not deduplicated. This aggregation behavior is specific to SMO, not generic Join nodes. It consumes memory until no messages retain it and does not survive restart. There is no global recovery cache or expiry timer. Missing, incompatible or invalid snapshots fail explicitly rather than enqueueing the wrong payload. Retention validation completes for the entire returned batch before an automatic commit or output.
+Dequeue sets both `msg.payload` and `msg.dequeued` to the dequeued payload. If processing replaces `msg.payload` with an API response and preserves the other message properties, the dequeued data is still available in `msg.dequeued`. A Change node can set `msg.payload` from `msg.dequeued`, or a Function can select that property for another destination. No additional payload snapshot is created by Dequeue.
 
-**SMO composites across transactions:** When fragments have different transaction owners, SMO commits each contributing transaction once before combining them. A managed fragment combined with an unmanaged fragment commits the managed transaction. This includes every operation and dequeued record belonging to those transactions, even work in other branches. Same-owner fragments keep their transaction for End; unmanaged fragments remain unmanaged. Automatically finalized outputs have no transaction reference for a later End to finish.
+For an error-AQ Enqueue, use this Function to send **one dequeued payload as one AQ message**, including when the payload is a JSON array:
 
-If a source cannot be finalized, SMO sends one Catch message with retained originals and `msg.smoTransactionResults`; it emits no normal merged event. Each result identifies the original snapshot indices, `outcome` (`committed`, `rolledBack` or `unknown`), whether the connection closed and whether finalization failed. A commit that throws remains `unknown` even if a later rollback attempt succeeds. Never retry an already completed commit. Use the outcomes when choosing record recovery: rolled-back dequeues may already redeliver, and unknown commits require reconciliation before replay. Independent commits are not atomic together; handling partial recovery belongs to the application. Retained originals and incomplete composites remain memory-only.
+```javascript
+if (!Object.prototype.hasOwnProperty.call(msg, "dequeued")) {
+    throw new Error("The dequeued payload is no longer available");
+}
+msg.payload = [msg.dequeued];
+return msg;
+```
+
+This restores the payload only, not the original AQ message ID, priority, correlation or recipient metadata.
+
+Leave Enqueue's editor **Payload** blank so it reads `msg.payload`, select the matching Payload Type, and use an existing recovery queue. Enqueue treats the outer array as a batch; wrapping the value ensures an array-valued original becomes one AQ record rather than several. Select **Auto-commit** if the original transaction has already ended. It saves the recovery record independently and does not finalize any still-active source transaction. Use a Catch scoped to processing nodes, and handle recovery Function/Enqueue failures separately to avoid a recovery loop.
+
+`msg.dequeued` is a reference, not an immutable backup. Changing a nested field in `msg.payload` before replacing it can also change `msg.dequeued`. Nodes that construct a new message can drop it, and a later Dequeue replaces it. After SMO or another aggregation step, do not assume this property contains all contributing originals; handle individual recovery before aggregation or explicitly preserve the records your application needs.
+
+The data stays in memory while referenced by an in-flight message, buffer or context; it does not survive restart. This avoids an additional serialized snapshot, but retained payloads, Node-RED message cloning and a growing downstream backlog still consume memory. Continuous Dequeue does not wait for downstream processing, and Batch Size limits each dequeue call, not total in-flight work. Control intake and measure memory at the expected payload size and processing rate.
+
+### Transaction lifecycle and aggregation
+
+When fragments have different transaction owners, SMO commits each contributing transaction once before combining them. A managed fragment combined with an unmanaged fragment commits the managed transaction. This includes every operation and dequeued record belonging to those transactions, even work in other branches. Same-owner fragments keep their transaction for End; unmanaged fragments remain unmanaged. Automatically finalized outputs have no transaction reference for a later End to finish.
+
+If a source cannot be finalized, SMO sends one Catch message with `msg.smoTransactionResults`; it emits no normal merged event. Each result reports `outcome` (`committed`, `rolledBack` or `unknown`), whether the connection closed and whether finalization failed. A commit that throws remains `unknown` even if a later rollback attempt succeeds. Never retry an already completed commit. Use the outcomes when choosing record recovery: rolled-back dequeues may already redeliver, and unknown commits require reconciliation before replay. Independent commits are not atomic together; handling partial recovery belongs to the application. Incomplete composites remain memory-only. Transaction results describe finalization outcomes; they do not contain the original source records.
 
 **Empty managed dequeue:** An empty result requests commit and connection release, without emitting a business message. Earlier work in that transaction is included; rollback-only transactions roll back and report the error instead. Finalization waits for already-admitted DB work and rejects later DB work. It does not discover delayed branches, so do not use queue emptiness as proof that every branch has finished. Continuous mode owns its polling connection independently.
 
@@ -58,7 +80,9 @@ End Transaction reports `inactive transaction` through Catch for a duplicate or 
 **Standalone mode:** Dequeue can run without transaction nodes for simple use cases, but messages are auto-committed on dequeue and cannot be rolled back on downstream failure.
 In Continuous mode, enable retry controls to survive transient DB outages without redeploying the flow. The node applies retry controls to DB/dequeue errors. For multi-consumer queues, configure **Subscriber** with the AQ consumer name; `ORA-25231` means the consumer name is missing and stops immediately.
 
-**Dequeue mode:** Use Remove (default) for normal message consumption. Use Browse for monitoring queue contents without consuming. Use Locked only when you need to inspect before deciding to remove.
+**Dequeue mode:** Use Remove (default) for normal message consumption. Use Browse for monitoring queue contents without consuming. Use Locked only when you need to inspect before deciding to remove. Browse and Locked collect up to Batch Size one message at a time; only the first read waits, so a partial batch does not wait for additional messages.
+
+**Dequeue filtering:** Use Filtering to select an editor condition or, in Transactional mode, `msg.dequeueCondition`. Oracle applies the predicate when dequeuing; the node does not create or alter subscriber rules. Use trusted condition text appropriate to the queue and payload type. An empty filtered result still finalizes a managed transaction even if unmatched messages remain, so it is not a signal that the entire queue or all processing branches are finished.
 
 ## Safe SQL Execution (SQL Node)
 

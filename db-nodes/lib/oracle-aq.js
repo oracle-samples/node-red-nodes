@@ -35,6 +35,7 @@
  */
 
 var DEFAULT_RETRY_DELAY_MS = 5000;
+var dequeueSelections = new WeakMap();
 
 function normalizePayloadType(value) {
     var type = String(value || "json").toLowerCase();
@@ -122,7 +123,21 @@ function configureEnqueueQueue(queue, oracledb, config) {
     queue.enqOptions.deliveryMode = resolveDeliveryMode(oracledb, config.deliveryMode);
 }
 
-function configureDequeueQueue(queue, oracledb, config) {
+function dequeueSelectionKey(config) {
+    return JSON.stringify([config.queueName, config.subscriber || ""]);
+}
+
+function configureDequeueQueue(queue, oracledb, config, connection) {
+    var condition = config.condition || "";
+    var previousCondition = queue.deqOptions.condition || "";
+    var selections = connection && dequeueSelections.get(connection);
+    var key = dequeueSelectionKey(config);
+    var recordedSelection = selections && selections.has(key);
+    if (recordedSelection) previousCondition = selections.get(key);
+    queue.deqOptions.condition = condition;
+    // A changed or cleared predicate starts a new selection instead of reusing its cursor.
+    if (previousCondition !== condition) queue.deqOptions.navigation = oracledb.AQ_DEQ_NAV_FIRST_MSG;
+    else if (recordedSelection) queue.deqOptions.navigation = oracledb.AQ_DEQ_NAV_NEXT_MSG;
     if (config.subscriber) queue.deqOptions.consumerName = config.subscriber;
     queue.deqOptions.mode = resolveDequeueMode(oracledb, config.deqMode);
     queue.deqOptions.visibility = oracledb.AQ_VISIBILITY_ON_COMMIT;
@@ -131,12 +146,77 @@ function configureDequeueQueue(queue, oracledb, config) {
         : config.wait;
 }
 
+function recordDequeueSelection(queue, oracledb, config, connection) {
+    // getQueue creates fresh options, but successful selection cursors belong to the connection.
+    if (connection) {
+        var condition = queue.deqOptions.condition || "";
+        var selections = dequeueSelections.get(connection);
+        var key = dequeueSelectionKey(config);
+        if (condition) {
+            if (!selections) {
+                selections = new Map();
+                dequeueSelections.set(connection, selections);
+            }
+            selections.set(key, condition);
+        } else if (selections) {
+            selections.delete(key);
+            if (selections.size === 0) dequeueSelections.delete(connection);
+        }
+    }
+    if (queue.deqOptions.navigation === oracledb.AQ_DEQ_NAV_FIRST_MSG) {
+        queue.deqOptions.navigation = oracledb.AQ_DEQ_NAV_NEXT_MSG;
+    }
+}
+
+function resolveDequeueCondition(config, msg) {
+    var source = config.conditionSource === undefined ? "none" : config.conditionSource;
+    if (source === "none") return "";
+    if ((source !== "editor" && source !== "msg") || (source === "msg" && config.mode === "continuous")) {
+        var sourceError = new Error("Invalid dequeue condition source for this mode");
+        sourceError.code = "DB_AQ_CONDITION_INVALID";
+        throw sourceError;
+    }
+    var condition = source === "msg" ? msg.dequeueCondition : config.condition;
+    if (typeof condition !== "string" || !condition.trim() ||
+        /[\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(condition) || Buffer.byteLength(condition, "utf8") > 4000) {
+        var conditionError = new Error("Dequeue condition must be a nonempty single-line string of at most 4000 UTF-8 bytes");
+        conditionError.code = "DB_AQ_CONDITION_INVALID";
+        throw conditionError;
+    }
+    return condition.trim();
+}
+
 var MAX_BATCH_SIZE = 10000;
 
 function normalizeBatchSize(value) {
     var parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) return 1;
     return Math.max(1, Math.min(Math.floor(parsed), MAX_BATCH_SIZE));
+}
+
+async function dequeueMessages(queue, oracledb, batchSize, isActive) {
+    var size = normalizeBatchSize(batchSize);
+    if (isActive && !isActive()) return [];
+    var mode = queue.deqOptions.mode;
+    if (mode !== oracledb.AQ_DEQ_MODE_BROWSE && mode !== oracledb.AQ_DEQ_MODE_LOCKED) {
+        return queue.deqMany(size);
+    }
+
+    // Non-removing array dequeues can return no records on JSON TxEventQ.
+    var messages = [];
+    var wait = queue.deqOptions.wait;
+    try {
+        while (messages.length < size && (!isActive || isActive())) {
+            var message = await queue.deqOne();
+            if (!message) break;
+            messages.push(message);
+            queue.deqOptions.navigation = oracledb.AQ_DEQ_NAV_NEXT_MSG;
+            queue.deqOptions.wait = oracledb.AQ_DEQ_NO_WAIT;
+        }
+        return messages;
+    } finally {
+        queue.deqOptions.wait = wait;
+    }
 }
 
 function normalizeWait(value) {
@@ -183,8 +263,11 @@ module.exports = {
     dbObjectToPojo: dbObjectToPojo,
     configureEnqueueQueue: configureEnqueueQueue,
     configureDequeueQueue: configureDequeueQueue,
+    recordDequeueSelection: recordDequeueSelection,
+    resolveDequeueCondition: resolveDequeueCondition,
     MAX_BATCH_SIZE: MAX_BATCH_SIZE,
     normalizeBatchSize: normalizeBatchSize,
+    dequeueMessages: dequeueMessages,
     normalizeWait: normalizeWait,
     normalizeRetryDelay: normalizeRetryDelay,
     normalizeMaxRetries: normalizeMaxRetries,

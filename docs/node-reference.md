@@ -115,7 +115,22 @@ Dequeues messages from an Oracle AQ queue.
 | Block Indefinitely | No | Waits forever for messages if checked (Transactional mode only) |
 | Blocking Time (seconds) | No | Wait time if not blocking indefinitely (Transactional mode only) |
 | Batch Size | No | Messages per dequeue (default: 1, max: 10000) |
-| Retain Original | No | Off by default. Keep an immutable original for error-AQ recovery; supports plain JSON and RAW, not ADT. Adds memory proportional to retained payloads. |
+| Filter Source | No | **None** (default), **Editor**, or **Message**. Message reads `msg.dequeueCondition` on each Transactional input; it cannot be used in Continuous mode. |
+| Condition | Editor only | Nonblank, single-line SQL predicate supported by the queue and payload type, without `SELECT` or `WHERE`, up to 4000 UTF-8 bytes. |
+
+**Editor sections:** Basic queue settings and transaction guidance stay visible. **Filtering** opens automatically when a filter is configured and indicates filtering in its collapsed summary. **Advanced** contains the dequeue operation and wait/retry settings.
+
+**Filtering:** Oracle evaluates the predicate through `queue.deqOptions.condition`; no JavaScript filtering or subscriber-rule creation occurs. None ignores saved editor conditions and `msg.dequeueCondition`. Editor condition uses only the configured value. Message condition requires a valid string on each input; a missing or invalid value fails rather than running unfiltered. Only use trusted flow configuration for condition text. Oracle validates predicate syntax and support for the queue, database version and payload; driver support does not guarantee every predicate works on every TxEventQ configuration.
+
+For a JSON payload such as `{ "pressure": 80 }`, a condition can select messages with pressure above 50:
+
+```sql
+JSON_VALUE(tab.user_data, '$.pressure' RETURNING NUMBER) > 50
+```
+
+The predicate is evaluated during each dequeue and does not alter the subscriber's persistent rule. Both filters apply when a subscriber rule is also configured. Supported expressions depend on the queue and payload; an unsupported expression reports an error through Catch rather than falling back to an unfiltered dequeue.
+
+**Browse and Locked batches:** Both modes read one message at a time, up to Batch Size, because native array operations can return an empty result for a nonempty queue. The first read uses the configured wait; subsequent reads do not wait. A partial batch is returned immediately when no further message is available. Neither mode removes messages; Locked holds locks until the transaction ends.
 
 **Dequeue modes:**
 
@@ -125,19 +140,17 @@ Dequeues messages from an Oracle AQ queue.
 | **Browse** | Reads without locking | Message stays, anyone can read it again | Monitoring or inspecting queue contents |
 | **Locked** | Reads and locks | Lock released, message stays | Inspect before deciding to remove |
 
-**Outputs:** `msg.payload` (message payload), `msg.dequeued` (same, for SCM payload mapping compatibility)
+**Outputs:** `msg.payload` and `msg.dequeued` initially reference the same dequeued payload. Replacing `msg.payload` leaves `msg.dequeued` available when downstream nodes preserve message properties. In-place mutations can change both; this is not an immutable snapshot. A later Dequeue replaces the payload and clears previous `smoTransactionResults`. See [recovering a dequeued record](best-practice.md#recovering-a-dequeued-record) for recovery and array handling.
 
 **Transactional mode:** When wired after begin-transaction, uses `msg.transaction.connection`. Messages stay locked on the queue until end-transaction commits or rolls back. The node reports `dequeuing...`, followed by `dequeued N` or `no messages`.
 
 **Batch processing:** Each dequeued item is emitted as a separate message. In a managed transaction, every item shares the same transaction. For independent sequential processing, use Batch Size `1` and finish processing before End. The first Commit commits removal of the whole batch even if other records or branches have not finished. To keep rollback available for all work, coordinate completion before End. Otherwise, handle later failures through independent recovery; another End cannot undo the committed work.
 
-**Empty managed result:** Commits earlier work and closes the transaction without output; rollback-only protection still applies. Already-admitted DB operations settle before finalization, but delayed branches are not tracked.
-
-**Retained original:** When enabled, `msg._aqOriginal` carries the original snapshot through message cloning. Preserve it for Enqueue recovery; payload replacement does not replace the snapshot. A later Dequeue replaces/removes previous recovery snapshots and clears their `smoTransactionResults`. Retention validates the entire batch before automatic commit or output; unsupported payloads fail instead of being acknowledged. There is no disk persistence, expiry timer or global cache.
+**Empty managed result:** Commits earlier work and closes the transaction without output; rollback-only protection still applies. With filtering, this means no matching messages were returned, not that the queue has no other messages. Already-admitted DB operations settle before finalization, but delayed branches are not tracked.
 
 **Standalone mode:** When used without transaction nodes, creates its own connection and commits before emitting messages. Downstream failures cannot roll back that dequeue.
 
-**Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. A successful batch shows `dequeued N` for two seconds while the next blocking dequeue starts immediately, then restores the blue-ring `listening` status. On DB/dequeue errors, the node retries when enabled. A terminal operational failure reports once to scoped Catch after retries are disabled or exhausted. Unsupported original-payload retention stops with Catch instead of repeatedly retrying deterministic serialization failures. On redeploy/stop, the node interrupts the blocking dequeue call (and any retry wait) so close can finish promptly without timing out. If Oracle returns `ORA-25231`, configure **Subscriber** with the AQ consumer name required by the multi-consumer queue; this missing-subscriber error stops immediately.
+**Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. A successful batch shows `dequeued N` for two seconds while the next blocking dequeue starts immediately, then restores the blue-ring `listening` status. On DB/dequeue errors, the node retries when enabled. A terminal operational failure reports once to scoped Catch after retries are disabled or exhausted. On redeploy/stop, the node interrupts the blocking dequeue call (and any retry wait) so close can finish promptly without timing out. If Oracle returns `ORA-25231`, configure **Subscriber** with the AQ consumer name required by the multi-consumer queue; this missing-subscriber error stops immediately.
 
 ### enqueue
 
@@ -154,7 +167,6 @@ Enqueues JSON, RAW, or ADT messages into an Oracle AQ queue.
 | User Payload | No | A single object or JSON array. A single object is enqueued as one message; each array element becomes a separate message. If empty, uses `msg.payload` (accepts both shapes). For JSON/ADT payload types, the editor provides a `...` JSON editor button. |
 | Pass Message | No | When enabled (default), sends a msg after successful enqueue. Disable to use as a pure sink. |
 | Mode | No | **Transactional** (default): uses an incoming Begin transaction; without one, commits its standalone enqueue. **Auto-commit**: always commits each input on a separate connection, preserving but not finalizing the incoming transaction. |
-| Original Payload | No | Off by default. Uses retained originals from Dequeue or an SMO composite. Each original, including a JSON array, is one AQ record. Missing/invalid/type-mismatched originals fail before writes. |
 
 **Outputs (when enabled):** `msg.count` (number of messages enqueued). All upstream `msg` properties are preserved.
 
@@ -162,7 +174,7 @@ Enqueues JSON, RAW, or ADT messages into an Oracle AQ queue.
 
 **Transactional mode:** An active managed reference uses its transaction without auto-commit. Enqueued messages are finalized by End Transaction. With no transaction context, Enqueue commits and closes its standalone connection.
 
-**Independent recovery:** Select Auto-commit mode for an error-AQ write that must work after the source transaction ends; optionally select Original Payload to avoid storing a replaced API-response payload. This does not close or poison the incoming transaction on failure. Its reference remains on the output for the original owner; it must not be mistaken for a new managed transaction to End. Keep Catch for recovery failures separate from the original processing Catch.
+**Independent recovery:** Select Auto-commit mode for an error-AQ write that must work after the source transaction ends. Set `msg.payload` to the desired recovery data and leave the editor Payload blank. For one original AQ record, use `msg.payload = [msg.dequeued]` after checking that the property is still present and suitable for replay. The outer array preserves an array-valued original as one record. This does not close or poison the incoming transaction on failure. Its reference remains on the output for the original owner; it must not be mistaken for a new managed transaction to End. Keep Catch for recovery failures separate from the original processing Catch.
 
 **Standalone mode:** Without transaction nodes, opens its own connection, enqueues, commits, and closes.
 
@@ -342,11 +354,11 @@ Palette label: `smart operations transformer`.
 
 **Outputs:** `msg.smoEvent` (structured Smart Operations event object, default) or `msg.payload` when Output Target is set to `msg.payload`.
 
-Composite fragments sharing one managed transaction retain that reference for End. When owners differ, SMO finalizes each distinct managed source once before merging; a managed/unmanaged mix finalizes only the managed source. This commits all work in those source transactions, including other dequeued records and branches. Successful automatic finalization removes closed references from the combined message. Independent commits are not an atomic group. When original retention is enabled, SMO carries all contributing originals in `msg._aqOriginals`, including fragments superseded within the pending composite. Enqueue recovers these together; if any contributing original is missing, recovery fails explicitly instead of saving a partial event. Generic Join nodes do not provide this metadata aggregation contract.
+Composite fragments sharing one managed transaction retain that reference for End. When owners differ, SMO finalizes each distinct managed source once before merging; a managed/unmanaged mix finalizes only the managed source. This commits all work in those source transactions, including other dequeued records and branches. Successful automatic finalization removes closed references from the combined message. Independent commits are not an atomic group. `msg.dequeued` is not a collection of contributing originals; recover individual records before aggregation or preserve the required data explicitly.
 
 A complete event replaces pending partial data after any required transaction finalization for the same entity, event time, and event type, and cancels that entry's timer. For an incomplete event receiving no further data, Stale Timeout `0` with Max Pending Age `60` emits the partial data after about 60 seconds and removes the pending entry.
 
-If source finalization fails, `SMO_COMPOSITE_COMMIT_FAILED` reaches Catch once with combined recovery metadata and `msg.smoTransactionResults`. Results contain `outcome` (`committed`, `rolledBack`, `unknown`), `closed`, `failed`, and zero-based `originalIndexes` into `msg._aqOriginals`. No normal event is emitted; committed sources cannot be rolled back, and unknown outcomes need reconciliation before retry. A close failure may accompany a known successful commit. Invalid or expired references fail through `SMO_COMPOSITE_TRANSACTION_INVALID`; valid incoming ownership is retained on preflight failure so its error path can finish it. Timer/eviction rejects expired buffered references instead of emitting stale transaction work. Composite operations serialize per event key, so a slow commit does not hold unrelated event keys or their timers. Max Pending Entries also bounds waiting inputs; excess inputs reach Catch with `SMO_COMPOSITE_BUSY` and retain their transaction reference for error handling. Close suppresses late normal output.
+If source finalization fails, `SMO_COMPOSITE_COMMIT_FAILED` reaches Catch once with `msg.smoTransactionResults`. Results contain `outcome` (`committed`, `rolledBack`, `unknown`), `closed`, `failed`. No normal event is emitted; committed sources cannot be rolled back, and unknown outcomes need reconciliation before retry. A close failure may accompany a known successful commit. Invalid or expired references fail through `SMO_COMPOSITE_TRANSACTION_INVALID`; valid incoming ownership is retained on preflight failure so its error path can finish it. Timer/eviction rejects expired buffered references instead of emitting stale transaction work. Composite operations serialize per event key, so a slow commit does not hold unrelated event keys or their timers. Max Pending Entries also bounds waiting inputs; excess inputs reach Catch with `SMO_COMPOSITE_BUSY` and retain their transaction reference for error handling. Close suppresses late normal output.
 
 New nodes start with `Select event type...`, empty mappings, and the generic `smart operations transformer` workspace label. Select a preset to populate its default mappings, or add a custom event type. Messages are routed to Catch if Event Type is left blank.
 
@@ -544,6 +556,8 @@ After a successful `subinventory-quantity-transfer` request, the node status is 
 These typed nodes always call their canonical SCM endpoint. To target a different endpoint, use `fusion-request` with `Transaction Type = custom`.
 
 ### delete-transaction
+
+Resource identifiers in work-order, child, delete and lookup requests are encoded as individual path segments. Dot-only identifiers (`.` and `..`) are rejected before the resource request.
 
 Deletes an SCM resource by identifier using the selected mode endpoint.
 
@@ -1078,6 +1092,8 @@ Clicking **Done** saves the current Payload Mappings rows; reopening the node re
 **Outputs:** `msg.payload.statusCode`, `msg.payload.requestId`, `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
 ### iot-config (Config Node)
+
+When several Subscribe nodes share one topic, the broker subscription uses their highest requested QoS. Wildcard subscriptions that start with `#` or `+` do not receive `$`-prefixed system topics; subscribe to those explicitly.
 
 MQTT connection to the OCI IoT Platform. Manages persistent sessions, command subscriptions, and auto-reconnect.
 

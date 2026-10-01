@@ -7,7 +7,7 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 - **db-nodes**
   - Database connection (with Test Database Connection)
   - SQL execution (Editor or msg.sql)
-  - AQ enqueue / dequeue (configurable dequeue mode, continuous retry/reconnect controls)
+  - AQ enqueue / dequeue (optional database-side condition, configurable dequeue mode, continuous retry/reconnect controls)
   - Transactional processing (begin / end transaction with commit or rollback)
 
 - **fusion-scm-nodes**
@@ -82,8 +82,8 @@ gh repo clone oracle-samples/node-red-nodes
 
 #### Prerequisites
 
-- Node-RED v3.0+
-- Node.js v18+
+- Node-RED v2.0+
+- Node.js v18+ (see the [dependency compatibility note](docs/installation.md))
 - npm
 - Oracle Client libraries supported by node-oracledb (required only when DB `Driver Mode` is `Thick`)
 

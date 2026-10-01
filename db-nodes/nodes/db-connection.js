@@ -172,29 +172,38 @@ module.exports = function (RED) {
             const client = new identitydataplane.DataplaneClient({
                 authenticationDetailsProvider: provider
             });
-            const keyPair = await new Promise((resolve, reject) => {
-                generateKeyPair('rsa', {
-                    modulusLength: 4096,
-                    publicKeyEncoding: { type: 'spki', format: 'pem' },
-                    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-                }, (err, publicKey, privateKey) => {
-                    if (err) return reject(err);
-                    resolve({ publicKey, privateKey });
+            try {
+                const keyPair = await new Promise((resolve, reject) => {
+                    generateKeyPair('rsa', {
+                        modulusLength: 4096,
+                        publicKeyEncoding: { type: 'spki', format: 'pem' },
+                        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+                    }, (err, publicKey, privateKey) => {
+                        if (err) return reject(err);
+                        resolve({ publicKey, privateKey });
+                    });
                 });
-            });
-            const response = await client.generateScopedAccessToken({
-                generateScopedAccessTokenDetails: {
-                    scope: config.scope || "urn:oracle:db::id::*",
-                    publicKey: keyPair.publicKey
+                const response = await client.generateScopedAccessToken({
+                    generateScopedAccessTokenDetails: {
+                        scope: config.scope || "urn:oracle:db::id::*",
+                        publicKey: keyPair.publicKey
+                    }
+                });
+                const token = response.securityToken.token;
+                node.tokenCache = {
+                    token,
+                    privateKey: keyPair.privateKey,
+                    expiry: parseTokenExpiry(token)
+                };
+                return { token, privateKey: keyPair.privateKey };
+            } finally {
+                // The client owns its breaker; the authentication provider may be shared.
+                try {
+                    client.shutdownCircuitBreaker();
+                } catch (closeErr) {
+                    node.warn("DB token client circuit-breaker cleanup failed");
                 }
-            });
-            const token = response.securityToken.token;
-            node.tokenCache = {
-                token,
-                privateKey: keyPair.privateKey,
-                expiry: parseTokenExpiry(token)
-            };
-            return { token, privateKey: keyPair.privateKey };
+            }
         }
 
         function getConnectString() {

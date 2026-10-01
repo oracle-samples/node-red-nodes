@@ -181,4 +181,5 @@ RED.nodes.registerType("delete-transaction", {
 <p>Sends a <code>DELETE</code> request to the appropriate SCM REST endpoint based on the selected mode.
 The Resource ID can be hardcoded in the config or passed dynamically via <code>msg.resourceId</code>
 (e.g. from a previous create node's response). The resource ID is URL-encoded before path append, and delete requests use a 30-second timeout.</p>
+<p>Resource IDs are treated as one URL path segment. The values <code>.</code> and <code>..</code> are rejected before a resource request is sent.</p>
 </script>

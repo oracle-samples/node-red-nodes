@@ -265,6 +265,8 @@ RED.nodes.registerType("iot-config", {
 <h3>Notes</h3>
 <ul>
     <li>OCI IoT supports MQTTS on port <code>8883</code>.</li>
+    <li>Nodes sharing a connection and topic request the highest QoS configured by their active subscriptions.</li>
+    <li>Wildcard subscriptions beginning with <code>#</code> or <code>+</code> do not receive topics beginning with <code>$</code>; those require an explicit subscription such as <code>$SYS/#</code>.</li>
     <li>For command/session persistence, keep <code>Clean Session</code> disabled.</li>
     <li>If <code>Client ID</code> is empty while <code>clean=false</code>, the node will warn and use a safe fallback for that connection attempt.</li>
 </ul>

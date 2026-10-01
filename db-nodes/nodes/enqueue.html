@@ -61,7 +61,6 @@ RED.nodes.registerType("enqueue", {
         adtTypeName: { value: "" },
         enableOutput: { value: true },
         independentTransaction: { value: false },
-        recoverOriginalPayload: { value: false },
         outputs: { value: 1 }
     },
     inputs: 1, outputs: 1,
@@ -97,12 +96,6 @@ RED.nodes.registerType("enqueue", {
         }
         $("#node-input-payloadType").on("change", updatePayloadType);
         updatePayloadType();
-        function updateRecovery() {
-            var recover = $("#node-input-recoverOriginalPayload").is(":checked");
-            $("#node-input-userPayload, .enqueue-json-editor").prop("disabled", recover);
-        }
-        $("#node-input-recoverOriginalPayload").on("change", updateRecovery);
-        updateRecovery();
 
         $(".enqueue-json-editor").on("click", function () {
             var type = $("#node-input-payloadType").val();
@@ -219,11 +212,6 @@ RED.nodes.registerType("enqueue", {
         <input type="checkbox" id="node-input-enableOutput" style="width:auto;">
         <span style="margin-left:6px;font-size:12px;color:#888;">Pass message downstream after successful enqueue.</span>
     </div>
-    <div class="form-row">
-        <label for="node-input-recoverOriginalPayload" style="width:130px;"><i class="fa fa-history"></i> Original Payload</label>
-        <input type="checkbox" id="node-input-recoverOriginalPayload" style="width:auto;">
-        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Use the JSON or RAW original retained by Dequeue instead of the editor payload or msg.payload.</div>
-    </div>
     <input type="hidden" id="node-input-outputs">
 </script>
 
@@ -248,8 +236,6 @@ RED.nodes.registerType("enqueue", {
     <dd>ADT only. Schema-qualified Oracle object type name, e.g. <code>ADMIN.MY_MSG_TYPE</code>. Must exist in the database and match the queue's payload type.</dd>
     <dt>Payload</dt>
     <dd>JSON: a single object or array — each element becomes one AQ message. RAW: a plain string encoded to a Buffer. ADT: a single object or array with uppercase field names matching the Oracle type. If empty, <code>msg.payload</code> is used instead. For JSON/ADT payload types, use <code>...</code> to open the JSON editor.</dd>
-    <dt>Original Payload</dt>
-    <dd>Optional, off by default. Restore <code>msg._aqOriginal</code> retained by Dequeue, or every original in <code>msg._aqOriginals</code> preserved by SMO aggregation instead of the editor payload or <code>msg.payload</code>. JSON and RAW only; the queue payload type must match the retained type. Each retained JSON array remains one AQ message. Aggregated originals are enqueued together; incomplete aggregation metadata is rejected. Missing, malformed, or unsupported originals fail before opening a connection; the node never substitutes a changed payload.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -266,5 +252,6 @@ RED.nodes.registerType("enqueue", {
 <p>By default, when <code>msg.transaction.connection</code> exists (from <code>begin-transaction</code>), enqueue uses that shared connection and does not auto-commit. The enqueue is finalized by <code>end-transaction</code> commit/rollback.</p>
 <p>Without a transaction context, enqueue opens its own connection, enqueues, commits, and closes.</p>
 <p>With the default payload source, each element of a JSON array is enqueued as a separate AQ message with <code>DB_TYPE_JSON</code> payload type.</p>
-<p>Original Payload can be used with Auto-commit mode for error-queue recovery. The destination queue must already exist. The node preserves the incoming transaction reference on success and Catch paths: an active original transaction still needs its own End; an already committed transaction cannot be rolled back. Retaining and re-enqueueing an original is replay, not rollback, and is not crash-safe until the recovery enqueue commits. External side effects may need application-level deduplication.</p>
+<p>For payload recovery after a Dequeue, set <code>msg.payload = [msg.dequeued]</code> in a Function and leave the editor Payload empty. The outer array preserves one AQ record even when the original payload is itself a JSON array. Check that <code>msg.dequeued</code> exists before recovering, and match the queue's Payload Type. This restores payload content only, not the original AQ message ID or delivery metadata.</p>
+<p>Use Auto-commit if the source transaction has already closed. The destination queue must already exist. The node preserves the incoming transaction reference on success and Catch paths: an active original transaction still needs its own End; an already committed transaction cannot be rolled back. Re-enqueueing is replay, not rollback, and is not crash-safe until the recovery enqueue commits. External side effects may need application-level deduplication.</p>
 </script>

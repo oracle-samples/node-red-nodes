@@ -38,6 +38,7 @@ module.exports = function(RED) {
     var axios = require("axios");
     var HttpsProxyAgent = require("https-proxy-agent").HttpsProxyAgent;
     var ensureHttps = require("../lib/url.js").ensureHttps;
+    var appendPathSegments = require("../lib/url.js").appendPathSegments;
     var scmMapping = require("../lib/scm-mapping.js");
     var scmError = require("../lib/scm-error.js");
 
@@ -118,12 +119,7 @@ module.exports = function(RED) {
     }
 
     function appendResourceId(baseUrl, resourceId) {
-        var parsedUrl = ensureHttps(baseUrl);
-        var basePath = parsedUrl.pathname.endsWith("/") && parsedUrl.pathname.length > 1
-            ? parsedUrl.pathname.slice(0, -1)
-            : parsedUrl.pathname;
-        parsedUrl.pathname = basePath + "/" + encodeURIComponent(resourceId);
-        return parsedUrl.toString();
+        return appendPathSegments(baseUrl, [resourceId]);
     }
 
     async function sendRequest(action, url, payload, token, proxyAgent) {

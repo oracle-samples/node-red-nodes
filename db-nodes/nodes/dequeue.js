@@ -39,7 +39,6 @@ module.exports = function(RED) {
     const dbError = require("../lib/db-error.js");
     var transactions = require("../lib/db-transaction.js")(RED);
     const oracleAq = require("../lib/oracle-aq.js");
-    const aqRecovery = require("../lib/aq-recovery.js");
     const RETRY_WARN_THROTTLE_MS = 30000;
 
     function DbDequeueNode(config) {
@@ -48,6 +47,8 @@ module.exports = function(RED) {
 
         node.queueName = config.queueName;
         node.subscriber = config.subscriber || null;
+        node.conditionSource = config.conditionSource === undefined ? "none" : config.conditionSource;
+        node.condition = config.condition === undefined ? "" : config.condition;
         node.batchSize = oracleAq.normalizeBatchSize(config.batchSize);
         node.deqMode = config.deqMode || "remove";
         node.mode = config.mode || "transactional";
@@ -58,7 +59,6 @@ module.exports = function(RED) {
         node.retryEnabled = config.retryEnabled !== false;
         node.retryDelayMs = oracleAq.normalizeRetryDelay(config.retryDelayMs);
         node.maxRetries = oracleAq.normalizeMaxRetries(config.maxRetries);
-        node.retainOriginalPayload = config.retainOriginalPayload === true;
 
         const queuePayloadType = oracleAq.resolveQueuePayloadType(oracledb, node.payloadType, node.adtTypeName);
 
@@ -80,9 +80,15 @@ module.exports = function(RED) {
                 var lease;
 
                 try {
+                    if (config.retainOriginalPayload === true) {
+                        transactions.get(msg, config.connection);
+                        var unavailable = new Error("Retain Original is unavailable. Remove retainOriginalPayload from the imported configuration and use msg.dequeued for payload recovery.");
+                        unavailable.code = "DB_AQ_RECOVERY_UNAVAILABLE";
+                        throw unavailable;
+                    }
                     lease = await transactions.acquire(msg, config.connection);
                     dbError.assertActiveTransaction(msg.transaction);
-                    if (node.retainOriginalPayload) aqRecovery.validateType(oracleAq.normalizePayloadType(node.payloadType));
+                    var condition = oracleAq.resolveDequeueCondition(node, msg);
                     node.status({ fill: "yellow", shape: "dot", text: "dequeuing..." });
 
                     if (msg.transaction && msg.transaction.connection) {
@@ -96,14 +102,12 @@ module.exports = function(RED) {
                         payloadType: queuePayloadType,
                     });
 
-                    oracleAq.configureDequeueQueue(queue, oracledb, node);
+                    oracleAq.configureDequeueQueue(queue, oracledb, Object.assign({}, node, { condition: condition }), connection);
 
-                    const messages = await queue.deqMany(node.batchSize);
+                    const messages = await oracleAq.dequeueMessages(queue, oracledb, node.batchSize);
+                    oracleAq.recordDequeueSelection(queue, oracledb, node, connection);
 
                     const payloads = messages ? messages.map(m => oracleAq.dbObjectToPojo(m.payload)) : [];
-                    var originals = node.retainOriginalPayload ? payloads.map(function (payload) {
-                        return aqRecovery.capture(payload, oracleAq.normalizePayloadType(node.payloadType));
-                    }) : null;
 
                     if (ownConnection) {
                         await connection.commit();
@@ -132,11 +136,7 @@ module.exports = function(RED) {
                             payload: payload,
                             dequeued: payload
                         });
-                        delete outMsg._aqOriginals;
-                        delete outMsg._aqOriginalsIncomplete;
                         delete outMsg.smoTransactionResults;
-                        if (originals) outMsg._aqOriginal = originals[payloadIndex];
-                        else delete outMsg._aqOriginal;
                         if (msg.transaction) {
                             Object.defineProperty(outMsg, "transaction", {
                                 value: msg.transaction,
@@ -154,8 +154,8 @@ module.exports = function(RED) {
                         try { await connection.close(); } catch (e) {}
                     }
                     dbError.handleNodeError(node, msg, err, done, {
-                        statusText: "dequeue failed",
-                        statusShape: err.code === "AQ_RECOVERY_TYPE_UNSUPPORTED" ? "ring" : "dot"
+                        statusText: err.code === "DB_AQ_CONDITION_INVALID" ? "invalid condition" : err.code === "DB_AQ_RECOVERY_UNAVAILABLE" ? "invalid configuration" : "dequeue failed",
+                        statusShape: err.code === "DB_AQ_RECOVERY_UNAVAILABLE" || err.code === "DB_AQ_CONDITION_INVALID" ? "ring" : "dot"
                     });
                 } finally {
                     if (lease) lease.release();
@@ -253,34 +253,34 @@ module.exports = function(RED) {
                 running = true;
                 while (running) {
                     try {
-                        if (node.retainOriginalPayload) aqRecovery.validateType(oracleAq.normalizePayloadType(node.payloadType));
                         node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
                         connection = await node.connection.getConnection();
+                        if (!running) break;
 
                         const queue = await connection.getQueue(node.queueName, {
                             payloadType: queuePayloadType,
                         });
+                        if (!running) break;
                         if (node.subscriber) queue.deqOptions.consumerName = node.subscriber;
                         oracleAq.configureDequeueQueue(queue, oracledb, Object.assign({}, node, {
                             waitForever: true
-                        }));
+                        }), connection);
 
                         setListeningStatus();
 
                         while (running) {
-                            const messages = await queue.deqMany(node.batchSize);
+                            const messages = await oracleAq.dequeueMessages(queue, oracledb, node.batchSize, function () {
+                                return running;
+                            });
                             if (!running) {
                                 break;
                             }
+                            oracleAq.recordDequeueSelection(queue, oracledb, node, connection);
 
                             if (messages && messages.length > 0) {
                                 var outputs = messages.map(function (message) {
                                     var payload = oracleAq.dbObjectToPojo(message.payload);
-                                    var output = { _msgid: RED.util.generateId(), dequeued: payload, payload: payload };
-                                    if (node.retainOriginalPayload) {
-                                        output._aqOriginal = aqRecovery.capture(payload, oracleAq.normalizePayloadType(node.payloadType));
-                                    }
-                                    return output;
+                                    return { _msgid: RED.util.generateId(), dequeued: payload, payload: payload };
                                 });
                                 await connection.commit();
                                 showDequeuedStatus(messages.length);
@@ -295,14 +295,6 @@ module.exports = function(RED) {
 
                         clearStatusResetTimer();
                         await closeConnection();
-                        if (err.code === "AQ_RECOVERY_TYPE_UNSUPPORTED") {
-                            setConfigurationError(err, "original requires JSON or RAW");
-                            break;
-                        }
-                        if (String(err.code || "").startsWith("AQ_RECOVERY_")) {
-                            setTerminalError(err);
-                            break;
-                        }
                         if (!node.subscriber && oracleAq.isMissingConsumerNameError(err)) {
                             setConfigurationError(err, "subscriber required");
                             break;
@@ -342,7 +334,7 @@ module.exports = function(RED) {
                     retrySleepResolve = null;
                     wakeResolve(false);
                 }
-                // break() interrupts the in-flight deqMany(AQ_DEQ_WAIT_FOREVER) at the Oracle level.
+                // break() interrupts the in-flight dequeue(AQ_DEQ_WAIT_FOREVER) at the Oracle level.
                 if (connection) {
                     try { await connection.break(); } catch (e) {}
                 }
@@ -354,6 +346,16 @@ module.exports = function(RED) {
                 done();
             });
 
+            if (config.retainOriginalPayload === true) {
+                setConfigurationError(new Error("Retain Original is unavailable. Remove retainOriginalPayload from the imported configuration and use msg.dequeued for payload recovery."), "invalid configuration");
+                return;
+            }
+            try {
+                node.condition = oracleAq.resolveDequeueCondition(node, {});
+            } catch (err) {
+                setConfigurationError(err, "invalid condition");
+                return;
+            }
             listenerPromise = startListening();
         }
     }

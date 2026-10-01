@@ -1,6 +1,6 @@
 {
   "name": "oci-nodes",
-  "version": "0.7.1-rc.0",
+  "version": "0.7.1",
   "description": "Oracle Cloud Infrastructure (OCI) nodes for Node-RED",
   "keywords": [
     "node-red",
@@ -58,10 +58,6 @@
       "iot-subscribe": "nodes/iot-subscribe.js",
       "iot-telemetry": "nodes/iot-telemetry.js"
     }
-  },
-  "private": true,
-  "scripts": {
-    "prepublishOnly": "node -e \"console.error('Candidate publication disabled pending release review');process.exit(1)\""
   },
   "files": [
     ".github",

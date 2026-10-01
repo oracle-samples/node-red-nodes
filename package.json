@@ -1,6 +1,6 @@
 {
   "name": "node-red-nodes",
-  "version": "0.7.1-rc.0",
+  "version": "0.7.1",
   "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, and OCI services",
   "license": "UPL-1.0",
   "engines": {
@@ -95,10 +95,6 @@
       "iot-telemetry": "oci-nodes/nodes/iot-telemetry.js"
     }
   },
-  "private": true,
-  "scripts": {
-    "prepublishOnly": "node -e \"console.error('Candidate publication disabled pending release review');process.exit(1)\""
-  },
   "files": [
     ".github",
     "CHANGELOG.md",
@@ -114,7 +110,6 @@
     "db-nodes/SECURITY.md",
     "db-nodes/THIRD_PARTY_LICENSES.txt",
     "db-nodes/examples/sql-enqueue-dequeue.json",
-    "db-nodes/lib/aq-recovery.js",
     "db-nodes/lib/db-error.js",
     "db-nodes/lib/db-transaction.js",
     "db-nodes/lib/oracle-aq.js",

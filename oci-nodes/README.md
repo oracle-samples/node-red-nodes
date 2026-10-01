@@ -58,17 +58,19 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 
 ### Prerequisites
 
-- Node-RED v3.0+
-- Node.js v18+
+- Node-RED v2.0+
+- Node.js v18+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md))
 - An OCI tenancy with appropriate IAM policies
 
 ### Install the Node Package
 
-Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
 
 ## Error Handling
+
+On older Node-RED versions, read a supplied error code with `msg.error?.code || msg._error?.code`; not every external error includes a code.
 
 OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when OCI SDK or ORDS responses include server-side detail text, that text is promoted into `msg.error.message`. Existing OCI/ORDS request nodes preserve response bodies in `msg.payload` when available, with recognized credential fields and credential patterns redacted from diagnostics. Catch errors contain sanitized details rather than the original SDK request/error object. Redaction is a safeguard, not a guarantee that arbitrary provider text contains no sensitive data. Streaming Out, Streaming Commit, Kafka Producer, Kafka Commit, Functions Invoke, Queue Out, and Queue Ack preserve their input payload on failure.
 

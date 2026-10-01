@@ -1,6 +1,6 @@
 {
   "name": "fusion-scm-nodes",
-  "version": "0.7.1-rc.0",
+  "version": "0.7.1",
   "description": "Node-RED nodes for Oracle Fusion SCM",
   "license": "UPL-1.0",
   "engines": {
@@ -37,10 +37,6 @@
       "maintenance-work-order-child": "nodes/maintenance-work-order-child.js",
       "scm-lookup": "nodes/scm-lookup.js"
     }
-  },
-  "private": true,
-  "scripts": {
-    "prepublishOnly": "node -e \"console.error('Candidate publication disabled pending release review');process.exit(1)\""
   },
   "files": [
     ".github/pull_request_template.md",
