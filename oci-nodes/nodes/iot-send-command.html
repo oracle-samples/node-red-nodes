@@ -64,49 +64,49 @@ RED.nodes.registerType("iot-send-command", {
 
 <script type="text/x-red" data-template-name="iot-send-command">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <label for="node-input-name" style="width:210px;"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
+        <label for="node-input-ociConfig" style="width:210px;"><i class="fa fa-cloud"></i> OCI Config</label>
         <input type="text" id="node-input-ociConfig" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-digitalTwinOcid" style="width:140px;"><i class="fa fa-microchip"></i> Digital Twin OCID</label>
+        <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
         <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
-        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             The OCID of the digital twin instance to send the command to.
-            If empty, reads from <code>msg.digitalTwinOcid</code>.
+            <code>msg.digitalTwinInstanceId</code> always overrides this value. If empty, reads from <code>msg.digitalTwinOcid</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-requestEndpoint" style="width:140px;"><i class="fa fa-road"></i> Request Endpoint</label>
+        <label for="node-input-requestEndpoint" style="width:210px;"><i class="fa fa-road"></i> Request Endpoint</label>
         <input type="text" id="node-input-requestEndpoint" placeholder="/endpoints/device-001/commands">
-        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Exact MQTT endpoint/topic the device or gateway subscribes to. <code>msg.requestEndpoint</code> can override this value.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-waitForResponse" style="width:140px;"><i class="fa fa-reply"></i> Wait for Response</label>
+        <label for="node-input-waitForResponse" style="width:210px;"><i class="fa fa-reply"></i> Wait for Response</label>
         <input type="checkbox" id="node-input-waitForResponse" style="width:auto;vertical-align:middle;">
         <span style="font-size:12px;color:#666;"> Include response endpoint so the platform waits for a device acknowledgment</span>
     </div>
     <div class="form-row response-wait-row">
-        <label for="node-input-responseEndpoint" style="width:140px;"><i class="fa fa-reply"></i> Response Endpoint</label>
+        <label for="node-input-responseEndpoint" style="width:210px;"><i class="fa fa-reply"></i> Response Endpoint</label>
         <input type="text" id="node-input-responseEndpoint" placeholder="/endpoints/device-001/responses">
-        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Exact MQTT endpoint/topic the device or gateway publishes back to. <code>msg.responseEndpoint</code> can override this value.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-requestDuration" style="width:140px;"><i class="fa fa-clock-o"></i> Request Duration</label>
+        <label for="node-input-requestDuration" style="width:210px;"><i class="fa fa-clock-o"></i> Request Duration</label>
         <input type="text" id="node-input-requestDuration" placeholder="PT10M" style="width:120px;">
         <span style="font-size:12px;color:#666;margin-left:8px;">ISO 8601 duration (e.g. PT10M = 10 minutes, PT1H = 1 hour)</span>
     </div>
     <div class="form-row response-wait-row">
-        <label for="node-input-responseDuration" style="width:140px;"><i class="fa fa-clock-o"></i> Response Duration</label>
+        <label for="node-input-responseDuration" style="width:210px;"><i class="fa fa-clock-o"></i> Response Duration</label>
         <input type="text" id="node-input-responseDuration" placeholder="PT10M" style="width:120px;">
         <span style="font-size:12px;color:#666;margin-left:8px;">How long the platform waits for the device to respond</span>
     </div>
@@ -118,8 +118,8 @@ RED.nodes.registerType("iot-send-command", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>OCI Config</dt>
-    <dd>References an OCI Config node for authentication (Config File, Instance Principal, or API Key).</dd>
-    <dt>Digital Twin OCID</dt>
+    <dd>References an OCI Config node for OCI authentication.</dd>
+    <dt>Digital Twin Instance OCID</dt>
     <dd>The OCID of the digital twin instance to send the command to.
     If empty, reads from <code>msg.digitalTwinOcid</code>.</dd>
     <dt>Request Endpoint</dt>
@@ -163,7 +163,8 @@ RED.nodes.registerType("iot-send-command", {
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt><dd>Overrides Digital Twin OCID when provided.</dd>
+    <dt>msg.digitalTwinInstanceId <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
+    <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt><dd>Legacy fallback when the configured identifier is empty and the new override is absent.</dd>
     <dt>msg.requestEndpoint <span class="property-type">string</span></dt><dd>Overrides Request Endpoint when provided.</dd>
     <dt>msg.responseEndpoint <span class="property-type">string</span></dt><dd>Overrides Response Endpoint when provided.</dd>
     <dt>msg.payload <span class="property-type">object</span></dt><dd>The command data sent to the device.</dd>

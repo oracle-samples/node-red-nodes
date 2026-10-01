@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [Unreleased]
+
+### Added
+- `dequeue` optionally retains original JSON/RAW payloads for recovery; `enqueue` can recover those originals and provides Transactional and Auto-commit modes.
+- `iot-send-command` and `iot-get-content` accept `msg.digitalTwinInstanceId` without removing the legacy message property.
+
+### Changed
+- `package.json` declares the used OCI SDK components directly instead of the umbrella `oci-sdk` dependency.
+- `iot-send-command` and `iot-get-content` display Digital Twin Instance OCID as the identifier label.
+- `oci-api-request` uses a distinct globe icon and grouped request and response fields.
+- `oci-object-storage` and `oci-functions-invoke` limit buffered successful responses to a configurable 16 MiB by default, cancel oversized reads, and report `OCI_RESPONSE_TOO_LARGE` through Catch before normal output or download file writes.
+
+### Fixed
+- `dequeue` finalizes empty managed transactions and reports terminal continuous operational failures through Catch.
+- `sql` accepts Oracle alternative-quoted literals and comments before anonymous PL/SQL blocks.
+- `db-connection`, `oci-error` and `scm-error` redact sensitive diagnostics consistently across processing and connection-test paths.
+- `dequeue` normalizes positive fractional batch sizes to at least one.
+- `smo-transformer` finalizes distinct source transactions before merging fragments and reports partial commit outcomes for recovery.
+- `SCM child and lookup nodes` encode resource path identifiers once and reject path-navigation identifiers.
+- `ords-config` honors short token lifetimes without extending them to the fallback expiry.
+- `oci-ords-poll` applies its deadline to queued and active work and cancels local requests on timeout or close.
+- `OCI SDK nodes` release owned circuit-breaker resources on close, including clients initialized during shutdown.
+- `oci-monitoring-publish` preserves accepted property names without invoking prototype setters.
+- `oci-config` redacts credential-test failures and releases test-client circuit breakers without closing the shared provider.
+- `db-connection` completes pooled session initialization through the driver callback, including initialization failures.
+- `db-connection` applies advanced-only session initialization and uses a complete initialization identity for Thick pools without requesting unsupported Thin tags.
+- `scm-server` honors disabled Expiry Fallback when a token response has no expiry, while deduplicating concurrent token requests.
+- `smo-transformer` enforces Max Pending Age from the first fragment even when new fragments arrive or Stale Timeout is longer.
+- `oci-queue-out` and `oci-kafka-consumer` preserve accepted property and header names without invoking prototype setters; Kafka Producer rejects `__proto__` headers that the client library would otherwise discard.
+- `package.json` manifests restrict package contents to approved files.
+
+---
+
 ## [0.7.0] - 2026-09-16
 
 ### Added

@@ -106,8 +106,9 @@ If downstream processing fails, route a scoped Catch to End Transaction configur
 Dequeued messages stay locked until rollback or connection cleanup completes.</p>
 <p>An active reference for the same DB Connection reuses the existing connection. When timeout is enabled, reuse refreshes
 the timeout window so active looping flows do not expire on a stale timer.</p>
-<p>DB operations sharing a transaction are serialized. Join all transaction branches before End;
-it cannot wait for work that has not arrived yet. External API operations are not part of the database transaction.</p>
+<p>DB operations sharing a transaction are serialized. If all branch results must determine commit or rollback, join them before End;
+it cannot wait for work that has not arrived yet. An empty managed Dequeue also finalizes the transaction, committing previous work unless a DB failure requires rollback. External API operations are not part of the database transaction.</p>
+<p>Enqueue in Transactional mode uses this transaction. Enqueue in Auto-commit mode commits each input on a separate connection and preserves the incoming reference; it does not finalize this Begin Transaction, which still needs its own End.</p>
 
 <h3>Typical Flows</h3>
 <p><code>begin transaction</code> → <code>dequeue</code> → <i>(processing nodes)</i> → <code>end transaction</code></p>

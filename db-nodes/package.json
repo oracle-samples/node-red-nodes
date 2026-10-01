@@ -1,6 +1,6 @@
 {
   "name": "db-nodes",
-  "version": "0.7.0",
+  "version": "0.7.1-rc.0",
   "description": "Node-RED nodes for Oracle Database Functionality",
   "license": "UPL-1.0",
   "engines": {
@@ -26,5 +26,35 @@
       "begin-transaction": "nodes/begin-transaction.js",
       "end-transaction": "nodes/end-transaction.js"
     }
-  }
+  },
+  "private": true,
+  "scripts": {
+    "prepublishOnly": "node -e \"console.error('Candidate publication disabled pending release review');process.exit(1)\""
+  },
+  "files": [
+    ".github",
+    "CONTRIBUTING.md",
+    "LICENSE.txt",
+    "README.md",
+    "SECURITY.md",
+    "THIRD_PARTY_LICENSES.txt",
+    "examples/sql-enqueue-dequeue.json",
+    "lib/aq-recovery.js",
+    "lib/db-error.js",
+    "lib/db-transaction.js",
+    "lib/oracle-aq.js",
+    "lib/oracle-auth.js",
+    "nodes/begin-transaction.html",
+    "nodes/begin-transaction.js",
+    "nodes/db-connection.html",
+    "nodes/db-connection.js",
+    "nodes/dequeue.html",
+    "nodes/dequeue.js",
+    "nodes/end-transaction.html",
+    "nodes/end-transaction.js",
+    "nodes/enqueue.html",
+    "nodes/enqueue.js",
+    "nodes/sql.html",
+    "nodes/sql.js"
+  ]
 }

@@ -45,7 +45,7 @@ function normalizeError(err) {
 function handleNodeError(node, msg, err, done, options) {
     options = options || {};
     var referenceError = err && (err.code === "DB_TRANSACTION_INACTIVE" || err.code === "DB_TRANSACTION_CONFIG_MISMATCH");
-    if (!referenceError && msg.transaction && (msg.transaction._state === "active" || msg.transaction._state === "ending")) {
+    if (options.markRollbackOnly !== false && !referenceError && msg.transaction && (msg.transaction._state === "active" || msg.transaction._state === "ending")) {
         msg.transaction._rollbackOnly = true;
     }
     var normalized = normalizeError(err);

@@ -39,6 +39,7 @@ module.exports = function(RED) {
     const dbError = require("../lib/db-error.js");
     var transactions = require("../lib/db-transaction.js")(RED);
     const oracleAq = require("../lib/oracle-aq.js");
+    const aqRecovery = require("../lib/aq-recovery.js");
     const RETRY_WARN_THROTTLE_MS = 30000;
 
     function DbDequeueNode(config) {
@@ -57,6 +58,7 @@ module.exports = function(RED) {
         node.retryEnabled = config.retryEnabled !== false;
         node.retryDelayMs = oracleAq.normalizeRetryDelay(config.retryDelayMs);
         node.maxRetries = oracleAq.normalizeMaxRetries(config.maxRetries);
+        node.retainOriginalPayload = config.retainOriginalPayload === true;
 
         const queuePayloadType = oracleAq.resolveQueuePayloadType(oracledb, node.payloadType, node.adtTypeName);
 
@@ -80,6 +82,7 @@ module.exports = function(RED) {
                 try {
                     lease = await transactions.acquire(msg, config.connection);
                     dbError.assertActiveTransaction(msg.transaction);
+                    if (node.retainOriginalPayload) aqRecovery.validateType(oracleAq.normalizePayloadType(node.payloadType));
                     node.status({ fill: "yellow", shape: "dot", text: "dequeuing..." });
 
                     if (msg.transaction && msg.transaction.connection) {
@@ -98,6 +101,9 @@ module.exports = function(RED) {
                     const messages = await queue.deqMany(node.batchSize);
 
                     const payloads = messages ? messages.map(m => oracleAq.dbObjectToPojo(m.payload)) : [];
+                    var originals = node.retainOriginalPayload ? payloads.map(function (payload) {
+                        return aqRecovery.capture(payload, oracleAq.normalizePayloadType(node.payloadType));
+                    }) : null;
 
                     if (ownConnection) {
                         await connection.commit();
@@ -106,16 +112,31 @@ module.exports = function(RED) {
                     }
 
                     if (payloads.length === 0) {
+                        if (lease) {
+                            var emptyTransaction = lease.transaction;
+                            // Finalization waits for DB leases, including this operation's lease.
+                            lease.release();
+                            lease = null;
+                            await transactions.finish(emptyTransaction, "commit");
+                            delete msg.transaction;
+                            delete msg._dbTransaction;
+                        }
                         node.status({ fill: "grey", shape: "dot", text: "no messages" });
                     } else {
                         node.status({ fill: "green", shape: "dot", text: `dequeued ${payloads.length}` });
                     }
 
-                    for (const payload of payloads) {
+                    for (var payloadIndex = 0; payloadIndex < payloads.length; payloadIndex++) {
+                        const payload = payloads[payloadIndex];
                         var outMsg = Object.assign({}, msg, {
                             payload: payload,
                             dequeued: payload
                         });
+                        delete outMsg._aqOriginals;
+                        delete outMsg._aqOriginalsIncomplete;
+                        delete outMsg.smoTransactionResults;
+                        if (originals) outMsg._aqOriginal = originals[payloadIndex];
+                        else delete outMsg._aqOriginal;
                         if (msg.transaction) {
                             Object.defineProperty(outMsg, "transaction", {
                                 value: msg.transaction,
@@ -132,7 +153,10 @@ module.exports = function(RED) {
                     if (connection && ownConnection) {
                         try { await connection.close(); } catch (e) {}
                     }
-                    dbError.handleNodeError(node, msg, err, done, { statusText: "dequeue failed" });
+                    dbError.handleNodeError(node, msg, err, done, {
+                        statusText: "dequeue failed",
+                        statusShape: err.code === "AQ_RECOVERY_TYPE_UNSUPPORTED" ? "ring" : "dot"
+                    });
                 } finally {
                     if (lease) lease.release();
                 }
@@ -209,7 +233,12 @@ module.exports = function(RED) {
                 clearStatusResetTimer();
                 const text = dbError.redactText(reason || err.message || "failed");
                 node.status({ fill: "red", shape: "dot", text: text });
-                node.error(`Continuous dequeue stopped: ${text}`);
+                var reported = new Error(`Continuous dequeue stopped: ${text}`);
+                reported.code = dbError.normalizeError(err).code;
+                node.error(reported, {
+                    _msgid: RED.util.generateId(),
+                    error: { message: reported.message, code: reported.code }
+                });
             }
 
             function setConfigurationError(err, statusText) {
@@ -224,6 +253,7 @@ module.exports = function(RED) {
                 running = true;
                 while (running) {
                     try {
+                        if (node.retainOriginalPayload) aqRecovery.validateType(oracleAq.normalizePayloadType(node.payloadType));
                         node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
                         connection = await node.connection.getConnection();
 
@@ -244,16 +274,17 @@ module.exports = function(RED) {
                             }
 
                             if (messages && messages.length > 0) {
+                                var outputs = messages.map(function (message) {
+                                    var payload = oracleAq.dbObjectToPojo(message.payload);
+                                    var output = { _msgid: RED.util.generateId(), dequeued: payload, payload: payload };
+                                    if (node.retainOriginalPayload) {
+                                        output._aqOriginal = aqRecovery.capture(payload, oracleAq.normalizePayloadType(node.payloadType));
+                                    }
+                                    return output;
+                                });
                                 await connection.commit();
                                 showDequeuedStatus(messages.length);
-                                for (const m of messages) {
-                                    const payload = oracleAq.dbObjectToPojo(m.payload);
-                                    node.send({
-                                        _msgid: RED.util.generateId(),
-                                        dequeued: payload,
-                                        payload: payload
-                                    });
-                                }
+                                outputs.forEach(function (output) { node.send(output); });
                             }
                             retryAttempt = 0;
                         }
@@ -264,6 +295,14 @@ module.exports = function(RED) {
 
                         clearStatusResetTimer();
                         await closeConnection();
+                        if (err.code === "AQ_RECOVERY_TYPE_UNSUPPORTED") {
+                            setConfigurationError(err, "original requires JSON or RAW");
+                            break;
+                        }
+                        if (String(err.code || "").startsWith("AQ_RECOVERY_")) {
+                            setTerminalError(err);
+                            break;
+                        }
                         if (!node.subscriber && oracleAq.isMissingConsumerNameError(err)) {
                             setConfigurationError(err, "subscriber required");
                             break;

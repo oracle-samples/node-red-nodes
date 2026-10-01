@@ -10,7 +10,15 @@ RED.nodes.registerType("oci-functions-invoke", {
         functionOcid: { value: "", required: true },
         invokeEndpoint: { value: "", required: true },
         invokeType: { value: "sync", required: true },
-        intent: { value: "httprequest", required: true }
+        intent: { value: "httprequest", required: true },
+        maxResponseBytes: {
+            value: 16777216,
+            required: true,
+            validate: function (value) {
+                return (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
+                    Number.isSafeInteger(Number(value)) && Number(value) > 0;
+            }
+        }
     },
     inputs: 1,
     outputs: 1,
@@ -18,6 +26,11 @@ RED.nodes.registerType("oci-functions-invoke", {
     icon: "font-awesome/fa-bolt",
     label: function () {
         return this.name || "functions invoke";
+    },
+    oneditprepare: function () {
+        $("#node-input-invokeType").on("change", function () {
+            $("#detached-note").toggle($(this).val() === "detached");
+        }).trigger("change");
     }
 });
 </script>
@@ -50,6 +63,7 @@ RED.nodes.registerType("oci-functions-invoke", {
             <option value="sync">Synchronous</option>
             <option value="detached">Detached</option>
         </select>
+        <div id="detached-note" style="display:none;margin-left:125px;font-size:11px;color:#888;margin-top:2px;">Returns after OCI accepts the invocation. The function may still be running; acceptance does not confirm successful completion.</div>
     </div>
     <div class="form-row">
         <label for="node-input-intent" style="width:120px;"><i class="fa fa-file-code-o"></i> Intent</label>
@@ -57,6 +71,12 @@ RED.nodes.registerType("oci-functions-invoke", {
             <option value="httprequest">HTTP request</option>
             <option value="cloudevent">CloudEvent</option>
         </select>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-maxResponseBytes" style="width:160px;"><i class="fa fa-database"></i> Max Response Bytes</label>
+        <input type="number" id="node-input-maxResponseBytes" min="1" step="1" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Maximum buffered successful response size. Default: 16 MiB (16777216 bytes).</div>
     </div>
 </script>
 
@@ -70,6 +90,7 @@ RED.nodes.registerType("oci-functions-invoke", {
     <dt>Invoke Base Endpoint</dt><dd>The HTTPS OCI Functions base origin without the function path.</dd>
     <dt>Invoke Type</dt><dd>Synchronous or detached.</dd>
     <dt>Intent</dt><dd>HTTP request or CloudEvent.</dd>
+    <dt>Max Response Bytes</dt><dd>Maximum buffered successful response size. Default: 16777216 bytes (16 MiB), including saved flows without this field. Messages cannot override it. SDK-handled service error bodies are outside this limit.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -90,6 +111,7 @@ RED.nodes.registerType("oci-functions-invoke", {
 </dl>
 
 <h3>Details</h3>
+<p>A response above Max Response Bytes stops reading and reports <code>OCI_RESPONSE_TOO_LARGE</code> through Catch, with no normal output. The function may already have completed; this limit does not undo its work. Raise the limit only for trusted larger responses and available memory.</p>
 <p>Detached success means OCI accepted the request, not that the function finished or succeeded. Track completion separately, or use Synchronous mode if the next node needs the function's returned result.</p>
 <p>The Invoke Base Endpoint must be the HTTPS OCI Functions base origin, without the function path. It is validated before OCI credentials are requested.</p>
 <p>Endpoints must use the exact OCI Functions host structure, an SDK-known OCI realm domain, and the default HTTPS port. Validation occurs before credentials are requested. The configured endpoint client is cached. A message-level endpoint override uses a request-scoped client whose circuit breaker is released after the response is read. The shared authentication provider remains owned by <code>oci-config</code>.</p>

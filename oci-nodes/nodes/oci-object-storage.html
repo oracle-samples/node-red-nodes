@@ -48,7 +48,15 @@ RED.nodes.registerType("oci-object-storage", {
         filePath: { value: "" },
         contentType: { value: "" },
         downloadOutput: { value: "buffer" },
-        encoding: { value: "utf8" }
+        encoding: { value: "utf8" },
+        maxResponseBytes: {
+            value: 16777216,
+            required: true,
+            validate: function (value) {
+                return (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
+                    Number.isSafeInteger(Number(value)) && Number(value) > 0;
+            }
+        }
     },
     inputs: 1,
     outputs: 1,
@@ -165,6 +173,12 @@ RED.nodes.registerType("oci-object-storage", {
             Used only when Download Output is <b>Text</b>. <code>msg.encoding</code> can override this value.
         </div>
     </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-maxResponseBytes" style="width:160px;"><i class="fa fa-database"></i> Max Response Bytes</label>
+        <input type="number" id="node-input-maxResponseBytes" min="1" step="1" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Maximum buffered successful download size. Default: 16 MiB (16777216 bytes). Uploads are unaffected.</div>
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="oci-object-storage">
@@ -200,6 +214,8 @@ RED.nodes.registerType("oci-object-storage", {
     </dd>
     <dt>Text Encoding</dt>
     <dd>Download-only when output is <code>text</code>. Default <code>utf8</code>. <code>msg.encoding</code> can override this value.</dd>
+    <dt>Max Response Bytes</dt>
+    <dd>Maximum buffered successful download size. Default: 16777216 bytes (16 MiB), including saved flows without this field. Messages cannot override it. Uploads are unaffected; SDK-handled service error bodies are outside this limit.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -235,6 +251,7 @@ RED.nodes.registerType("oci-object-storage", {
 </dl>
 
 <h3>Details</h3>
+<p>A download above Max Response Bytes stops reading and reports <code>OCI_RESPONSE_TOO_LARGE</code> through Catch, with no normal output or file write. Downloads are buffered even when a File Path is set. Raise the limit only for trusted larger objects and available memory.</p>
 <p>For uploads, the node sends <code>msg.payload</code> unless the payload is absent and File Path points to a local file. For downloads, <code>msg.payload</code> receives the object content even when a File Path is also used to save a copy locally.</p>
 
 <h3>Typical Flows</h3>

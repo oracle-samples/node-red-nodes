@@ -39,45 +39,8 @@ module.exports = function (RED) {
     const fs = require("fs");
     const stream = require("stream");
     const ociError = require("../lib/oci-error.js");
+    const responseSupport = require("../lib/oci-response.js");
 
-    async function streamToBuffer(value) {
-        if (Buffer.isBuffer(value)) {
-            return value;
-        }
-
-        if (!value) {
-            return Buffer.alloc(0);
-        }
-
-        if (typeof value.arrayBuffer === "function") {
-            const ab = await value.arrayBuffer();
-            return Buffer.from(ab);
-        }
-
-        if (typeof value.getReader === "function") {
-            const reader = value.getReader();
-            const chunks = [];
-            while (true) {
-                const result = await reader.read();
-                if (result.done) break;
-                chunks.push(Buffer.from(result.value));
-            }
-            return Buffer.concat(chunks);
-        }
-
-        if (value instanceof stream.Readable) {
-            return new Promise((resolve, reject) => {
-                const chunks = [];
-                value.on("data", (chunk) => {
-                    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-                });
-                value.on("end", () => resolve(Buffer.concat(chunks)));
-                value.on("error", reject);
-            });
-        }
-
-        return Buffer.from(String(value));
-    }
 
     function OciObjectStorageNode(config) {
         RED.nodes.createNode(this, config);
@@ -98,30 +61,18 @@ module.exports = function (RED) {
         node.contentType = config.contentType || "";
         node.downloadOutput = config.downloadOutput || "buffer";
         node.encoding = config.encoding || "utf8";
+        node.maxResponseBytes = config.maxResponseBytes;
 
-        let client = null;
-        let clientPromise = null;
+        var clientManager = require("../lib/oci-client.js")(node);
 
-        async function getClient() {
-            if (client) return client;
-            if (clientPromise) return clientPromise;
-            clientPromise = (async function () {
-                const provider = await node.ociConfig.getAuthProvider();
-                const createdClient = new objectstorage.ObjectStorageClient({
-                    authenticationDetailsProvider: provider
-                });
-                const region = node.ociConfig.getRegion();
-                if (region) {
-                    createdClient.regionId = region;
-                }
-                client = createdClient;
-                return createdClient;
-            })();
-            try {
-                return await clientPromise;
-            } finally {
-                clientPromise = null;
-            }
+        function getClient() {
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new objectstorage.ObjectStorageClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
+            });
         }
 
         function resolveValue(configValue, msgValue) {
@@ -163,7 +114,9 @@ module.exports = function (RED) {
                     return done(err);
                 }
 
+                const limit = operation === "download" ? responseSupport.responseLimit(node.maxResponseBytes) : undefined;
                 const osClient = await getClient();
+                clientManager.assertOpen();
 
                 if (operation === "upload") {
                     node.status({ fill: "yellow", shape: "dot", text: "uploading" });
@@ -210,6 +163,7 @@ module.exports = function (RED) {
                         request.contentLength = Buffer.byteLength(uploadBody, "utf8");
                     }
 
+                    clientManager.assertOpen();
                     const response = await osClient.putObject(request);
 
                     msg.payload = {
@@ -221,6 +175,7 @@ module.exports = function (RED) {
                     msg.statusCode = response.__httpStatusCode || 200;
 
                     node.status({ fill: "green", shape: "dot", text: "uploaded" });
+                    clientManager.assertOpen();
                     send(msg);
                     done();
 
@@ -233,7 +188,7 @@ module.exports = function (RED) {
                         objectName: objectName
                     });
 
-                    const bodyBuffer = await streamToBuffer(response.value);
+                    const bodyBuffer = await responseSupport.readBuffer(response.value, limit, response.contentLength);
                     let downloadedContent;
                     if (downloadOutput === "text") {
                         downloadedContent = bodyBuffer.toString(encoding);
@@ -241,6 +196,7 @@ module.exports = function (RED) {
                         downloadedContent = bodyBuffer;
                     }
 
+                    clientManager.assertOpen();
                     msg.savedToPath = null;
                     if (filePath) {
                         await fs.promises.writeFile(filePath, bodyBuffer);
@@ -262,6 +218,7 @@ module.exports = function (RED) {
                     msg.statusCode = response.__httpStatusCode || 200;
 
                     node.status({ fill: "green", shape: "dot", text: "downloaded" });
+                    clientManager.assertOpen();
                     send(msg);
                     done();
 
@@ -273,7 +230,10 @@ module.exports = function (RED) {
                     return done(err);
                 }
             } catch (err) {
-                ociError.handleNodeError(node, msg, err, done, { statusText: "operation failed" });
+                ociError.handleNodeError(node, msg, err, done, {
+                    statusText: "operation failed",
+                    statusShape: err.code === "OCI_RESPONSE_LIMIT_INVALID" ? "ring" : "dot"
+                });
             }
         });
     }

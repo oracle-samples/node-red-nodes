@@ -195,7 +195,7 @@ RED.nodes.registerType("ords-config", {
     <dt>Scope</dt>
     <dd>Optional OAuth scope. Leave blank for ORDS token endpoints that only require <code>grant_type=client_credentials</code>.</dd>
     <dt>Fallback Expiry</dt>
-    <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer.</dd>
+    <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a safety buffer of 10% of its lifetime, capped at 30 seconds. A supplied lifetime must be a positive number; an invalid value fails token acquisition rather than extending its lifetime.</dd>
 </dl>
 
 <h3>Polling Safety Limits</h3>

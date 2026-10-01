@@ -61,19 +61,16 @@ module.exports = function (RED) {
         try { mappings = JSON.parse(config.mappings || "[]"); } catch (e) { mappings = []; }
         if (!Array.isArray(mappings)) mappings = [];
 
-        let client = null;
+        var clientManager = require("../lib/oci-client.js")(node);
 
-        async function getClient() {
-            if (client) return client;
-            const provider = await node.ociConfig.getAuthProvider();
-            client = new loggingingestion.LoggingClient({
-                authenticationDetailsProvider: provider
+        function getClient() {
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new loggingingestion.LoggingClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
             });
-            const region = node.ociConfig.getRegion();
-            if (region) {
-                client.regionId = region;
-            }
-            return client;
         }
 
         function resolvePayload(mappings, msg) {
@@ -182,6 +179,7 @@ module.exports = function (RED) {
                 msg.statusCode = response.__httpStatusCode || 200;
 
                 node.status({ fill: "green", shape: "dot", text: "ingested" });
+                clientManager.assertOpen();
                 send(msg);
                 done();
             } catch (err) {

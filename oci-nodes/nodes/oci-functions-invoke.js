@@ -38,6 +38,7 @@ module.exports = function (RED) {
     var functions = require("oci-functions");
     var functionsSupport = require("../lib/oci-functions.js");
     var ociError = require("../lib/oci-error.js");
+    var responseSupport = require("../lib/oci-response.js");
 
     function OciFunctionsInvokeNode(config) {
         RED.nodes.createNode(this, config);
@@ -54,33 +55,19 @@ module.exports = function (RED) {
         node.invokeEndpoint = config.invokeEndpoint || "";
         node.invokeType = config.invokeType || "sync";
         node.intent = config.intent || "httprequest";
+        node.maxResponseBytes = config.maxResponseBytes;
 
-        var clients = {};
-        var clientPromises = {};
+        var clientManager = require("../lib/oci-client.js")(node);
 
-        async function createClient(endpoint) {
-            var provider = await node.ociConfig.getAuthProvider();
-            var client = new functions.FunctionsInvokeClient({
-                authenticationDetailsProvider: provider
-            });
-            client.endpoint = endpoint;
-            return client;
-        }
-
-        async function getClient(endpoint) {
-            if (clients[endpoint]) return clients[endpoint];
-            if (clientPromises[endpoint]) return clientPromises[endpoint];
-
-            clientPromises[endpoint] = (async function () {
-                var client = await createClient(endpoint);
-                clients[endpoint] = client;
-                return client;
-            })();
-            try {
-                return await clientPromises[endpoint];
-            } finally {
-                delete clientPromises[endpoint];
+        function getClient(endpoint, cached) {
+            async function factory() {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new functions.FunctionsInvokeClient({ authenticationDetailsProvider: provider });
             }
+            function configure(client) {
+                client.endpoint = endpoint;
+            }
+            return cached ? clientManager.get(endpoint, factory, configure) : clientManager.create(factory, configure);
         }
 
         node.on("input", async function (msg, send, done) {
@@ -98,7 +85,9 @@ module.exports = function (RED) {
                 var endpoint;
                 var invokeType = input.invokeType || node.invokeType;
                 var intent = input.intent || node.intent;
+                var limit;
                 try {
+                    limit = responseSupport.responseLimit(node.maxResponseBytes);
                     endpoint = functionsSupport.validateEndpoint(input.invokeEndpoint || node.invokeEndpoint);
                     if (["sync", "detached"].indexOf(invokeType) === -1) {
                         throw new Error("Invoke Type must be sync or detached");
@@ -135,16 +124,14 @@ module.exports = function (RED) {
                     configuredEndpoint = null;
                 }
                 var cacheClient = endpoint === configuredEndpoint;
-                var client = cacheClient ? await getClient(endpoint) : await createClient(endpoint);
+                var client = await getClient(endpoint, cacheClient);
                 var response;
                 var responsePayload;
                 try {
                     response = await client.invokeFunction(request);
-                    responsePayload = await functionsSupport.readResponse(response.value);
+                    responsePayload = await functionsSupport.readResponse(response.value, limit, response.contentLength);
                 } finally {
-                    if (!cacheClient && typeof client.shutdownCircuitBreaker === "function") {
-                        client.shutdownCircuitBreaker();
-                    }
+                    if (!cacheClient) clientManager.release(client);
                 }
                 var outMsg = Object.assign({}, msg, {
                     payload: responsePayload,
@@ -160,6 +147,7 @@ module.exports = function (RED) {
                 functionsSupport.reattachTransaction(msg, outMsg);
 
                 node.status({ fill: "green", shape: "dot", text: invokeType === "detached" ? "accepted" : "invoked" });
+                clientManager.assertOpen();
                 send(outMsg);
                 done();
             } catch (err) {
@@ -172,24 +160,7 @@ module.exports = function (RED) {
             }
         });
 
-        node.on("close", async function (removed, done) {
-            try {
-                var pending = Object.keys(clientPromises).map(function (endpoint) {
-                    return clientPromises[endpoint].catch(function () { return null; });
-                });
-                await Promise.all(pending);
-                Object.keys(clients).forEach(function (endpoint) {
-                    var client = clients[endpoint];
-                    if (typeof client.shutdownCircuitBreaker === "function") {
-                        client.shutdownCircuitBreaker();
-                    }
-                });
-                clients = {};
-                done();
-            } catch (err) {
-                done(err);
-            }
-        });
+
     }
 
     RED.nodes.registerType("oci-functions-invoke", OciFunctionsInvokeNode);

@@ -36,8 +36,10 @@ After cloning, install the node package, not only its dependency libraries. For 
 cd ~/.node-red/node-red-nodes
 npm pack
 cd ..
-npm install ./node-red-nodes/node-red-nodes-0.7.0.tgz
+npm install ./node-red-nodes/node-red-nodes-0.7.1-rc.0.tgz
 ```
+
+`npm pack` creates the `.tgz` archive; `npm install` installs it into the Node-RED user directory. Use the filename printed by `npm pack` if the package version differs, then restart Node-RED to load the installed nodes. This installs a node package; it does not import a flow through the editor.
 
 The package manifest installs its dependencies automatically. Do not install the root package alongside standalone `db-nodes`, `oci-nodes`, or `fusion-scm-nodes` packages, because their node registrations overlap.
 
@@ -54,7 +56,7 @@ npm install axios@1.20.0
 npm install https-proxy-agent@^7.0.6
 
 # OCI nodes (Functions, native Streaming, Queue, Notifications, Logging, Object Storage, IoT control-plane nodes)
-npm install oci-sdk@2.141.0
+# OCI component dependencies are installed with the node package.
 
 # OCI Managed Kafka producer and consumer
 npm install @confluentinc/kafka-javascript@1.10.1
@@ -191,7 +193,7 @@ Each installed package installs all dependencies declared in its own `package.js
 |--------------------|---------|
 | DB nodes | `oracledb`, `oci-common`, `oci-identitydataplane` (+ Oracle Client libraries for Thick mode) |
 | SCM nodes only | `axios`, `https-proxy-agent` |
-| OCI Functions, native OCI Streaming, Queue, Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | `oci-sdk` |
+| OCI Functions, native OCI Streaming, Queue, Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | Individual `oci-*` SDK service packages used by these nodes |
 | OCI Managed Kafka (OCI Streaming with Apache Kafka) producer or consumer | `@confluentinc/kafka-javascript@1.10.1` |
 | ORDS request/poll nodes | No additional package beyond Node.js v18+ |
 | IoT Telemetry or IoT Subscribe | `mqtt` |

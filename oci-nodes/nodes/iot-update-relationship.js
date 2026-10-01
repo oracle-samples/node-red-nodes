@@ -101,19 +101,16 @@ module.exports = function (RED) {
             }
         }
 
-        let client = null;
+        var clientManager = require("../lib/oci-client.js")(node);
 
-        async function getClient() {
-            if (client) return client;
-            const provider = await node.ociConfig.getAuthProvider();
-            client = new iot.IotClient({
-                authenticationDetailsProvider: provider
+        function getClient() {
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new iot.IotClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
             });
-            const region = node.ociConfig.getRegion();
-            if (region) {
-                client.regionId = region;
-            }
-            return client;
         }
 
         async function resolveRelationshipId(iotClient, iotDomainId, parsedRelationshipKey) {
@@ -125,6 +122,7 @@ module.exports = function (RED) {
                 limit: 100
             });
 
+            clientManager.assertOpen();
             const items = (response && response.digitalTwinRelationshipCollection && response.digitalTwinRelationshipCollection.items) || [];
             if (items.length === 0) {
                 throw new Error("No relationship found for key: " + parsedRelationshipKey.raw);
@@ -182,6 +180,8 @@ module.exports = function (RED) {
                     statusCode: response.__httpStatusCode || 200,
                     payload: response.digitalTwinRelationship || response
                 });
+
+                clientManager.assertOpen();
 
                 send(outMsg);
                 done();

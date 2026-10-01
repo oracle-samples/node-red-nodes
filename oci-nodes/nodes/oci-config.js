@@ -157,10 +157,11 @@ module.exports = function (RED) {
         if (!node) {
             return res.status(404).json({ success: false, message: "Node not found. Deploy the flow first, then test." });
         }
+        var identity;
         try {
             const provider = await node.getAuthProvider();
 
-            const identity = new (require("oci-identity")).IdentityClient({
+            identity = new (require("oci-identity")).IdentityClient({
                 authenticationDetailsProvider: provider
             });
             const region = node.getRegion();
@@ -174,7 +175,10 @@ module.exports = function (RED) {
                 message: "Connected (" + response.items.length + " regions available)"
             });
         } catch (err) {
-            res.json({ success: false, message: err.message });
+            res.json({ success: false, code: "OCI_CREDENTIAL_TEST_FAILED", message: "OCI credential test failed. Check the selected authentication method, credentials, IAM permissions and network access." });
+        } finally {
+            // Closing the client would also close the provider shared by other nodes.
+            if (identity) identity.shutdownCircuitBreaker();
         }
     });
 };

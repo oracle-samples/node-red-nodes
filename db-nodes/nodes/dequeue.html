@@ -58,7 +58,8 @@ RED.nodes.registerType("dequeue", {
         adtTypeName: { value: "" },
         retryEnabled: { value: true },
         retryDelayMs: { value: 5000 },
-        maxRetries: { value: 0 }
+        maxRetries: { value: 0 },
+        retainOriginalPayload: { value: false }
     },
     inputs: 1, outputs: 1,
     icon: "font-awesome/fa-download",
@@ -69,6 +70,7 @@ RED.nodes.registerType("dequeue", {
             var isContinuous = $("#node-input-mode").val() === "continuous";
             $("#wait-section").toggle(!isContinuous);
             $("#continuous-note").toggle(isContinuous);
+            $("#transactional-note").toggle(!isContinuous);
             $("#retry-section").toggle(isContinuous);
             updateRetryRows();
         }
@@ -132,6 +134,9 @@ RED.nodes.registerType("dequeue", {
             <option value="continuous">Continuous</option>
         </select>
     </div>
+    <div id="transactional-note" style="margin:0 0 8px 135px;font-size:11px;color:#888;">
+        Use Begin Transaction to control commit/rollback. Without a managed transaction, this node commits automatically.
+    </div>
     <div id="continuous-note" style="display:none;margin:0 0 8px 135px;font-size:11px;color:#856404;background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:5px 8px;">
         <i class="fa fa-exclamation-triangle"></i> Continuous mode commits immediately — no rollback protection. Wire into begin/end-transaction is not supported.
     </div>
@@ -163,6 +168,7 @@ RED.nodes.registerType("dequeue", {
         <input type="text" id="node-input-subscriber" placeholder="consumer name">
         <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             Required for multi-consumer queues. Leave empty only for single-consumer queues.
+            The subscriber must already exist; this field does not create it.
         </div>
     </div>
     <div class="form-row">
@@ -205,6 +211,11 @@ RED.nodes.registerType("dequeue", {
         <label for="node-input-batchSize" style="width:130px;"><i class="fa fa-list-ol"></i> Batch Size</label>
         <input type="number" id="node-input-batchSize" min="1" value="1" style="width:100px;">
     </div>
+    <div class="form-row">
+        <label for="node-input-retainOriginalPayload" style="width:130px;"><i class="fa fa-history"></i> Retain Original</label>
+        <input type="checkbox" id="node-input-retainOriginalPayload" style="width:auto;">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Keep each JSON or RAW payload for Enqueue recovery after downstream changes. Uses additional memory.</div>
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="dequeue">
@@ -220,6 +231,7 @@ RED.nodes.registerType("dequeue", {
     <dt>Dequeue Mode</dt><dd><b>Remove</b> (default) — message permanently deleted on commit. <b>Browse</b> — message read without locking or removal. <b>Locked</b> — message locked for processing but not removed on commit.</dd>
     <dt>Block Indefinitely / Wait (seconds)</dt><dd>In Transactional mode, how long to wait for a message. 0 = return immediately if empty.</dd>
     <dt>Enable Retries / Retry Delay / Max Retries</dt><dd>In Continuous mode, controls reconnect behavior for DB/dequeue errors. A missing Subscriber for a multi-consumer queue stops immediately. Max Retries 0 = unlimited retries.</dd>
+    <dt>Retain Original</dt><dd>Optional, off by default. Keeps an immutable serialized copy of each JSON or RAW payload in <code>msg._aqOriginal</code> for Enqueue's Original Payload option. ADT and JSON values that cannot be represented losslessly are rejected before the batch commits. Retaining originals increases memory use; it is not durable error storage.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -230,11 +242,16 @@ RED.nodes.registerType("dequeue", {
     <dd>Same as <code>payload</code> — available for use with SCM payload mappings.</dd>
     <dt>error <span class="property-type">object</span></dt>
     <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+    <dt>_aqOriginal <span class="property-type">string</span></dt>
+    <dd>Optional retained original payload. Preserve this property through processing and Catch. Each new Dequeue replaces it when retention is enabled or removes an earlier snapshot when disabled. A new Dequeue also clears inherited aggregate-original metadata. It contains the original data; avoid logging or forwarding it unnecessarily.</dd>
 </dl>
 
 <h3>Details</h3>
 <p>If <code>msg.transaction</code> is timed out, ended, or has no connection, the node reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Handle the error and start a new transaction before retrying. Messages with no transaction context keep their normal standalone behavior.</p>
-<p>In <b>Transactional</b> mode, if <code>msg.transaction.connection</code> is present (set by a begin-transaction node), the dequeue uses that shared connection and does not auto-commit — the message stays locked until end-transaction commits or rolls back. Without a transaction context, dequeue creates its own connection, auto-commits, and closes. The node reports <code>dequeuing...</code>, followed by <code>dequeued N</code> or <code>no messages</code>.</p>
-<p><b>Batch processing:</b> Each item is emitted separately with the same transaction. Use <b>Batch Size 1</b> for a direct processing-to-End path. For larger batches, wait for every item to finish before sending one message to End; the first Commit otherwise commits removal of the whole batch.</p>
+<p>In <b>Transactional</b> mode, if <code>msg.transaction.connection</code> is present (set by a begin-transaction node), the dequeue uses that shared connection; non-empty results do not auto-commit and the messages stay locked until end-transaction commits or rolls back. Without a transaction context, dequeue creates its own connection, auto-commits, and closes. The node reports <code>dequeuing...</code>, followed by <code>dequeued N</code> or <code>no messages</code>.</p>
+<p><b>Batch processing:</b> Each item is emitted separately with the same transaction. The first End finalizes the whole transaction, including every dequeued record. It does not wait for later records or branches. If their results must determine rollback, gather their completion before End. Batch Size 1 reduces this to one dequeued record but does not wait for its parallel branches.</p>
+<p><b>Empty results:</b> A managed dequeue with no messages commits previous work in that transaction and closes the connection without emitting a message. Failed DB work still requires rollback. An empty result is not proof that other branches finished: already executing DB work is allowed to finish, but queued or later work using the closed reference reports <code>DB_TRANSACTION_INACTIVE</code>.</p>
+<p><b>Error queue recovery:</b> Enable Retain Original before processing, then route a scoped Catch to Enqueue with Original Payload enabled and Mode set to Auto-commit. That enqueue can persist the retained record after the original transaction has closed. It does not undo an earlier commit or external API call. An active original Begin Transaction still needs its own End. A crash before the recovery enqueue commits can still lose the in-memory original.</p>
 <p>In <b>Continuous</b> mode, the node starts on deploy and listens using <code>AQ_DEQ_WAIT_FOREVER</code>. Status reports <code>dequeued N</code> for each non-empty batch, keeps the count visible for two seconds while the next blocking dequeue starts, then returns to the blue-ring <code>listening</code> state. On redeploy or stop, the blocking call is interrupted for a prompt shutdown. Commits immediately after each batch — rollback protection is not available. If the queue is multi-consumer, set <b>Subscriber</b>; otherwise Oracle returns <code>ORA-25231</code>.</p>
+<p>Terminal operational errors, including retry exhaustion, reach a scoped Catch once. An original-payload retention error stops the listener without retrying or committing that batch. Configuration diagnostics such as a missing Subscriber or Retain Original with ADT remain separate status/log messages.</p>
 </script>

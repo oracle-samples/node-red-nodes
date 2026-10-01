@@ -12,13 +12,13 @@ begin transaction → dequeue → (processing) → end transaction (commit)
 
 Messages stay locked on the queue until the database transaction commits or rolls back. External Fusion and OCI API calls are not part of that database transaction and cannot be undone by its rollback.
 
-**Batch size:** Use **Batch Size 1** for this simple path. A larger dequeue batch emits separate messages sharing one transaction; the first Commit can remove the whole batch before the other messages finish processing. Larger batches need flow-level coordination so every message finishes before one End Transaction.
+**Batch commits and recovery:** End Transaction commits all database work in its transaction, including every message removed by that dequeue batch. Messages already committed cannot be restored by a later rollback. For independent record processing, use Batch Size 1 and finish processing before End Transaction. Batch Size 1 does not coordinate parallel branches: one branch reaching End can finalize the transaction while another is still running. If processing continues after commit, preserve failed records in an application error AQ or another durable store for recovery.
 
 **Error recovery:** Wire a Catch scoped to the processing nodes to End Transaction configured for Rollback. Preserve `msg._dbTransaction`: this opaque runtime-local reference survives Catch, Function `node.send()`, and fan-out cloning without copying the Oracle connection. Do not include the rollback node in its own Catch scope. Do not log, publish, persist, or modify the reference, and do not construct replacement messages that discard it.
 
 **Transaction branches**
 
-Wait for every transaction branch to finish before sending one message to End. DB operations in one transaction run one at a time.
+If every branch must remain eligible for rollback, wait for all of them before sending one message to End. If you choose to commit before other branches finish, later work cannot reuse that transaction. DB operations in one transaction run one at a time.
 
 **Example:** Branch A reaches End while branch B is still in a Delay node. The transaction may close before B reaches SQL, causing B to fail with `DB_TRANSACTION_INACTIVE`.
 
@@ -34,7 +34,17 @@ Once a DB node reports a processing error, that managed transaction can only rol
 
 An invalid transaction reference does not mark a different transaction as failed.
 
-If your flow includes `enqueue`, keep it inside the same begin/end transaction path so the enqueue is only finalized on commit and is undone on rollback.
+Normally, keep `enqueue` inside the same begin/end transaction path so the enqueue is finalized by that transaction. For a separate recovery write, select **Auto-commit** mode: Enqueue acquires its own connection, commits its enqueue and closes it, without finalizing or changing the incoming transaction. If the incoming transaction is still active, its owner must still finish it; if it has ended, do not route that stale reference to another End.
+
+**Recovering the original record without a copying Function:** Enable **Retain Original** on Dequeue, then enable **Original Payload** on the error-queue Enqueue. Select **Auto-commit** mode there if recovery must survive completion of the original transaction. Use a Catch scoped to processing nodes; handle recovery-node failures separately to avoid a retry loop. Original Payload selects the retained original rather than an API response or editor payload. An original JSON array is one recovered AQ record, not a batch of its elements.
+
+Retention is optional and off by default. It supports plain JSON values and RAW Buffers, not ADT or extended/non-JSON values. The immutable snapshot travels in `msg._aqOriginal`; preserve message properties, do not send the snapshot as external request metadata, and do not alter it. Each later Dequeue replaces all recovery metadata or removes it when retention is disabled. SMO composites retain all contributing originals in `msg._aqOriginals`; Enqueue validates all of them before writing them together. A missing fragment snapshot makes recovery fail explicitly. Each original remains one AQ record, and identical originals are not deduplicated. This aggregation behavior is specific to SMO, not generic Join nodes. It consumes memory until no messages retain it and does not survive restart. There is no global recovery cache or expiry timer. Missing, incompatible or invalid snapshots fail explicitly rather than enqueueing the wrong payload. Retention validation completes for the entire returned batch before an automatic commit or output.
+
+**SMO composites across transactions:** When fragments have different transaction owners, SMO commits each contributing transaction once before combining them. A managed fragment combined with an unmanaged fragment commits the managed transaction. This includes every operation and dequeued record belonging to those transactions, even work in other branches. Same-owner fragments keep their transaction for End; unmanaged fragments remain unmanaged. Automatically finalized outputs have no transaction reference for a later End to finish.
+
+If a source cannot be finalized, SMO sends one Catch message with retained originals and `msg.smoTransactionResults`; it emits no normal merged event. Each result identifies the original snapshot indices, `outcome` (`committed`, `rolledBack` or `unknown`), whether the connection closed and whether finalization failed. A commit that throws remains `unknown` even if a later rollback attempt succeeds. Never retry an already completed commit. Use the outcomes when choosing record recovery: rolled-back dequeues may already redeliver, and unknown commits require reconciliation before replay. Independent commits are not atomic together; handling partial recovery belongs to the application. Retained originals and incomplete composites remain memory-only.
+
+**Empty managed dequeue:** An empty result requests commit and connection release, without emitting a business message. Earlier work in that transaction is included; rollback-only transactions roll back and report the error instead. Finalization waits for already-admitted DB work and rejects later DB work. It does not discover delayed branches, so do not use queue emptiness as proof that every branch has finished. Continuous mode owns its polling connection independently.
 
 **Connection timeout:** Set a timeout on begin-transaction (e.g. 300 seconds) to auto-rollback stalled flows and prevent connection leaks.
 
@@ -51,6 +61,8 @@ In Continuous mode, enable retry controls to survive transient DB outages withou
 **Dequeue mode:** Use Remove (default) for normal message consumption. Use Browse for monitoring queue contents without consuming. Use Locked only when you need to inspect before deciding to remove.
 
 ## Safe SQL Execution (SQL Node)
+
+**Pooled session defaults:** Configure stable NLS and Advanced session settings in DB Connection. Warm pooled sessions reuse their initialization; it does not undo `ALTER SESSION` changes made later by flow SQL.
 
 1. Always use bind variables instead of string concatenation to prevent SQL injection
 2. Use least-privileged database users
@@ -143,6 +155,8 @@ Loss of the cursor or partition reservation can invalidate the token and cause r
 
 **Endpoint safety:** Copy Functions Invoke and Queue Messages endpoints from the OCI resource details. Both nodes require the service-specific HTTPS base endpoint and validate it before requesting OCI credentials. Do not build endpoints from untrusted message data.
 
+**Response memory:** Successful Object Storage downloads and Functions responses default to a 16 MiB byte limit, including existing flows. Configure a larger Max Response Bytes only when needed and with enough memory for concurrent requests and JSON/text conversion. This limits each returned body, not total process memory or SDK-handled service error bodies. For example, a successful 20 MiB download fails through Catch at the default limit and does not overwrite its destination file.
+
 **Queue acknowledgement:** Queue In does not auto-delete messages. Wire the successful processing path to Queue Ack, and leave failure paths unacknowledged so the message can become visible for redelivery. Keep `msg.ociQueue.receipt` with the message; it is opaque and should not be logged or persisted outside the processing path.
 
 **Queue batch processing**
@@ -175,7 +189,7 @@ Success means OCI accepted the request, not that the function finished or succee
 
 **Retries:** Treat `oci-ords-request` as a one-shot HTTP request. Use polling only when the workflow is genuinely asynchronous, such as waiting for command delivery status or response data.
 
-**Stopping polls:** Closing or redeploying `oci-ords-poll` prevents late responses from producing successful output. Pending polls detect closure with `ORDS_NODE_CLOSED`. This does not cancel an HTTP request already sent or close other nodes sharing the ORDS config.
+**Stopping polls:** Closing or redeploying `oci-ords-poll` prevents late responses from producing successful output and cancels that poll's local request. Pending polls detect closure with `ORDS_NODE_CLOSED`; other nodes sharing the ORDS config are unaffected. Poll Timeout includes waiting for a concurrency slot, token acquisition, requests, response reads and intervals. Cancellation cannot undo a request already processed by the remote service.
 
 ## OCI Notifications
 
@@ -196,4 +210,4 @@ When using connection pooling on the db-connection config node:
 
 Adjust based on your workload and database session limits.
 
-**Transactions and pooling:** begin-transaction borrows one connection and holds it until the matching end-transaction (or the transaction timeout) runs. With pooling enabled, that connection is unavailable to the pool for the whole begin→end span, so flows that wait on slow or external steps between begin and end can exhaust a small pool — size `Pool Max` and `Queue Timeout` for the number of transactions you expect to run concurrently.
+**Transactions and pooling:** begin-transaction borrows one connection and holds it until End Transaction, an empty managed Dequeue, or transaction timeout finalizes it. With pooling enabled, that connection is unavailable to the pool for the whole begin→end span, so flows that wait on slow or external steps between begin and end can exhaust a small pool — size `Pool Max` and `Queue Timeout` for the number of transactions you expect to run concurrently.

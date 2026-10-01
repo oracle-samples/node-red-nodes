@@ -98,6 +98,18 @@ Other predefined lookup modes expose all required business keys directly: organi
 
 Meter lookups follow all Fusion pages. Multi-page results are combined into one collection with complete `items` and `count`, `hasMore: false`, `offset: 0`, the original Fusion page-size `limit`, and no page-specific `links`.
 
+Work-order child nodes and child-resource lookups encode resource IDs as individual URL path segments. Enter the original ID, without URL encoding; `.` and `..` are not valid resource IDs.
+
+Smart Operations composites preserve a shared managed transaction when all fragments have the same owner. When owners differ, including a managed fragment joining an unmanaged fragment, the transformer commits each active source transaction before merging and removes the finalized references. Each commit covers that transaction's entire work and dequeued batch, including work outside this composite. Complete all required work on other branches before this boundary. Separate commits are not atomic together; later Fusion failures cannot undo them.
+
+A commit or cleanup failure emits one Catch message with `SMO_COMPOSITE_COMMIT_FAILED`, combined retained originals, and `msg.smoTransactionResults`; no successful composite is emitted and the buffered fragment is removed. Each result records `outcome` (`committed`, `rolledBack`, or `unknown`), `closed` (connection cleanup succeeded), `failed`, and zero-based `originalIndexes` into `_aqOriginals`. Outcome history survives subsequent merges. Do not retry completed commits. Choose record recovery from these outcomes: rolled-back sources may already redeliver, and unknown outcomes require reconciliation. Recovery Enqueue does not select records automatically.
+
+Invalid or expired transaction references reach Catch with `SMO_COMPOSITE_TRANSACTION_INVALID`. Invalid incoming input leaves the buffered fragment intact. An expired buffered fragment is removed, preserving combined originals on Catch and the incoming active reference for explicit rollback; the expired source outcome is `unknown`. Expiry or capacity eviction likewise sends an invalid buffered reference to Catch instead of emitting it. Inputs for each composite key are processed in order; other keys and their timers can proceed while a commit waits. Max Pending Entries bounds both stored composites and admitted input operations separately. Additional inputs reach Catch with `SMO_COMPOSITE_BUSY`, retaining their original payload and active reference without starting transaction work.
+
+Pending fragments are held in memory and discarded when the node closes. Close waits for admitted operations and prevents late normal output; a hung database operation can delay that wait. With Retain Original enabled on Dequeue, a composite preserves every consumed original for recovery Enqueue, including a pending fragment superseded by a complete message. Missing originals make recovery fail explicitly. Identical originals remain separate records; retaining them increases buffered memory.
+
+Fusion error responses retain their useful messages and payload structure, with credential fields and common authentication strings redacted from error payloads and Catch diagnostics.
+
 Custom lookup mode accepts either a complete Fusion GET URL or a base resource
 endpoint with optional ordered **Query Parameters**. Pasted query strings are
 normalized into editable rows; `q`, `finder`, field selection, paging, empty

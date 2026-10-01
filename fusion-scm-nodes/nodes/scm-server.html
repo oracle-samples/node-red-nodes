@@ -168,7 +168,7 @@ RED.nodes.registerType("scm-server", {
         <label for="node-config-input-tokenExpiryMins"><i class="fa fa-clock-o"></i> Fallback (min)</label>
         <input type="number" id="node-config-input-tokenExpiryMins" value="60" min="1" style="width:80px;">
         <div style="font-size:11px;color:#888;margin-top:2px;">
-            Used only when the token response does not include <code>expires_in</code>.
+            Used only when Use Expiry Fallback is enabled and the token response does not include <code>expires_in</code>.
         </div>
     </div>
     </fieldset>
@@ -217,8 +217,8 @@ RED.nodes.registerType("scm-server", {
     <dd>OAuth token endpoint URL for your Fusion environment.</dd>
     <dt>Scope</dt>
     <dd>OAuth scope string required by your Fusion tenant.</dd>
-    <dt>Expiry Fallback (min)</dt>
-    <dd>Token cache duration used when the OAuth response does not include <code>expires_in</code>. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer.</dd>
+    <dt>Use Expiry Fallback / Fallback (min)</dt>
+    <dd>Enable to cache tokens for the configured fallback duration when the OAuth response does not include <code>expires_in</code>. Disabled by default: tokens without a reported expiry serve the current request and concurrent callers sharing that fetch, but are not reused for later requests. When <code>expires_in</code> is present, the server-reported lifetime is used with a 30-second safety buffer; a lifetime of 30 seconds or less is not cached for reuse.</dd>
     <dt>Test SCM Connection</dt>
     <dd>Tests OAuth token acquisition and Fusion REST host reachability with the deployed configuration. Click <strong>Update</strong> then <strong>Deploy</strong> after changing fields, then test.</dd>
 </dl>

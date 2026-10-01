@@ -136,7 +136,7 @@ var MAX_BATCH_SIZE = 10000;
 function normalizeBatchSize(value) {
     var parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) return 1;
-    return Math.min(Math.floor(parsed), MAX_BATCH_SIZE);
+    return Math.max(1, Math.min(Math.floor(parsed), MAX_BATCH_SIZE));
 }
 
 function normalizeWait(value) {

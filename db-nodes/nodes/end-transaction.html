@@ -80,6 +80,7 @@ RED.nodes.registerType("end-transaction", {
             <option value="rollback">Rollback</option>
         </select>
         <div style="margin-left:105px;font-size:11px;color:#888;margin-top:4px;" id="action-hint"></div>
+        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:4px;">Applies to database operations in this transaction. External API calls are not committed or undone by this node.</div>
     </div>
 </script>
 
@@ -106,9 +107,11 @@ An invalid transaction reference does not mark a different transaction as failed
 <p>Unknown, timed-out, closing, or already-ended references report <code>inactive transaction</code>
 and <code>DB_TRANSACTION_INACTIVE</code> through Catch without another commit/rollback attempt.
 Successful output removes <code>msg._dbTransaction</code> and the private handle.</p>
-<p>Wait for every transaction branch to finish before sending one message to End.
-A branch still in a Delay node may otherwise reach SQL after the transaction has closed.
+<p>The first End finalizes the whole transaction, including every record returned by a dequeue call.
+If all branch results must determine commit or rollback, wait for their completion before End.
+A branch still in a Delay node may otherwise reach SQL after the transaction has closed. Later End requests remain inactive-transaction errors; they do not repeat or reverse the first commit.
 Runtime-local references cannot resume transactions after restart or transfer to another process.</p>
+<p>Enqueue in Auto-commit mode commits on a separate connection. End still finalizes the incoming Begin Transaction and cannot roll back an enqueue already committed in Auto-commit mode.</p>
 
 <h3>Typical Flows</h3>
 <p><b>Transactional database processing:</b></p>

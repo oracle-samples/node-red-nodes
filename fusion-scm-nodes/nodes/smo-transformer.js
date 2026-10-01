@@ -70,6 +70,7 @@ module.exports = function (RED) {
     var compositeStore = {};
     var staleTimers = {};
     var statusState = { generation: 0 };
+    var compositeState = { closed: false, queues: new Map(), pendingInputs: 0 };
 
     node.on("input", function (msg, send, done) {
       try {
@@ -155,7 +156,14 @@ module.exports = function (RED) {
         };
 
         if (node.enableComposite) {
-          handleComposite(node, statusState, msg, outputPayload, compositeStore, staleTimers, send, done);
+          queueComposite(compositeState, buildCompositeKey(outputPayload, node.eventTypeCode) || msg, function () {
+            if (compositeState.closed) { done(); return; }
+            return handleComposite(node, statusState, msg, outputPayload, compositeStore, staleTimers, compositeState, send, done);
+          }, node.maxCompositeEntries).catch(function (err) {
+            reportTransformError(node, statusState, msg, err, done,
+              err.code === "SMO_COMPOSITE_BUSY" ? { fill: "red", shape: "ring", text: "composite busy" } :
+                { fill: "red", shape: "dot", text: "transform failed" });
+          });
         } else {
           sendOutputMessage(msg, outputPayload, node.outputTarget, send);
           setTransformerStatus(node, statusState, { fill: "green", shape: "dot", text: "transformed" });
@@ -173,10 +181,12 @@ module.exports = function (RED) {
       }
     });
 
-    node.on("close", function () {
+    node.on("close", function (removed, done) {
+      compositeState.closed = true;
       for (var key in staleTimers) { if (staleTimers[key]) clearTimeout(staleTimers[key]); }
       compositeStore = {};
       staleTimers = {};
+      Promise.all(Array.from(compositeState.queues.values())).then(function () { done(); });
     });
   }
 
@@ -394,17 +404,126 @@ module.exports = function (RED) {
     }
   }
 
-  function flushCompositeEntry(node, compositeStore, staleTimers, key, reason, send) {
+  function queueComposite(state, key, action, inputLimit) {
+    if (inputLimit && state.pendingInputs >= inputLimit) {
+      var busy = new Error("Composite input capacity reached; no transaction work was started for this message");
+      busy.code = "SMO_COMPOSITE_BUSY";
+      return Promise.reject(busy);
+    }
+    if (inputLimit) state.pendingInputs += 1;
+    var previous = state.queues.get(key) || Promise.resolve();
+    var pending = previous.then(action);
+    var settled = pending.then(release, release);
+    state.queues.set(key, settled);
+    function release() {
+      if (inputLimit) state.pendingInputs -= 1;
+      if (state.queues.get(key) === settled) state.queues.delete(key);
+    }
+    return pending;
+  }
+
+  function transactionBridge() {
+    var bridge = RED.nodes.getNode && RED.nodes.getNode[Symbol.for("oracle.node-red.db.transactions.v1")];
+    return bridge && bridge.version === 1 && typeof bridge.capture === "function" &&
+      typeof bridge.finalize === "function" ? bridge : null;
+  }
+
+  function captureCompositeOwner(msg) {
+    var bridge = transactionBridge();
+    if (!bridge && !Object.prototype.hasOwnProperty.call(msg, "_dbTransaction") && !msg.transaction) return null;
+    try {
+      if (bridge) return bridge.capture(msg);
+    } catch (err) {
+      // Registry diagnostics can originate in DB cleanup; expose only the ownership boundary here.
+    }
+    var invalid = new Error("Composite transaction reference is unavailable, invalid, or no longer active");
+    invalid.code = "SMO_COMPOSITE_TRANSACTION_INVALID";
+    throw invalid;
+  }
+
+  function originalIndexes(msg, offset) {
+    return recoveryMetadata(msg).snapshots.map(function (snapshot, index) { return offset + index; });
+  }
+
+  function transactionResults(msg, offset) {
+    if (!Array.isArray(msg.smoTransactionResults)) return [];
+    return msg.smoTransactionResults.map(function (result) {
+      return {
+        outcome: result.outcome,
+        closed: result.closed === true,
+        failed: result.failed === true,
+        originalIndexes: (result.originalIndexes || []).map(function (index) { return offset + index; })
+      };
+    });
+  }
+
+  function mergeTransactionResults(previous, current) {
+    return transactionResults(previous, 0).concat(transactionResults(current, recoveryMetadata(previous).snapshots.length));
+  }
+
+  function addTransactionResults(combined, previous, current, owners, results) {
+    var history = mergeTransactionResults(previous, current);
+    var unique = [];
+    owners.forEach(function (owner) { if (owner && unique.indexOf(owner) === -1) unique.push(owner); });
+    var indexes = [originalIndexes(previous, 0), originalIndexes(current, recoveryMetadata(previous).snapshots.length)];
+    unique.forEach(function (owner, index) {
+      var result = results[index] || { outcome: "unknown", closed: false, failed: true };
+      history.push({
+        outcome: result.outcome,
+        closed: result.closed,
+        failed: result.failed,
+        originalIndexes: owners.reduce(function (all, sourceOwner, sourceIndex) {
+          return sourceOwner === owner ? all.concat(indexes[sourceIndex]) : all;
+        }, [])
+      });
+    });
+    if (history.length) combined.smoTransactionResults = history;
+    return combined;
+  }
+
+  function recordUnknownTransaction(msg, source) {
+    var history = transactionResults(msg, 0);
+    history.push({ outcome: "unknown", closed: false, failed: true, originalIndexes: originalIndexes(source, 0) });
+    msg.smoTransactionResults = history;
+    var retained = recoveryMetadata(msg);
+    if (Object.prototype.hasOwnProperty.call(msg, "_aqOriginal") && retained.snapshots.length === 1) {
+      delete msg._aqOriginal;
+      msg._aqOriginals = retained.snapshots;
+    }
+  }
+
+  function clearTransactionReference(msg) {
+    delete msg._dbTransaction;
+    delete msg.transaction;
+  }
+
+  function copyCompositeFailure(msg, combined) {
+    ["_aqOriginal", "_aqOriginals", "_aqOriginalsIncomplete", "smoTransactionResults"].forEach(function (field) {
+      if (Object.prototype.hasOwnProperty.call(combined, field)) msg[field] = combined[field];
+      else delete msg[field];
+    });
+  }
+
+  function flushCompositeEntry(node, statusState, compositeStore, staleTimers, key, reason, send, state) {
     var entry = compositeStore[key];
-    if (!entry) return;
+    if (!entry || state.closed) return;
     delete compositeStore[key];
     clearCompositeTimer(staleTimers, key);
+    try {
+      captureCompositeOwner(entry.msg);
+    } catch (err) {
+      recordUnknownTransaction(entry.msg, entry.msg);
+      reportTransformError(node, statusState, entry.msg, err, function (reported) { node.error(reported, entry.msg); },
+        { fill: "red", shape: "ring", text: "invalid transaction" });
+      return false;
+    }
     node.warn("Composite message flushed (" + reason + "): " + key);
     var outMsg = createOutputMessage(entry.msg || {}, entry.payload, node.outputTarget, entry.transaction);
     (send || node.send.bind(node))(outMsg);
+    return true;
   }
 
-  function enforceCompositeLimits(node, compositeStore, staleTimers, send) {
+  function enforceCompositeLimits(node, statusState, compositeStore, staleTimers, send, state) {
     var keys = Object.keys(compositeStore);
     if (keys.length === 0) return;
 
@@ -414,8 +533,8 @@ module.exports = function (RED) {
       var key = keys[i];
       var entry = compositeStore[key];
       if (!entry) continue;
-      if (maxAgeMs > 0 && now - (entry.createdAt || now) > maxAgeMs) {
-        flushCompositeEntry(node, compositeStore, staleTimers, key, "max pending age exceeded", send);
+      if (maxAgeMs > 0 && now - entry.createdAt >= maxAgeMs) {
+        flushCompositeEntry(node, statusState, compositeStore, staleTimers, key, "max pending age exceeded", send, state);
       }
     }
 
@@ -427,34 +546,94 @@ module.exports = function (RED) {
       return aTs - bTs;
     });
     while (Object.keys(compositeStore).length > node.maxCompositeEntries && keys.length > 0) {
-      flushCompositeEntry(node, compositeStore, staleTimers, keys.shift(), "max pending entries exceeded", send);
+      flushCompositeEntry(node, statusState, compositeStore, staleTimers, keys.shift(), "max pending entries exceeded", send, state);
     }
   }
 
-  function scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, waitingGeneration) {
+  function scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, waitingGeneration, state) {
     clearCompositeTimer(staleTimers, key);
-    // Fall back to maxCompositeAgeSec when no explicit stale timeout is set so an
-    // idle incomplete composite is always evicted by a timer, not only on later input.
-    var timeoutSec = node.staleTimeout > 0 ? node.staleTimeout : node.maxCompositeAgeSec;
-    if (timeoutSec <= 0) return;
-    var reason = node.staleTimeout > 0 ? "stale timeout" : "max pending age exceeded";
+    // Fragments reset inactivity, but cannot extend the original creation deadline.
+    // Keep an age timer even without a stale timeout so idle partials still flush.
+    var scheduledEntry = compositeStore[key];
+    var remainingAgeMs = Math.max(0, scheduledEntry.createdAt + node.maxCompositeAgeSec * 1000 - Date.now());
+    var staleMs = node.staleTimeout * 1000;
+    var useStaleTimeout = staleMs > 0 && staleMs <= remainingAgeMs;
+    var timeoutMs = useStaleTimeout ? staleMs : remainingAgeMs;
+    var reason = useStaleTimeout ? "stale timeout" : "max pending age exceeded";
     staleTimers[key] = setTimeout(function () {
-      flushCompositeEntry(node, compositeStore, staleTimers, key, reason, send);
-      if (Object.keys(compositeStore).length === 0 && statusState.generation === waitingGeneration) {
-        setTransformerStatus(node, statusState, {});
-      }
-    }, timeoutSec * 1000);
+      queueComposite(state, key, function () {
+        if (compositeStore[key] !== scheduledEntry || state.closed) return;
+        var flushed = flushCompositeEntry(node, statusState, compositeStore, staleTimers, key, reason, send, state);
+        if (flushed && Object.keys(compositeStore).length === 0 && statusState.generation === waitingGeneration) {
+          setTransformerStatus(node, statusState, {});
+        }
+      }).catch(function (err) {
+        reportTransformError(node, statusState, scheduledEntry.msg, err, function (reported) { node.error(reported, scheduledEntry.msg); },
+          { fill: "red", shape: "dot", text: "transform failed" });
+      });
+    }, timeoutMs);
   }
 
-  function handleComposite(node, statusState, msg, outputPayload, compositeStore, staleTimers, send, done) {
+  async function handleComposite(node, statusState, msg, outputPayload, compositeStore, staleTimers, state, send, done) {
     var requiredFields = node.requiredFields || [];
     var key = buildCompositeKey(outputPayload, node.eventTypeCode);
+    var owner;
+    try {
+      owner = captureCompositeOwner(msg);
+    } catch (err) {
+      reportTransformError(node, statusState, msg, err, done,
+        { fill: "red", shape: "ring", text: "invalid transaction" });
+      return;
+    }
+    var pending = key && compositeStore[key];
+    var combinedMsg = pending ? mergeRecoveryMetadata(pending.msg, msg) : msg;
+    if (pending) {
+      var pendingOwner;
+      try {
+        pendingOwner = captureCompositeOwner(pending.msg);
+      } catch (err) {
+        delete compositeStore[key];
+        clearCompositeTimer(staleTimers, key);
+        recordUnknownTransaction(combinedMsg, pending.msg);
+        copyCompositeFailure(msg, combinedMsg);
+        reportTransformError(node, statusState, msg, err, done,
+          { fill: "red", shape: "ring", text: "invalid transaction" });
+        return;
+      }
+      if (pendingOwner !== owner) {
+        // Consume the buffered entry before awaiting commits so failure cannot replay it through a timer.
+        delete compositeStore[key];
+        clearCompositeTimer(staleTimers, key);
+        var owners = [pendingOwner, owner];
+        var results;
+        try {
+          results = await transactionBridge().finalize(owners.filter(function (value) { return value !== null; }));
+        } catch (err) {
+          results = [];
+        }
+        combinedMsg = Object.assign({}, combinedMsg);
+        addTransactionResults(combinedMsg, pending.msg, msg, owners, results);
+        clearTransactionReference(combinedMsg);
+        if (results.length !== owners.filter(function (value) { return value !== null; }).length || results.some(function (result) {
+          return result.failed || result.outcome !== "committed" || !result.closed;
+        })) {
+          copyCompositeFailure(msg, combinedMsg);
+          clearTransactionReference(msg);
+          var commitErr = new Error("Composite transaction finalization failed; inspect smoTransactionResults before recovery");
+          commitErr.code = "SMO_COMPOSITE_COMMIT_FAILED";
+          reportTransformError(node, statusState, msg, commitErr, done,
+            { fill: "red", shape: "dot", text: "commit failed" });
+          return;
+        }
+        if (state.closed) { done(); return; }
+      }
+    }
     if (isCompositeComplete(outputPayload, requiredFields)) {
       if (key) {
         delete compositeStore[key];
         clearCompositeTimer(staleTimers, key);
       }
-      sendOutputMessage(msg, outputPayload, node.outputTarget, send);
+      sendOutputMessage(combinedMsg, outputPayload, node.outputTarget, send);
       setTransformerStatus(node, statusState, { fill: "green", shape: "dot", text: "transformed" });
       done();
       return;
@@ -462,69 +641,77 @@ module.exports = function (RED) {
 
     if (!key) {
       var keyErr = new Error("Composite mode requires both entityCode and eventTime for incomplete messages");
-      reportTransformError(
-        node,
-        statusState,
-        msg,
-        keyErr,
-        done,
-        { fill: "red", shape: "ring", text: "missing composite key fields" }
-      );
+      reportTransformError(node, statusState, msg, keyErr, done,
+        { fill: "red", shape: "ring", text: "missing composite key fields" });
       return;
     }
-
-    enforceCompositeLimits(node, compositeStore, staleTimers, send);
 
     var now = Date.now();
-    var existing = compositeStore[key];
-    if (!existing) {
-      compositeStore[key] = {
-        payload: outputPayload,
-        msg: RED.util.cloneMessage(msg),
-        transaction: msg.transaction,
-        createdAt: now,
-        updatedAt: now
-      };
-      var waitingGeneration = setTransformerStatus(
-        node,
-        statusState,
-        { fill: "yellow", shape: "ring", text: "waiting: " + key }
-      );
-      scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, waitingGeneration);
-      enforceCompositeLimits(node, compositeStore, staleTimers, send);
-      done();
-      return;
+    var merged = outputPayload;
+    if (pending) {
+      merged = Object.assign({}, pending.payload, outputPayload);
+      merged.data = mergeData((pending.payload && pending.payload.data) || {}, outputPayload.data || {});
     }
-
-    clearCompositeTimer(staleTimers, key);
-
-    var merged = Object.assign({}, existing.payload, outputPayload);
-    merged.data = mergeData((existing.payload && existing.payload.data) || {}, outputPayload.data || {});
     if (isCompositeComplete(merged, requiredFields)) {
       delete compositeStore[key];
-      sendOutputMessage(msg, merged, node.outputTarget, send);
+      clearCompositeTimer(staleTimers, key);
+      sendOutputMessage(combinedMsg, merged, node.outputTarget, send);
       setTransformerStatus(node, statusState, { fill: "green", shape: "dot", text: "transformed" });
       done();
       return;
     }
 
-    existing.payload = merged;
-    existing.msg = RED.util.cloneMessage(msg);
-    existing.transaction = msg.transaction;
-    existing.updatedAt = now;
-    compositeStore[key] = existing;
-    var updatedWaitingGeneration = setTransformerStatus(
-      node,
-      statusState,
-      { fill: "yellow", shape: "ring", text: "waiting: " + key }
-    );
-    scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, updatedWaitingGeneration);
-    enforceCompositeLimits(node, compositeStore, staleTimers, send);
+    compositeStore[key] = {
+      payload: merged,
+      msg: RED.util.cloneMessage(combinedMsg),
+      transaction: combinedMsg.transaction,
+      createdAt: pending ? pending.createdAt : now,
+      updatedAt: now
+    };
+    var waitingGeneration = setTransformerStatus(node, statusState,
+      { fill: "yellow", shape: "ring", text: "waiting: " + key });
+    scheduleStaleTimer(node, statusState, compositeStore, staleTimers, key, send, waitingGeneration, state);
+    enforceCompositeLimits(node, statusState, compositeStore, staleTimers, send, state);
     done();
   }
 
   function sendOutputMessage(msg, outputPayload, outputTarget, send) {
     send(createOutputMessage(msg, outputPayload, outputTarget, msg.transaction));
+  }
+
+  function recoveryMetadata(msg) {
+    var has = Object.prototype.hasOwnProperty;
+    var single = has.call(msg, "_aqOriginal");
+    var multiple = has.call(msg, "_aqOriginals");
+    var incomplete = has.call(msg, "_aqOriginalsIncomplete");
+    var snapshots = single ? [msg._aqOriginal] : (multiple ? msg._aqOriginals : []);
+    var valid = single !== multiple && Array.isArray(snapshots) && snapshots.length > 0 &&
+      snapshots.every(function (snapshot) { return typeof snapshot === "string"; });
+    return {
+      present: single || multiple || incomplete,
+      complete: valid && !incomplete,
+      snapshots: valid ? snapshots : []
+    };
+  }
+
+  function mergeRecoveryMetadata(previous, current) {
+    var a = recoveryMetadata(previous);
+    var b = recoveryMetadata(current);
+    if (!a.present && !b.present && !previous.smoTransactionResults && !current.smoTransactionResults) return current;
+    // Keep every consumed record, including identical deliveries and replaced partials.
+    var combined = Object.assign({}, current);
+    delete combined._aqOriginal;
+    combined._aqOriginals = a.snapshots.concat(b.snapshots);
+    if (!a.complete || !b.complete) combined._aqOriginalsIncomplete = true;
+    else delete combined._aqOriginalsIncomplete;
+    var results = mergeTransactionResults(previous, current);
+    if (results.length) combined.smoTransactionResults = results;
+    if (current.transaction) {
+      Object.defineProperty(combined, "transaction", {
+        value: current.transaction, enumerable: false, writable: true, configurable: true
+      });
+    }
+    return combined;
   }
 
   function createOutputMessage(msg, outputPayload, outputTarget, transaction) {

@@ -39,6 +39,7 @@ module.exports = function(RED) {
     const dbError = require("../lib/db-error.js");
     var transactions = require("../lib/db-transaction.js")(RED);
     const oracleAq = require("../lib/oracle-aq.js");
+    const aqRecovery = require("../lib/aq-recovery.js");
 
     function DbEnqueueNode(config) {
         RED.nodes.createNode(this, config);
@@ -48,6 +49,8 @@ module.exports = function(RED) {
         node.recipients = config.recipients;
         node.userPayload = config.userPayload;
         node.enableOutput = config.enableOutput !== false;
+        node.independentTransaction = config.independentTransaction === true;
+        node.recoverOriginalPayload = config.recoverOriginalPayload === true;
         node.deliveryMode = config.deliveryMode || "persistent";
         node.payloadType = config.payloadType || "json";
         node.adtTypeName = config.adtTypeName || "";
@@ -66,11 +69,18 @@ module.exports = function(RED) {
             var lease;
 
             try {
-                lease = await transactions.acquire(msg, config.connection);
-                dbError.assertActiveTransaction(msg.transaction);
+                if (!node.independentTransaction) transactions.get(msg, config.connection);
+                if (node.recoverOriginalPayload) {
+                    // Keep each original's record boundary, including original JSON arrays.
+                    arr = aqRecovery.restoreMessage(msg, oracleAq.normalizePayloadType(node.payloadType));
+                }
+                if (!node.independentTransaction) {
+                    lease = await transactions.acquire(msg, config.connection);
+                    dbError.assertActiveTransaction(msg.transaction);
+                }
                 var recipients = oracleAq.normalizeRecipients(node.recipients);
                 node.status({ fill: "yellow", shape: "dot", text: "enqueueing..." });
-                if (msg.transaction && msg.transaction.connection) {
+                if (!node.independentTransaction && msg.transaction && msg.transaction.connection) {
                     connection = msg.transaction.connection;
                 } else {
                     connection = await node.connection.getConnection();
@@ -78,11 +88,14 @@ module.exports = function(RED) {
                 }
 
                 try {
-                    arr = oracleAq.normalizeEnqueuePayload(node.payloadType, node.userPayload, msg.payload);
+                    if (!node.recoverOriginalPayload) {
+                        arr = oracleAq.normalizeEnqueuePayload(node.payloadType, node.userPayload, msg.payload);
+                    }
                 } catch (parseErr) {
                     return dbError.handleNodeError(node, msg, parseErr, done, {
                         statusText: "invalid payload",
-                        statusShape: "ring"
+                        statusShape: "ring",
+                        markRollbackOnly: !node.independentTransaction
                     });
                 }
 
@@ -120,7 +133,14 @@ module.exports = function(RED) {
                 }
                 done();
             } catch (err) {
-                dbError.handleNodeError(node, msg, err, done, { statusText: "enqueue failed" });
+                if (connection && ownConnection) {
+                    try { await connection.rollback(); } catch (rollbackErr) { /* preserve enqueue failure */ }
+                }
+                dbError.handleNodeError(node, msg, err, done, {
+                    statusText: "enqueue failed",
+                    statusShape: String(err.code || "").startsWith("AQ_RECOVERY_") ? "ring" : "dot",
+                    markRollbackOnly: !node.independentTransaction
+                });
             } finally {
                 if (lease) lease.release();
                 if (connection && ownConnection) {

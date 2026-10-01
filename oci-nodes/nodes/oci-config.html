@@ -111,12 +111,12 @@ RED.nodes.registerType("oci-config", {
 
 <script type="text/x-red" data-template-name="oci-config">
     <div class="form-row">
-        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <label for="node-config-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-config-input-name" placeholder="Optional display name">
     </div>
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
     <div class="form-row">
-        <label for="node-config-input-authType"><i class="fa fa-key"></i> Auth Type</label>
+        <label for="node-config-input-authType" style="width:160px;"><i class="fa fa-key"></i> Auth Type</label>
         <select id="node-config-input-authType" style="width:200px;">
             <option value="config">Config File</option>
             <option value="instancePrincipal">Instance Principal</option>
@@ -127,34 +127,34 @@ RED.nodes.registerType("oci-config", {
     <!-- CONFIG FILE AUTH -->
     <div class="auth-section auth-config">
         <div class="form-row">
-            <label for="node-config-input-configFilePath"><i class="fa fa-file-text-o"></i> Config File</label>
+            <label for="node-config-input-configFilePath" style="width:160px;"><i class="fa fa-file-text-o"></i> Config File</label>
             <input type="text" id="node-config-input-configFilePath" placeholder="~/.oci/config">
         </div>
         <div class="form-row">
-            <label for="node-config-input-profile"><i class="fa fa-id-card-o"></i> Profile</label>
+            <label for="node-config-input-profile" style="width:160px;"><i class="fa fa-id-card-o"></i> Profile</label>
             <input type="text" id="node-config-input-profile" placeholder="DEFAULT">
         </div>
     </div>
     <!-- SIMPLE (API KEY) AUTH -->
     <div class="auth-section auth-simple">
         <div class="form-row">
-            <label for="node-config-input-tenancyOcid"><i class="fa fa-building"></i> Tenancy OCID</label>
+            <label for="node-config-input-tenancyOcid" style="width:160px;"><i class="fa fa-building"></i> Tenancy OCID</label>
             <input type="text" id="node-config-input-tenancyOcid" placeholder="<tenancy-ocid>">
         </div>
         <div class="form-row">
-            <label for="node-config-input-userOcid"><i class="fa fa-user"></i> User OCID</label>
+            <label for="node-config-input-userOcid" style="width:160px;"><i class="fa fa-user"></i> User OCID</label>
             <input type="text" id="node-config-input-userOcid" placeholder="<user-ocid>">
         </div>
         <div class="form-row">
-            <label for="node-config-input-fingerprint"><i class="fa fa-fingerprint"></i> Fingerprint</label>
+            <label for="node-config-input-fingerprint" style="width:160px;"><i class="fa fa-fingerprint"></i> Fingerprint</label>
             <input type="text" id="node-config-input-fingerprint" placeholder="aa:bb:cc:dd:...">
         </div>
         <div class="form-row">
-            <label for="node-config-input-privateKeyPath"><i class="fa fa-key"></i> Private Key Path</label>
+            <label for="node-config-input-privateKeyPath" style="width:160px;"><i class="fa fa-key"></i> Private Key Path</label>
             <input type="text" id="node-config-input-privateKeyPath" placeholder="~/.oci/oci_api_key.pem">
         </div>
         <div class="form-row">
-            <label for="node-config-input-passphrase"><i class="fa fa-lock"></i> Passphrase</label>
+            <label for="node-config-input-passphrase" style="width:160px;"><i class="fa fa-lock"></i> Passphrase</label>
             <input type="password" id="node-config-input-passphrase">
         </div>
     </div>
@@ -162,13 +162,13 @@ RED.nodes.registerType("oci-config", {
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">OCI Settings</legend>
     <div class="form-row">
-        <label for="node-config-input-region"><i class="fa fa-globe"></i> Region</label>
+        <label for="node-config-input-region" style="width:160px;"><i class="fa fa-globe"></i> Region</label>
         <input type="text" id="node-config-input-region" placeholder="us-ashburn-1">
     </div>
     <div class="form-row">
-        <label for="node-config-input-compartmentOcid"><i class="fa fa-folder-o"></i> Compartment OCID</label>
+        <label for="node-config-input-compartmentOcid" style="width:160px;"><i class="fa fa-folder-o"></i> Compartment OCID</label>
         <input type="text" id="node-config-input-compartmentOcid" placeholder="<compartment-ocid>">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Stored shared setting; current service nodes use their own resource identifiers.</div>
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Stored shared setting; current service nodes use their own resource identifiers.</div>
     </div>
     </fieldset>
     <div class="config-test-actions">

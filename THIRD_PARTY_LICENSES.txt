@@ -199,7 +199,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ===============================================================================
 
-oci-sdk - https://github.com/oracle/oci-typescript-sdk
+OCI SDK component packages: oci-common, oci-functions, oci-identity, oci-identitydataplane, oci-iot, oci-loganalytics, oci-loggingingestion, oci-monitoring, oci-objectstorage, oci-ons, oci-queue, oci-streaming
+Version: 2.141.0
+Source: https://github.com/oracle/oci-typescript-sdk
 License: Apache License 2.0, UPL
 -------------------------------------------------------------------------------
 

@@ -1280,12 +1280,10 @@
 
 <script type="text/html" data-help-name="smo-transformer">
   <p>Transforms incoming telemetry or message data into structured event payloads.</p>
-  <h3>Important: Use a Split Node for Batch Messages</h3>
-  <p>This node processes <b>one message at a time</b>. If the upstream node produces an array of messages
-  (e.g. from a dequeue with batch size greater than 1), you must place a <b>split</b> node before this node
-  configured with a <b>fixed length of 1</b>. Without the split node, the transformer receives the entire
-  array as a single payload and will not process individual messages correctly.</p>
-  <p>Typical flow: <code>dequeue</code> → <code>split</code> (fixed length: 1) → <code>smo-transformer</code> → <code>smo-event</code></p>
+  <h3>Input</h3>
+  <p>This node processes one object payload per message. Dequeue already emits each dequeued record as
+  an individual message. For other upstream nodes that put multiple records in one array payload,
+  use a <b>split</b> node before this transformer to emit each array element separately.</p>
   <h3>Quick Start</h3>
   <p>Select an event type from the dropdown to auto-populate field mappings, transforms, and composite settings. Paste a sample payload to see detected paths and preview the transformed event. Drag ☰ handles to reorder mappings.</p>
   <h3>Key Behaviors</h3>
@@ -1301,7 +1299,12 @@
     <li><b>Presence-based value maps:</b> Use <code>__present__</code> in a value map to map based on field existence.</li>
     <li><b>Invalid payloads:</b> Non-object and array payloads raise an error and can be routed to a Catch node.</li>
     <li><b>Composite identity:</b> For incomplete composite fragments, both <code>entityCode</code> and <code>eventTime</code> must be present. Missing key parts now fail fast instead of using a shared fallback key.</li>
-    <li><b>Pending bounds:</b> Composite pending entries are bounded by stale timeout, max pending age, and max pending count to prevent unbounded memory growth.</li>
+    <li><b>Transaction ownership:</b> Fragments sharing one managed transaction retain it. When owners differ, including managed and unmanaged fragments, the node commits each active source transaction before merging and removes finalized references. This commits the entire transaction and dequeued batch, including work outside the composite. Join all required branches before this boundary. Separate commits are not atomic together, and later Fusion failures cannot undo them.</li>
+    <li><b>Commit failure:</b> Commit or cleanup failure emits one Catch message with <code>SMO_COMPOSITE_COMMIT_FAILED</code>, combined originals and <code>msg.smoTransactionResults</code>; it removes the buffered fragment and emits no successful composite. Result rows contain <code>outcome</code> (<code>committed</code>, <code>rolledBack</code>, or <code>unknown</code>), <code>closed</code> (connection cleanup succeeded), <code>failed</code>, and zero-based <code>originalIndexes</code> into <code>_aqOriginals</code>. Previous outcomes survive later merges. Do not retry completed commits. Choose record recovery from these outcomes: rolled-back sources may already redeliver, and unknown outcomes require reconciliation. Recovery Enqueue does not select records automatically.</li>
+    <li><b>Invalid references:</b> Invalid or expired references reach Catch with <code>SMO_COMPOSITE_TRANSACTION_INVALID</code>. Invalid incoming input leaves the buffered fragment intact. An expired buffered fragment is removed; Catch carries combined originals, its <code>unknown</code> outcome, and the incoming active reference for explicit rollback. Timer or capacity flushes send expired references to Catch instead of normal output.</li>
+    <li><b>Concurrency and close:</b> Each composite key is processed in input order. Other keys and their timers can proceed while a commit waits. Max Pending Entries separately bounds stored composites and admitted input operations; excess inputs reach Catch with <code>SMO_COMPOSITE_BUSY</code>, preserving their payload and active reference without starting transaction work. Close discards buffered fragments, waits for admitted operations, and prevents late normal output. A hung database operation can delay close.</li>
+    <li><b>AQ original payloads:</b> With Retain Original enabled on Dequeue, composites carry all consumed originals for recovery Enqueue, including pending fragments replaced by a complete message. Missing originals make recovery fail explicitly; identical originals are retained as separate records. This metadata increases buffered memory and must be preserved through downstream nodes.</li>
+    <li><b>Pending bounds:</b> Composite pending entries are bounded by stale timeout, max pending age, and max pending count. Stale Timeout measures inactivity and restarts on each incomplete fragment. Max Pending Age measures time since the first fragment and never restarts; the earlier deadline emits valid partial data and removes the entry, even without further input. Expiry for a key waits for its already-admitted operations.</li>
     <li><b>Complete input:</b> A complete event replaces pending partial data with the same identity and cancels its timer.</li>
     <li><b>Incomplete input:</b> Stale Timeout <code>0</code> uses Max Pending Age, not an unlimited wait. With Max Pending Age <code>60</code> and no further input, the timer emits the partial data after about 60 seconds and removes the pending entry.</li>
     <li><b>Status:</b> Successful output reports <code>transformed</code>; incomplete composites report <code>waiting: key</code>; validation and execution failures retain their latest error status. Older expiry timers do not clear a newer status.</li>

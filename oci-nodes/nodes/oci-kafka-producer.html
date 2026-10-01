@@ -96,7 +96,7 @@ RED.nodes.registerType("oci-kafka-producer", {
     <dt>msg.payload <span class="property-type">any</span></dt><dd>The message value. Objects and arrays are JSON-serialized; strings and buffers are sent directly; finite numbers, booleans, and null become strings.</dd>
     <dt>msg.kafka.topic <span class="property-type">string</span></dt><dd>Overrides the configured Topic.</dd>
     <dt>msg.kafka.key <span class="property-type">any</span></dt><dd>Optional record key serialized with the same supported types.</dd>
-    <dt>msg.kafka.headers <span class="property-type">object</span></dt><dd>Optional header map containing strings, buffers, finite numbers, booleans, or null.</dd>
+    <dt>msg.kafka.headers <span class="property-type">object</span></dt><dd>Optional header map containing strings, buffers, finite numbers, booleans, or null. The <code>__proto__</code> header is rejected before publishing because the Kafka client cannot serialize it safely.</dd>
     <dt>msg.kafka.partition <span class="property-type">number</span></dt><dd>Optional non-negative partition number.</dd>
 </dl>
 

@@ -70,7 +70,7 @@ ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require a
 
 ## Error Handling
 
-OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when OCI SDK or ORDS responses include server-side detail text, that text is promoted into `msg.error.message`. Existing OCI/ORDS request nodes preserve raw response bodies in `msg.payload` when available. Streaming Out, Streaming Commit, Kafka Producer, Kafka Commit, Functions Invoke, Queue Out, and Queue Ack preserve their input payload on failure.
+OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }`; when OCI SDK or ORDS responses include server-side detail text, that text is promoted into `msg.error.message`. Existing OCI/ORDS request nodes preserve response bodies in `msg.payload` when available, with recognized credential fields and credential patterns redacted from diagnostics. Catch errors contain sanitized details rather than the original SDK request/error object. Redaction is a safeguard, not a guarantee that arbitrary provider text contains no sensitive data. Streaming Out, Streaming Commit, Kafka Producer, Kafka Commit, Functions Invoke, Queue Out, and Queue Ack preserve their input payload on failure.
 
 ## Authentication
 
@@ -123,6 +123,8 @@ Used by: `oci-ords-request`, `oci-ords-poll`
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|
 | **OAuth Client Credentials** | ORDS / IoT Data API HTTP access | Base URL, Token URL, Client ID, Client Secret; Scope is optional when required by the ORDS resource |
+
+Supplied OAuth token lifetimes, including lifetimes below 30 seconds, are honored with a safety buffer. Invalid supplied lifetimes fail acquisition; the configured fallback applies only when the lifetime is absent. ORDS Poll applies its timeout to the complete local polling operation, including waiting for a slot and authentication; timeout cancels the local request but does not undo remote operations.
 
 Use **Test OAuth Token** after deploy to validate token acquisition independently of an ORDS resource request.
 
@@ -207,3 +209,6 @@ See [LICENSE](./LICENSE.txt).
 ## Disclaimer
 
 Oracle and its affiliates do not provide any warranty whatsoever, express or implied, for any software, material or content of any kind contained or produced within this repository, and in particular specifically disclaim any and all implied warranties of title, non-infringement, merchantability, and fitness for a particular purpose. Furthermore, Oracle and its affiliates do not represent that any customary security review has been performed with respect to any software, material or content contained or produced within this repository. In addition, and without limiting the foregoing, third parties may have posted software, material or content to this repository without any review. Use at your own risk.
+
+
+Both nodes prefer `msg.digitalTwinInstanceId` when supplied and reject invalid new overrides. Without it, existing precedence is preserved: Get Content prefers legacy `msg.digitalTwinOcid` over configuration; Send Command prefers the configured identifier over the legacy property. The saved `digitalTwinOcid` field remains supported.

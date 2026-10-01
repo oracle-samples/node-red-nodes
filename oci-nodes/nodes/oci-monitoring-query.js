@@ -87,23 +87,16 @@ module.exports = function (RED) {
         node.resourceGroup = config.resourceGroup || "";
         node.resolution = config.resolution || "";
         node.lookbackMinutes = Number(config.lookbackMinutes || 60);
-        var clientPromise;
+        var clientManager = require("../lib/oci-client.js")(node);
 
         function getClient() {
-            if (!clientPromise) {
-                clientPromise = node.ociConfig.getAuthProvider().then(function (provider) {
-                    var client = new monitoring.MonitoringClient({
-                        authenticationDetailsProvider: provider
-                    });
-                    var region = node.ociConfig.getRegion();
-                    if (region) client.regionId = region;
-                    return client;
-                }).catch(function (err) {
-                    clientPromise = null;
-                    throw err;
-                });
-            }
-            return clientPromise;
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new monitoring.MonitoringClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
+            });
         }
 
         node.on("input", async function (msg, send, done) {
@@ -162,6 +155,7 @@ module.exports = function (RED) {
                 preserveTransaction(outMsg, msg);
 
                 node.status({ fill: "green", shape: "dot", text: "queried" });
+                clientManager.assertOpen();
                 send(outMsg);
                 done();
             } catch (err) {

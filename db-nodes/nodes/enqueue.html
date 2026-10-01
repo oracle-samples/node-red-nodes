@@ -60,6 +60,8 @@ RED.nodes.registerType("enqueue", {
         payloadType: { value: "json" },
         adtTypeName: { value: "" },
         enableOutput: { value: true },
+        independentTransaction: { value: false },
+        recoverOriginalPayload: { value: false },
         outputs: { value: 1 }
     },
     inputs: 1, outputs: 1,
@@ -68,6 +70,14 @@ RED.nodes.registerType("enqueue", {
     label: function () { return this.name || "enqueue"; },
     oneditprepare: function () {
         var node = this;
+        $("#node-input-mode").val(node.independentTransaction === true ? "auto-commit" : "transactional");
+        function updateMode() {
+            var autoCommit = $("#node-input-mode").val() === "auto-commit";
+            $("#enqueue-transactional-note").toggle(!autoCommit);
+            $("#enqueue-auto-commit-note").toggle(autoCommit);
+        }
+        $("#node-input-mode").on("change", updateMode);
+        updateMode();
         $("#node-input-outputs").val(node.outputs);
         $("#node-input-enableOutput").prop("checked", node.enableOutput !== false);
         $("#node-input-enableOutput").on("change", function () {
@@ -87,6 +97,12 @@ RED.nodes.registerType("enqueue", {
         }
         $("#node-input-payloadType").on("change", updatePayloadType);
         updatePayloadType();
+        function updateRecovery() {
+            var recover = $("#node-input-recoverOriginalPayload").is(":checked");
+            $("#node-input-userPayload, .enqueue-json-editor").prop("disabled", recover);
+        }
+        $("#node-input-recoverOriginalPayload").on("change", updateRecovery);
+        updateRecovery();
 
         $(".enqueue-json-editor").on("click", function () {
             var type = $("#node-input-payloadType").val();
@@ -119,18 +135,34 @@ RED.nodes.registerType("enqueue", {
         }
         $("#node-input-deliveryMode").on("change", updateDeliveryWarning);
         updateDeliveryWarning();
+    },
+    oneditsave: function () {
+        this.independentTransaction = $("#node-input-mode").val() === "auto-commit";
     }
 });
 </script>
 
 <script type="text/x-red" data-template-name="enqueue">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <label for="node-input-name" style="width:130px;"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
     <div class="form-row">
-        <label for="node-input-connection"><i class="fa fa-database"></i> DB Connection</label>
+        <label for="node-input-connection" style="width:130px;"><i class="fa fa-database"></i> DB Connection</label>
         <input type="text" id="node-input-connection" />
+    </div>
+    <div class="form-row">
+        <label for="node-input-mode" style="width:130px;"><i class="fa fa-exchange"></i> Mode</label>
+        <select id="node-input-mode" style="width:200px;">
+            <option value="transactional">Transactional</option>
+            <option value="auto-commit">Auto-commit</option>
+        </select>
+    </div>
+    <div id="enqueue-transactional-note" style="margin:0 0 8px 135px;font-size:11px;color:#888;">
+        Uses the incoming Begin Transaction; otherwise opens a standalone transaction and commits automatically.
+    </div>
+    <div id="enqueue-auto-commit-note" style="display:none;margin:0 0 8px 135px;font-size:11px;color:#856404;background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:5px 8px;">
+        <i class="fa fa-exclamation-triangle"></i> Commits each input in a separate transaction. Does not commit or roll back an incoming Begin Transaction; it still needs its own End.
     </div>
     <hr/>
     <div class="form-row">
@@ -187,6 +219,11 @@ RED.nodes.registerType("enqueue", {
         <input type="checkbox" id="node-input-enableOutput" style="width:auto;">
         <span style="margin-left:6px;font-size:12px;color:#888;">Pass message downstream after successful enqueue.</span>
     </div>
+    <div class="form-row">
+        <label for="node-input-recoverOriginalPayload" style="width:130px;"><i class="fa fa-history"></i> Original Payload</label>
+        <input type="checkbox" id="node-input-recoverOriginalPayload" style="width:auto;">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Use the JSON or RAW original retained by Dequeue instead of the editor payload or msg.payload.</div>
+    </div>
     <input type="hidden" id="node-input-outputs">
 </script>
 
@@ -196,6 +233,8 @@ RED.nodes.registerType("enqueue", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
+    <dt>Mode</dt>
+    <dd><strong>Transactional</strong> (default): use the incoming Begin Transaction and let End commit or roll back. Without a transaction context, open a standalone connection, enqueue, commit, and close it. <strong>Auto-commit</strong>: commit each input on a separate connection, even when its incoming transaction has closed. This neither commits nor rolls back the incoming Begin Transaction; an active original transaction still needs its own End. A failure on the separate connection does not mark the original transaction rollback-only.</dd>
     <dt>Queue Name</dt><dd>Name of the AQ to enqueue into.</dd>
     <dt>Recipients</dt><dd>Optional comma-separated subscriber names for multi-consumer queues, applied to each message in the batch. Surrounding spaces are removed; names retain their case. Empty list entries and control characters are rejected. Leave blank to use the queue's subscriptions.</dd>
     <dt>Delivery Mode</dt>
@@ -209,6 +248,8 @@ RED.nodes.registerType("enqueue", {
     <dd>ADT only. Schema-qualified Oracle object type name, e.g. <code>ADMIN.MY_MSG_TYPE</code>. Must exist in the database and match the queue's payload type.</dd>
     <dt>Payload</dt>
     <dd>JSON: a single object or array — each element becomes one AQ message. RAW: a plain string encoded to a Buffer. ADT: a single object or array with uppercase field names matching the Oracle type. If empty, <code>msg.payload</code> is used instead. For JSON/ADT payload types, use <code>...</code> to open the JSON editor.</dd>
+    <dt>Original Payload</dt>
+    <dd>Optional, off by default. Restore <code>msg._aqOriginal</code> retained by Dequeue, or every original in <code>msg._aqOriginals</code> preserved by SMO aggregation instead of the editor payload or <code>msg.payload</code>. JSON and RAW only; the queue payload type must match the retained type. Each retained JSON array remains one AQ message. Aggregated originals are enqueued together; incomplete aggregation metadata is rejected. Missing, malformed, or unsupported originals fail before opening a connection; the node never substitutes a changed payload.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -221,8 +262,9 @@ RED.nodes.registerType("enqueue", {
 </dl>
 
 <h3>Details</h3>
-<p>If <code>msg.transaction</code> is timed out, ended, or has no connection, the node reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Handle the error and start a new transaction before retrying. Messages with no transaction context keep their normal standalone behavior.</p>
-<p>When <code>msg.transaction.connection</code> exists (from <code>begin-transaction</code>), enqueue uses that shared connection and does not auto-commit. The enqueue is finalized by <code>end-transaction</code> commit/rollback.</p>
+<p>In Transactional mode, an inactive transaction reference reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Messages with no transaction context keep their normal standalone behavior.</p>
+<p>By default, when <code>msg.transaction.connection</code> exists (from <code>begin-transaction</code>), enqueue uses that shared connection and does not auto-commit. The enqueue is finalized by <code>end-transaction</code> commit/rollback.</p>
 <p>Without a transaction context, enqueue opens its own connection, enqueues, commits, and closes.</p>
-<p>Each element of the JSON array is enqueued as a separate AQ message with <code>DB_TYPE_JSON</code> payload type.</p>
+<p>With the default payload source, each element of a JSON array is enqueued as a separate AQ message with <code>DB_TYPE_JSON</code> payload type.</p>
+<p>Original Payload can be used with Auto-commit mode for error-queue recovery. The destination queue must already exist. The node preserves the incoming transaction reference on success and Catch paths: an active original transaction still needs its own End; an already committed transaction cannot be rolled back. Retaining and re-enqueueing an original is replay, not rollback, and is not crash-safe until the recovery enqueue commits. External side effects may need application-level deduplication.</p>
 </script>

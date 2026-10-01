@@ -10,16 +10,30 @@ This project provides custom Node-RED nodes for Oracle Database and Advanced Que
 | **begin-transaction** | Opens a managed connection with optional timeout for leak protection. |
 | **end-transaction** | Commits or rolls back and closes the connection. Shows elapsed time. |
 | **dequeue** | Retrieves messages from Oracle AQ. Supports transactional mode and continuous mode with optional reconnect/retry controls. |
-| **enqueue** | Publishes messages to Oracle AQ. Supports static payload or `msg.payload` (JSON/ADT editor includes `...` JSON editor helper). |
+| **enqueue** | Publishes messages to Oracle AQ in Transactional or Auto-commit mode. Supports static payload or `msg.payload` (JSON/ADT editor includes `...` JSON editor helper). |
 | **sql** | Executes SQL statements. Supports Editor or `msg.sql` as source (Binds Mapping JSONata rows include `...` expression editor helper). |
 
 ## Error Handling
 
 Message-triggered DB nodes route failures through Catch nodes and keep the normal output success-only. Catch messages include `msg.error = { message, code }` using Oracle/node-oracledb error text when available, and DB nodes leave the current `msg.payload` unchanged on failure.
 
+Continuous Dequeue reports terminal operational errors to a scoped Catch, including retry exhaustion. Connection diagnostics redact sensitive values before logging or returning connection-test results.
+
+## AQ Transactions and Recovery
+
+The first End commits or rolls back the entire managed transaction, including all records returned by a dequeue call. It does not wait for downstream records or branches. A later failure cannot reverse an earlier commit. An empty managed Dequeue finalizes previous transaction work and closes the connection without an output; failed DB work still forces rollback. Later SQL or default Enqueue calls carrying the closed reference fail rather than silently opening another connection.
+
+Enqueue defaults to **Transactional** mode: it uses an incoming Begin Transaction, or opens and commits a standalone transaction when no transaction context exists. **Auto-commit** commits each input on a separate connection. It preserves the incoming transaction reference and does not finalize an active Begin Transaction, which still needs its own End.
+
+For optional error-queue recovery, enable **Retain Original** on Dequeue, then **Original Payload** and **Auto-commit** mode on the recovery Enqueue. Each JSON or RAW original survives payload transformations and can be enqueued to an existing queue on a separate connection. SMO aggregation preserves all retained originals for recovery together; incomplete originals fail clearly. Retain Original and Original Payload are off by default. ADT and values that cannot be retained losslessly are rejected when retention is enabled. Retained originals use memory, contain the original data, and are not durable until the recovery enqueue commits. Recovery preserves the original transaction reference; an active original transaction still needs its own End.
+
 ## Driver Mode
 
 `db-connection` uses a process-wide node-oracledb driver mode. Thin and Thick remain selectable; an already-initialized Thick driver is reused. Restart Node-RED before switching modes or changing Oracle Client library settings.
+
+## Session Initialization
+
+`db-connection` applies optional NLS fields followed by Advanced (restricted) `ALTER SESSION SET` statements; either can be configured independently. Initialization completes before returning the connection, and failures reject acquisition. Thin pools initialize new sessions without tags; Thick pools use an opaque tag covering all initialization statements and initialize new or differently tagged sessions. Already initialized pooled sessions are reused without rerunning initialization; standalone connections initialize on every open. Initialization does not reset later session changes made by flow SQL. Blank settings add no initialization callback or tag.
 
 ## Installation
 

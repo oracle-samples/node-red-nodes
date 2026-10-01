@@ -36,6 +36,7 @@
 
 module.exports = function (RED) {
     const iot = require("oci-iot");
+    var twinIdentity = require("../lib/iot-identity.js");
     const ociError = require("../lib/oci-error.js");
 
     function normalizeBoolean(value, fallbackValue, fieldName) {
@@ -72,23 +73,27 @@ module.exports = function (RED) {
         node.digitalTwinOcid = String(config.digitalTwinOcid || "").trim();
         node.shouldIncludeMetadata = normalizeBoolean(config.shouldIncludeMetadata, false, "shouldIncludeMetadata");
 
-        let client = null;
+        var clientManager = require("../lib/oci-client.js")(node);
 
-        async function getClient() {
-            if (client) return client;
-            const provider = await node.ociConfig.getAuthProvider();
-            client = new iot.IotClient({
-                authenticationDetailsProvider: provider
+        function getClient() {
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new iot.IotClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
             });
-            const region = node.ociConfig.getRegion();
-            if (region) {
-                client.regionId = region;
-            }
-            return client;
         }
 
         node.on("input", async function (msg, send, done) {
-            const digitalTwinId = String((msg.digitalTwinOcid !== undefined && msg.digitalTwinOcid !== null) ? msg.digitalTwinOcid : node.digitalTwinOcid || "").trim();
+            var digitalTwinId;
+            try { digitalTwinId = twinIdentity.resolve(node.digitalTwinOcid, msg, true); }
+            catch (err) {
+                node.status({ fill: "red", shape: "ring", text: "invalid twin identifier" });
+                err.code = "OCI_INPUT_INVALID";
+                msg.error = { message: err.message, code: err.code };
+                return done(err);
+            }
             if (!digitalTwinId) {
                 const err = new Error("No Digital Twin Instance OCID configured or provided in msg.digitalTwinOcid");
                 node.status({ fill: "red", shape: "ring", text: "no twin OCID" });
@@ -130,6 +135,8 @@ module.exports = function (RED) {
                     digitalTwinOcid: digitalTwinId,
                     shouldIncludeMetadata: shouldIncludeMetadata
                 });
+
+                clientManager.assertOpen();
 
                 send(outMsg);
                 done();

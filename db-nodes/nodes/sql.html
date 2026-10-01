@@ -292,6 +292,7 @@ var sqlBindsMappingEditor = (function () {
     <dd><code>Editor</code> — uses the SQL written in the textarea below.
     <code>msg.sql</code> — reads the SQL statement from <code>msg.sql</code> at runtime,
     allowing dynamic queries from upstream nodes. Editor mode blocks semicolon-chained multi-statement SQL and accepts a single statement (anonymous PL/SQL blocks are allowed).
+    Oracle alternative-quoted literals and leading comments on anonymous PL/SQL blocks are supported.
     Omit the trailing <code>/</code> command used by SQLcl and SQL*Plus; a PL/SQL block should end with <code>END;</code>.</dd>
     <dt>SQL</dt><dd>The SQL statement (when SQL Source is Editor).</dd>
     <dt>Binds Source</dt>

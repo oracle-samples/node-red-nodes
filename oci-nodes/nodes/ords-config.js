@@ -74,6 +74,24 @@ module.exports = function (RED) {
         return err;
     }
 
+    function requestAborted() {
+        var err = new Error("ORDS request canceled");
+        err.code = "ORDS_REQUEST_ABORTED";
+        return err;
+    }
+
+    function abortable(promise, signal) {
+        if (!signal) return promise;
+        return new Promise(function (resolve, reject) {
+            function onAbort() { reject(requestAborted()); }
+            signal.addEventListener("abort", onAbort, { once: true });
+            if (signal.aborted) onAbort();
+            Promise.resolve(promise).then(resolve, reject).finally(function () {
+                signal.removeEventListener("abort", onAbort);
+            });
+        });
+    }
+
     function hasReservedObjectKeys(value) {
         return Object.keys(value || {}).some(function (key) {
             return RESERVED_OBJECT_KEYS.indexOf(key) !== -1;
@@ -264,9 +282,12 @@ module.exports = function (RED) {
             }
         }
 
-        async function fetchWithTimeout(url, options, timeoutMs) {
+        async function fetchWithTimeout(url, options, timeoutMs, signal) {
             ensureOpen();
+            if (signal && signal.aborted) throw requestAborted();
             const controller = new AbortController();
+            function onAbort() { controller.abort(); }
+            if (signal) signal.addEventListener("abort", onAbort, { once: true });
             activeRequestControllers.add(controller);
             const timer = setTimeout(function () {
                 controller.abort();
@@ -275,20 +296,22 @@ module.exports = function (RED) {
                 var requestOptions = Object.assign({}, options, {
                     signal: controller.signal
                 });
-                var response = await fetch(url, requestOptions);
-                var data = await readResponseBody(response);
+                var response = await abortable(fetch(url, requestOptions), controller.signal);
+                var data = await abortable(readResponseBody(response), controller.signal);
                 return { response: response, data: data };
             } catch (err) {
                 if (controller.signal.aborted) {
                     if (closing) {
                         throw createCloseError();
                     }
+                    if (signal && signal.aborted) throw requestAborted();
                     throw createTimeoutError();
                 }
                 throw err;
             } finally {
                 clearTimeout(timer);
                 activeRequestControllers.delete(controller);
+                if (signal) signal.removeEventListener("abort", onAbort);
             }
         }
 
@@ -323,11 +346,17 @@ module.exports = function (RED) {
                 throw new Error("ORDS token response did not include access_token");
             }
 
+            var expiresMs = node.tokenExpiryFallbackMins * 60 * 1000;
+            if (data.expires_in !== undefined) {
+                var expiresIn = Number(data.expires_in);
+                if ((typeof data.expires_in !== "number" && typeof data.expires_in !== "string") ||
+                    !Number.isFinite(expiresIn) || expiresIn <= 0) {
+                    throw new Error("ORDS token response expires_in must be a positive number");
+                }
+                expiresMs = (expiresIn - Math.min(30, expiresIn / 10)) * 1000;
+            }
+            ensureOpen();
             node.accessToken = data.access_token;
-            var expiresIn = Number(data.expires_in);
-            var expiresMs = Number.isFinite(expiresIn) && expiresIn > 30
-                ? (expiresIn - 30) * 1000
-                : node.tokenExpiryFallbackMins * 60 * 1000;
             node.tokenExpiry = Date.now() + expiresMs;
             return node.accessToken;
         }
@@ -423,6 +452,8 @@ module.exports = function (RED) {
                 }
             }
 
+            if (options.signal && options.signal.aborted) throw requestAborted();
+
             async function requestWithToken(token) {
                 var headers = mergeHeaders(baseHeaders, {
                     Authorization: "Bearer " + token
@@ -431,7 +462,7 @@ module.exports = function (RED) {
                     method: method,
                     headers: headers,
                     body: body
-                }, node.requestTimeoutMs);
+                }, node.requestTimeoutMs, options.signal);
                 var response = result.response;
                 var data = result.data;
                 return {
@@ -443,9 +474,9 @@ module.exports = function (RED) {
                 };
             }
 
-            var result = await requestWithToken(await node.getToken(false));
+            var result = await requestWithToken(await abortable(node.getToken(false), options.signal));
             if (result.statusCode === 401) {
-                result = await requestWithToken(await node.getToken(true));
+                result = await requestWithToken(await abortable(node.getToken(true), options.signal));
             }
             if (!result.ok) {
                 var err = new Error("ORDS request failed with status " + result.statusCode);
@@ -480,7 +511,7 @@ module.exports = function (RED) {
             }
         }
 
-        node.runPollJob = function (task) {
+        node.runPollJob = function (task, signal) {
             return new Promise(function (resolve, reject) {
                 if (closing) {
                     reject(createCloseError());
@@ -490,7 +521,29 @@ module.exports = function (RED) {
                     reject(new Error("ORDS poll queue is full"));
                     return;
                 }
-                pollQueue.push({ task: task, resolve: resolve, reject: reject });
+                var item;
+                function onAbort() {
+                    var index = pollQueue.indexOf(item);
+                    if (index !== -1) pollQueue.splice(index, 1);
+                    finish(reject, requestAborted());
+                }
+                function finish(callback, value) {
+                    if (signal) signal.removeEventListener("abort", onAbort);
+                    callback(value);
+                }
+                item = {
+                    task: function () {
+                        if (signal && signal.aborted) throw requestAborted();
+                        return task();
+                    },
+                    resolve: function (value) { finish(resolve, value); },
+                    reject: function (err) { finish(reject, err); }
+                };
+                if (signal) {
+                    signal.addEventListener("abort", onAbort, { once: true });
+                    if (signal.aborted) return onAbort();
+                }
+                pollQueue.push(item);
                 drainPollQueue();
             });
         };

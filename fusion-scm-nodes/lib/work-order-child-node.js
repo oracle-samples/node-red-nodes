@@ -1,6 +1,7 @@
 var axios = require("axios");
 var HttpsProxyAgent = require("https-proxy-agent").HttpsProxyAgent;
 var ensureHttps = require("./url.js").ensureHttps;
+var appendPathSegments = require("./url.js").appendPathSegments;
 var scmMapping = require("./scm-mapping.js");
 var scmError = require("./scm-error.js");
 
@@ -96,7 +97,7 @@ function resolveUrl(server, resource, action, config, msg) {
         segments.push(resolvePlaceholder(resource.itemPlaceholder, config, msg));
     }
 
-    return server.buildUrl(segments.map(encodePathSegment).join("/"));
+    return appendPathSegments(server.buildUrl(""), segments);
 }
 
 function resolvePlaceholder(part, config, msg) {
@@ -106,10 +107,6 @@ function resolvePlaceholder(part, config, msg) {
         throwValidationError(part.label + " is required");
     }
     return value;
-}
-
-function encodePathSegment(segment) {
-    return encodeURIComponent(segment);
 }
 
 function actionUsesItemId(action) {

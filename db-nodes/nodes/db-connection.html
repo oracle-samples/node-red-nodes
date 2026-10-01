@@ -555,7 +555,8 @@ RED.nodes.registerType("db-connection", {
     <dt>NLS_TIMESTAMP_TZ_FORMAT</dt><dd>Format mask for <code>TIMESTAMP WITH TIME ZONE</code>. Example: <code>YYYY-MM-DD HH24:MI:SS.FF TZH:TZM</code>.</dd>
     <dt>Advanced (restricted)</dt><dd>Optional advanced session SQL. Only <code>ALTER SESSION SET ...</code> statements are allowed. Statements are semicolon-separated, with a maximum of 10 statements and 1000 total characters.</dd>
 </dl>
-<p>Pool connections: NLS settings are applied only when a pooled connection does not already carry the correct session tag. Warm connections that were already configured are reused with no overhead.</p>
+<p>NLS fields and Advanced (restricted) SQL can be used independently or together; advanced statements run after the NLS fields. Initialization must succeed before a connection is returned. Failed pooled initialization rejects acquisition and the driver drops the session; failed standalone initialization closes the connection.</p>
+<p>Thin pools initialize each new session without tagging. Thick pools use an opaque tag covering all configured initialization statements and initialize new or differently tagged sessions. Already initialized pooled sessions are reused without rerunning the statements. Standalone connections run initialization on every open. These settings do not reset session state changed later by flow SQL. With all settings blank, no initialization callback or tag is used.</p>
 
 <h3>Test Database Connection</h3>
 <p>Executes <code>SELECT 1 FROM DUAL</code> to verify connectivity. The node must be deployed before the test button becomes active — click <b>Update</b> then <b>Deploy</b> first.</p>

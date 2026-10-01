@@ -167,6 +167,7 @@ module.exports = function (RED) {
         node.successValue = config.successValue || "";
         var closing = false;
         const waiters = new Set();
+        const activePolls = new Set();
 
         function ensureOpen() {
             if (closing) {
@@ -174,43 +175,56 @@ module.exports = function (RED) {
             }
         }
 
-        function waitForInterval(ms) {
+        function waitForInterval(ms, signal) {
             ensureOpen();
             return new Promise(function (resolve, reject) {
                 var waiter = {
                     timer: null,
                     reject: reject
                 };
-                waiter.timer = setTimeout(function () {
+                function finish(err) {
+                    clearTimeout(waiter.timer);
                     waiters.delete(waiter);
-                    resolve();
-                }, ms);
+                    signal.removeEventListener("abort", onAbort);
+                    if (err) reject(err);
+                    else resolve();
+                }
+                function onAbort() { finish(createCloseError()); }
+                waiter.reject = function (err) { finish(err); };
+                waiter.timer = setTimeout(function () { finish(); }, ms);
                 waiters.add(waiter);
+                signal.addEventListener("abort", onAbort, { once: true });
+                if (signal.aborted) onAbort();
             });
         }
 
-        async function pollOnce(msg) {
+        async function pollOnce(msg, context) {
             ensureOpen();
+            if (context.controller.signal.aborted) return context.result(false);
             var pollType = msg.pollType || node.pollType;
             var recordId = msg.recordId !== undefined ? msg.recordId : node.recordId;
             var customPath = msg.customPath !== undefined ? msg.customPath : node.customPath;
             var intervalMs = parsePositiveInt(msg.intervalMs, node.intervalMs, 1, 300000);
-            var timeoutMs = parsePositiveInt(msg.timeoutMs, node.timeoutMs, 1, 3600000);
             var path = buildPath(pollType, customPath, recordId, node.ordsConfig);
             var queryParams = node.ordsConfig.buildQueryParams(node.query, msg);
-            var deadline = Date.now() + timeoutMs;
+            var deadline = context.deadline;
             var attempts = 0;
             var lastResponse = null;
 
             while (true) {
                 ensureOpen();
+                if (context.controller.signal.aborted || Date.now() >= deadline) return context.result(false);
                 attempts += 1;
+                context.attempts = attempts;
                 lastResponse = await node.ordsConfig.request({
                     method: "GET",
                     path: path,
-                    queryParams: queryParams
+                    queryParams: queryParams,
+                    signal: context.controller.signal
                 });
                 ensureOpen();
+                if (context.controller.signal.aborted || Date.now() >= deadline) return context.result(false);
+                context.response = lastResponse;
 
                 var data = lastResponse.data;
                 var complete = pollType === "commandStatus"
@@ -233,16 +247,36 @@ module.exports = function (RED) {
                         attempts: attempts
                     };
                 }
-                await waitForInterval(intervalMs);
+                await waitForInterval(intervalMs, context.controller.signal);
             }
         }
 
         node.on("input", async function (msg, send, done) {
+            var timeoutMs = parsePositiveInt(msg.timeoutMs, node.timeoutMs, 1, 3600000);
+            var context = {
+                controller: new AbortController(),
+                deadline: Date.now() + timeoutMs,
+                response: null,
+                attempts: 0,
+                timer: null,
+                result: function (complete) {
+                    return { response: context.response, complete: complete, timedOut: !complete, attempts: context.attempts };
+                }
+            };
+            activePolls.add(context);
             try {
+                ensureOpen();
                 node.status({ fill: "yellow", shape: "dot", text: "polling" });
-                var result = await node.ordsConfig.runPollJob(function () {
-                    return pollOnce(msg);
+                var expiration = new Promise(function (resolve) {
+                    context.timer = setTimeout(function () {
+                        resolve(context.result(false));
+                        context.controller.abort();
+                    }, timeoutMs);
                 });
+                var work = node.ordsConfig.runPollJob(function () {
+                    return pollOnce(msg, context);
+                }, context.controller.signal);
+                var result = await Promise.race([work, expiration]);
                 ensureOpen();
                 var response = result.response;
                 var data = response ? response.data : null;
@@ -272,11 +306,18 @@ module.exports = function (RED) {
                     statusText: validation ? "invalid poll" : "poll failed",
                     statusShape: validation ? "ring" : "dot"
                 });
+            } finally {
+                clearTimeout(context.timer);
+                activePolls.delete(context);
+                context.controller.abort();
             }
         });
 
         node.on("close", function (_removed, done) {
             closing = true;
+            activePolls.forEach(function (context) {
+                context.controller.abort();
+            });
             waiters.forEach(function (waiter) {
                 clearTimeout(waiter.timer);
                 waiter.reject(createCloseError());

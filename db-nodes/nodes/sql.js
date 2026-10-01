@@ -45,12 +45,21 @@ module.exports = function (RED) {
     function stripSqlForBindScan(sql) {
         var out = "";
         var state = "normal";
+        var alternativeQuoteEnd;
 
         for (var i = 0; i < sql.length; i++) {
             var ch = sql[i];
             var next = i + 1 < sql.length ? sql[i + 1] : "";
 
             if (state === "normal") {
+                if ((ch === "q" || ch === "Q") && next === "'" && i + 2 < sql.length) {
+                    var delimiter = sql[i + 2];
+                    alternativeQuoteEnd = ({ "[": "]", "{": "}", "(": ")", "<": ">" })[delimiter] || delimiter;
+                    state = "alternative_quote";
+                    out += "   ";
+                    i += 2;
+                    continue;
+                }
                 if (ch === "'") {
                     state = "single_quote";
                     out += " ";
@@ -74,6 +83,17 @@ module.exports = function (RED) {
                     continue;
                 }
                 out += ch;
+                continue;
+            }
+
+            if (state === "alternative_quote") {
+                if (ch === alternativeQuoteEnd && next === "'") {
+                    state = "normal";
+                    out += "  ";
+                    i++;
+                } else {
+                    out += " ";
+                }
                 continue;
             }
 
@@ -193,7 +213,7 @@ module.exports = function (RED) {
     }
 
     function isAnonymousPlsqlBlock(sql) {
-        return /^\s*(begin|declare)\b[\s\S]*\bend\s*;?\s*$/i.test(sql || "");
+        return /^\s*(begin|declare)\b[\s\S]*\bend\s*;?\s*$/i.test(stripSqlForBindScan(sql || ""));
     }
 
     function hasSqlclTerminator(sql) {
@@ -512,7 +532,7 @@ module.exports = function (RED) {
                 if (lease) lease.release();
                 if (connection && ownConnection) {
                     try { await connection.close(); } catch (e) {
-                        node.warn("Error closing connection: " + e.message);
+                        node.warn("Error closing connection: " + dbError.redactText(e.message));
                     }
                 }
             }

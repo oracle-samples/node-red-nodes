@@ -86,22 +86,22 @@ function normalizeHeaders(headers) {
     var normalized = {};
     Object.keys(headers).forEach(function (name) {
         var value = headers[name];
-        if (Buffer.isBuffer(value) || typeof value === "string" || value === null) {
-            normalized[name] = value;
-            return;
-        }
         if (typeof value === "number") {
             if (!Number.isFinite(value)) {
                 throw new Error("Kafka headers must contain finite scalar values or buffers");
             }
-            normalized[name] = String(value);
-            return;
+            value = String(value);
+        } else if (typeof value === "boolean") {
+            value = String(value);
+        } else if (!Buffer.isBuffer(value) && typeof value !== "string" && value !== null) {
+            throw new Error("Kafka headers must contain scalar values or buffers");
         }
-        if (typeof value === "boolean") {
-            normalized[name] = String(value);
-            return;
-        }
-        throw new Error("Kafka headers must contain scalar values or buffers");
+        Object.defineProperty(normalized, name, {
+            value: value,
+            enumerable: true,
+            writable: true,
+            configurable: true
+        });
     });
     return normalized;
 }

@@ -38,6 +38,7 @@ module.exports = function (RED) {
     const axios = require("axios");
     const { HttpsProxyAgent } = require("https-proxy-agent");
     const { ensureHttps, formatFusionRestBaseUrl } = require("../lib/url.js");
+    const scmError = require("../lib/scm-error.js");
 
     function ScmServerNode(config) {
         RED.nodes.createNode(this, config);
@@ -49,6 +50,7 @@ module.exports = function (RED) {
         node.scope     = config.scope;
         node.proxyUrl  = config.proxyUrl;
         node.useProxy  = !!config.useProxy;
+        node.useExpiryFallback = config.useExpiryFallback === true || config.useExpiryFallback === "true";
         node.expiryMins = Number(config.tokenExpiryMins) || 60;
 
         node.username = this.credentials.username;
@@ -73,7 +75,7 @@ module.exports = function (RED) {
         try {
             ensureHttps(node.tokenUrl);
         } catch (e) {
-            node.error("Token URL must use HTTPS: " + node.tokenUrl);
+            node.error("Token URL must use HTTPS");
             node.status({ fill: "red", shape: "ring", text: "token URL not HTTPS" });
             return;
         }
@@ -117,14 +119,14 @@ module.exports = function (RED) {
 
                 const data = response.data;
                 node.accessToken = data.access_token;
-                // Use expires_in with a 30-second buffer; fall back to tokenExpiryMins if absent.
-                const expiresInMs = data.expires_in
+                // Use expires_in with a 30-second buffer; presume a lifetime only when opted in.
+                const expiresInMs = data.expires_in != null
                     ? Math.max(0, data.expires_in - 30) * 1000
-                    : node.expiryMins * 60 * 1000;
+                    : (node.useExpiryFallback ? node.expiryMins * 60 * 1000 : 0);
                 node.tokenExpiry = Date.now() + expiresInMs;
                 return node.accessToken;
             } catch (err) {
-                node.error("Token fetch failed: " + err.message);
+                node.error("Token fetch failed: " + scmError.redactText(err.message));
                 throw err;
             }
         }
@@ -163,7 +165,7 @@ module.exports = function (RED) {
             } catch (err) {
                 return {
                     success: false,
-                    message: "OAuth succeeded, but Fusion REST failed: " + err.message
+                    message: "OAuth succeeded, but Fusion REST failed: " + scmError.redactText(err.message)
                 };
             }
         };
@@ -219,7 +221,7 @@ module.exports = function (RED) {
         try {
             res.json(await node.testConnection());
         } catch (err) {
-            res.json({ success: false, message: err.message });
+            res.json({ success: false, message: scmError.redactText(err.message) });
         }
     });
 };

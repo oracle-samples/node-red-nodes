@@ -60,7 +60,9 @@ module.exports = function (RED) {
             if (typeof parsed[key] !== "string") {
                 throw validationError(label + " values must be strings");
             }
-            result[key] = parsed[key];
+            Object.defineProperty(result, key, {
+                value: parsed[key], enumerable: true, writable: true, configurable: true
+            });
         });
         return result;
     }
@@ -108,36 +110,29 @@ module.exports = function (RED) {
         node.resourceGroup = config.resourceGroup || "";
         node.dimensions = config.dimensions || "{}";
         node.metadata = config.metadata || "{}";
-        var clientPromise;
+        var clientManager = require("../lib/oci-client.js")(node);
 
         function getClient() {
-            if (!clientPromise) {
-                clientPromise = node.ociConfig.getAuthProvider().then(function (provider) {
-                    var client = new monitoring.MonitoringClient({
-                        authenticationDetailsProvider: provider
-                    });
-                    var region = node.ociConfig.getRegion();
-                    if (region) client.regionId = region;
-                    if (!client.endpoint) {
-                        throw validationError("OCI region is required to resolve the Monitoring endpoint");
-                    }
+            return clientManager.get("default", async function () {
+                var provider = await node.ociConfig.getAuthProvider();
+                return new monitoring.MonitoringClient({ authenticationDetailsProvider: provider });
+            }, function (client) {
+                var region = node.ociConfig.getRegion();
+                if (region) client.regionId = region;
+                if (!client.endpoint) {
+                    throw validationError("OCI region is required to resolve the Monitoring endpoint");
+                }
 
-                    var queryEndpoint = client.endpoint.replace(/\/20180401\/?$/, "");
-                    var ingestionEndpoint = queryEndpoint.replace(
-                        /^https:\/\/telemetry\./,
-                        "https://telemetry-ingestion."
-                    );
-                    if (ingestionEndpoint === queryEndpoint) {
-                        throw new Error("Unable to derive the OCI Monitoring ingestion endpoint");
-                    }
-                    client.endpoint = ingestionEndpoint;
-                    return client;
-                }).catch(function (err) {
-                    clientPromise = null;
-                    throw err;
-                });
-            }
-            return clientPromise;
+                var queryEndpoint = client.endpoint.replace(/\/20180401\/?$/, "");
+                var ingestionEndpoint = queryEndpoint.replace(
+                    /^https:\/\/telemetry\./,
+                    "https://telemetry-ingestion."
+                );
+                if (ingestionEndpoint === queryEndpoint) {
+                    throw new Error("Unable to derive the OCI Monitoring ingestion endpoint");
+                }
+                client.endpoint = ingestionEndpoint;
+            });
         }
 
         node.on("input", async function (msg, send, done) {
@@ -224,6 +219,7 @@ module.exports = function (RED) {
                 preserveTransaction(outMsg, msg);
 
                 node.status({ fill: "green", shape: "dot", text: "published" });
+                clientManager.assertOpen();
                 send(outMsg);
                 done();
             } catch (err) {
