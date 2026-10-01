@@ -1142,61 +1142,61 @@
   <input type="hidden" id="node-input-requiredFields" />
   <input type="hidden" id="node-input-splitFields" />
   <div class="form-row">
-    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-    <input type="text" id="node-input-name" />
+    <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" style="width:calc(100% - 167px);" />
   </div>
   <hr />
   <div class="form-row">
-    <label for="node-input-selectedPreset"><i class="fa fa-bolt"></i> Event Type</label>
+    <label for="node-input-selectedPreset" style="width:160px;"><i class="fa fa-bolt"></i> Event Type</label>
     <select id="node-input-selectedPreset" style="width:260px;"></select>
   </div>
   <div class="form-row" id="custom-event-type-row" style="display:none;">
-    <label>&nbsp;</label>
-    <div style="display:inline-flex;gap:8px;width:70%;">
-      <input type="text" id="node-input-customEventType" style="flex:1;" />
+    <label style="width:160px;">&nbsp;</label>
+    <div style="display:inline-flex;gap:8px;width:calc(100% - 167px);">
+      <input type="text" id="node-input-customEventType" style="flex:1;min-width:0;" />
       <button type="button" class="red-ui-button" id="btn-add-custom-event">Add</button>
     </div>
   </div>
   <hr />
   <div class="form-row">
-    <label style="width:130px;"><i class="fa fa-id-card"></i> Entity Code Fields</label>
-    <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the entity identifier. First match wins. Dot paths like <code>device.id</code> are supported.</div>
+    <label style="width:160px;"><i class="fa fa-id-card"></i> Entity Code Fields</label>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the entity identifier. First match wins. Dot paths like <code>device.id</code> are supported.</div>
   </div>
   <div class="form-row">
-    <div id="entity-code-fields-container" style="margin-left:135px;"></div>
-    <div style="margin-left:135px;margin-top:4px;">
+    <div id="entity-code-fields-container" style="margin-left:165px;"></div>
+    <div style="margin-left:165px;margin-top:4px;">
       <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-entity-field">+ Add Field</button>
     </div>
   </div>
   <div class="form-row">
-    <label style="width:130px;"><i class="fa fa-clock-o"></i> Event Time Fields</label>
-    <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the event timestamp. Leave empty to emit <code>null</code> unless Default Time is enabled.</div>
+    <label style="width:160px;"><i class="fa fa-clock-o"></i> Event Time Fields</label>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">Field paths to check (in order) for the event timestamp. Leave empty to emit <code>null</code> unless Default Time is enabled.</div>
   </div>
   <div class="form-row">
-    <div id="event-time-fields-container" style="margin-left:135px;"></div>
-    <div style="margin-left:135px;margin-top:4px;">
+    <div id="event-time-fields-container" style="margin-left:165px;"></div>
+    <div style="margin-left:165px;margin-top:4px;">
       <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-event-time-field">+ Add Field</button>
     </div>
   </div>
   <div class="form-row">
-    <label for="node-input-defaultEventTime" style="width:130px;"><i class="fa fa-calendar-plus-o"></i> Default Time</label>
+    <label for="node-input-defaultEventTime" style="width:160px;"><i class="fa fa-calendar-plus-o"></i> Default Time</label>
     <input type="checkbox" id="node-input-defaultEventTime" style="width:auto;vertical-align:middle;" />
     <span style="font-size:12px;color:#666;"> Use the current time when no event time field has a value</span>
   </div>
   <div class="form-row">
-    <label for="node-input-outputTarget" style="width:130px;"><i class="fa fa-sign-out"></i> Output Target</label>
+    <label for="node-input-outputTarget" style="width:160px;"><i class="fa fa-sign-out"></i> Output Target</label>
     <select id="node-input-outputTarget" style="width:200px;">
       <option value="smoEvent">msg.smoEvent</option>
       <option value="payload">msg.payload</option>
     </select>
   </div>
   <div class="form-row" id="smo-transformer-validation-row" style="display:none;">
-    <div id="smo-transformer-validation" class="form-tips" style="margin-left:135px;"></div>
+    <div id="smo-transformer-validation" class="form-tips" style="margin-left:165px;"></div>
   </div>
   <hr />
   <div class="form-row">
-    <label><i class="fa fa-exchange"></i> Field Mappings</label>
-    <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">Map incoming field paths to outgoing <code>data.*</code> fields. Drag ☰ to reorder. First match wins when multiple input paths write to the same output field.</div>
+    <label style="width:160px;"><i class="fa fa-exchange"></i> Field Mappings</label>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">Map incoming field paths to outgoing <code>data.*</code> fields. Drag ☰ to reorder. First match wins when multiple input paths write to the same output field.</div>
   </div>
   <div class="form-row">
     <div id="field-mappings-container" style="margin-left:20px;margin-right:20px;"></div>
@@ -1206,30 +1206,30 @@
   </div>
   <hr />
   <div class="form-row">
-    <label for="node-input-samplePayload" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-flask"></i> Sample Payload</label>
-    <textarea id="node-input-samplePayload" rows="7" style="width:calc(100% - 137px);font-family:monospace;font-size:12px;"></textarea>
-    <div style="margin-left:135px;font-size:11px;color:#888;margin-top:4px;">Paste one payload object, or an array of payload objects to preview composite fragments. Runtime still expects one message at a time.</div>
+    <label for="node-input-samplePayload" style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-flask"></i> Sample Payload</label>
+    <textarea id="node-input-samplePayload" rows="7" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
+    <div style="margin-left:165px;font-size:11px;color:#888;margin-top:4px;">Paste one payload object, or an array of payload objects to preview composite fragments. Runtime still expects one message at a time.</div>
   </div>
   <div class="form-row">
-    <label style="width:130px;"><i class="fa fa-list"></i> Detected Paths</label>
-    <div id="smo-sample-paths" style="margin-left:135px;"></div>
+    <label style="width:160px;"><i class="fa fa-list"></i> Detected Paths</label>
+    <div id="smo-sample-paths" style="margin-left:165px;"></div>
   </div>
   <div class="form-row">
-    <label style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-eye"></i> Preview</label>
-    <div style="display:inline-block;width:calc(100% - 137px);vertical-align:top;">
+    <label style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-eye"></i> Preview</label>
+    <div style="display:inline-block;width:calc(100% - 167px);vertical-align:top;">
       <pre id="smo-preview-output">Paste a sample payload to preview the transformed event.</pre>
       <div id="smo-preview-status" class="form-tips" style="display:none;margin-top:6px;"></div>
     </div>
   </div>
   <hr />
   <div class="form-row">
-    <label for="node-input-enableNesting"><i class="fa fa-indent"></i> Nesting</label>
+    <label for="node-input-enableNesting" style="width:160px;"><i class="fa fa-indent"></i> Nesting</label>
     <input type="checkbox" id="node-input-enableNesting" style="width:auto;vertical-align:middle;" />
     <span style="font-size:12px;color:#666;"> Wrap mapped fields in a nested object</span>
   </div>
   <div class="form-row" id="nesting-key-row" style="display:none;">
-    <label>&nbsp;</label>
-    <input type="text" id="node-input-nestingKey" style="width:70%;" />
+    <label style="width:160px;">&nbsp;</label>
+    <input type="text" id="node-input-nestingKey" style="width:calc(100% - 167px);" />
   </div>
   <hr />
   <div class="form-row">
@@ -1237,42 +1237,42 @@
   </div>
   <div id="advanced-section" style="display:none;">
     <div class="form-row">
-      <label for="node-input-enableComposite"><i class="fa fa-link"></i> Composite</label>
+      <label for="node-input-enableComposite" style="width:160px;"><i class="fa fa-link"></i> Composite</label>
       <input type="checkbox" id="node-input-enableComposite" style="width:auto;vertical-align:middle;" />
       <span style="font-size:12px;color:#666;"> Enable composite message joining</span>
     </div>
     <div class="composite-config" style="display:none;">
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Required Fields (all must be present for a complete message)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Required Fields (all must be present for a complete message)</label>
         <div id="required-fields-container" style="margin-top:4px;"></div>
         <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-required-field" style="margin-top:4px;">+ Add Required Field</button>
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Split Field Parsing (optional)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Split Field Parsing (optional)</label>
         <div style="font-size:11px;color:#888;margin:4px 0;">Read From supports dot paths.</div>
         <div id="split-fields-container" style="margin-top:4px;"></div>
         <button type="button" class="red-ui-button red-ui-button-small" id="btn-add-split-field" style="margin-top:4px;">+ Add Split Field</button>
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Stale Timeout (seconds, 0 = Max Pending Age)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Stale Timeout (seconds, 0 = Max Pending Age)</label>
         <input type="number" id="node-input-staleTimeout" value="0" min="0" style="width:100px;" />
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Composites</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Max Pending Composites</label>
         <input type="number" id="node-input-maxCompositeEntries" value="1000" min="1" style="width:100px;" />
       </div></div>
-      <div class="form-row"><label>&nbsp;</label><div style="margin-left:105px;">
-        <label style="font-size:12px;font-weight:bold;color:#555;">Max Pending Age (seconds)</label>
+      <div class="form-row"><label style="width:160px;display:none;">&nbsp;</label><div style="margin-left:165px;">
+        <label style="font-size:12px;font-weight:bold;color:#555;width:100%;display:block;">Max Pending Age (seconds)</label>
         <input type="number" id="node-input-maxCompositeAgeSec" value="3600" min="1" style="width:100px;" />
       </div></div>
     </div>
     <hr />
     <div class="form-row">
-      <label for="node-input-customJsonata"><i class="fa fa-code"></i> JSONata Override</label>
-      <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">If provided, this JSONata expression replaces all field mapping configuration above. The full <code>msg</code> object is available.</div>
+      <label for="node-input-customJsonata" style="width:160px;"><i class="fa fa-code"></i> JSONata Override</label>
+      <div style="margin-left:165px;font-size:11px;color:#888;margin-bottom:4px;">If provided, this JSONata expression replaces all field mapping configuration above. The full <code>msg</code> object is available.</div>
     </div>
     <div class="form-row">
-      <textarea id="node-input-customJsonata" rows="8" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+      <textarea id="node-input-customJsonata" rows="8" style="margin-left:165px;width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
     </div>
   </div>
 </script>

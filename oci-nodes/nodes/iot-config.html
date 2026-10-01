@@ -132,21 +132,21 @@ RED.nodes.registerType("iot-config", {
 
 <script type="text/x-red" data-template-name="iot-config">
     <div class="form-row">
-        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-config-input-name" placeholder="Optional display name">
+        <label for="node-config-input-name" style="width:130px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Optional display name" style="width:calc(100% - 137px);">
     </div>
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
     <div class="form-row">
-        <label for="node-config-input-deviceHost"><i class="fa fa-globe"></i> Device Host</label>
-        <input type="text" id="node-config-input-deviceHost" placeholder="abc123.device.iot.us-ashburn-1.oci.oraclecloud.com">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
-            The device host from your IoT Domain. Found via: <code>oci iot domain get --iot-domain-id &lt;OCID&gt; --query 'data."device-host"'</code>
+        <label for="node-config-input-deviceHost" style="width:130px;"><i class="fa fa-globe"></i> Device Host</label>
+        <input type="text" id="node-config-input-deviceHost" placeholder="abc123.device.iot.us-ashburn-1.oci.oraclecloud.com" style="width:calc(100% - 137px);">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
+            The device host from your IoT Domain. Found via: <code style="white-space:normal;overflow-wrap:anywhere;">oci iot domain get --iot-domain-id &lt;OCID&gt; --query 'data."device-host"'</code>
         </div>
     </div>
     <div class="form-row">
-        <label for="node-config-input-clientId"><i class="fa fa-microchip"></i> Client ID</label>
-        <input type="text" id="node-config-input-clientId" placeholder="your_device_name">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-config-input-clientId" style="width:130px;"><i class="fa fa-microchip"></i> Client ID</label>
+        <input type="text" id="node-config-input-clientId" placeholder="your_device_name" style="width:calc(100% - 137px);">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             MQTT client ID. Typically the name of your device or digital twin instance.
         </div>
     </div>
@@ -154,7 +154,7 @@ RED.nodes.registerType("iot-config", {
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
     <div class="form-row">
-        <label for="node-config-input-authType"><i class="fa fa-key"></i> Auth Type</label>
+        <label for="node-config-input-authType" style="width:130px;"><i class="fa fa-key"></i> Auth Type</label>
         <select id="node-config-input-authType" style="width:200px;">
             <option value="basic">Basic (Username / Password)</option>
             <option value="cert">Certificate (mTLS)</option>
@@ -163,31 +163,31 @@ RED.nodes.registerType("iot-config", {
     <!-- BASIC AUTH -->
     <div class="auth-section auth-basic">
         <div class="form-row">
-            <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
-            <input type="text" id="node-config-input-username" placeholder="Digital twin external key">
+            <label for="node-config-input-username" style="width:130px;"><i class="fa fa-user"></i> Username</label>
+            <input type="text" id="node-config-input-username" placeholder="Digital twin external key" style="width:calc(100% - 137px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
-            <input type="password" id="node-config-input-password" placeholder="Vault secret content">
+            <label for="node-config-input-password" style="width:130px;"><i class="fa fa-lock"></i> Password</label>
+            <input type="password" id="node-config-input-password" placeholder="Vault secret content" style="width:calc(100% - 137px);">
         </div>
     </div>
     <!-- CERT AUTH -->
     <div class="auth-section auth-cert" style="display:none;">
         <div class="form-row">
-            <label for="node-config-input-caCertPath"><i class="fa fa-certificate"></i> CA Cert</label>
-            <input type="text" id="node-config-input-caCertPath" placeholder="(optional) /path/to/ca.crt">
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            <label for="node-config-input-caCertPath" style="width:130px;"><i class="fa fa-certificate"></i> CA Cert</label>
+            <input type="text" id="node-config-input-caCertPath" placeholder="(optional) /path/to/ca.crt" style="width:calc(100% - 137px);">
+            <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
                 Usually not needed — modern Node.js uses the system CA store.
             </div>
         </div>
         <div class="form-row">
-            <label for="node-config-input-clientCertPath"><i class="fa fa-file-text-o"></i> Client Cert</label>
-            <input type="text" id="node-config-input-clientCertPath" placeholder="/path/to/client_cert.pem">
+            <label for="node-config-input-clientCertPath" style="width:130px;"><i class="fa fa-file-text-o"></i> Client Cert</label>
+            <input type="text" id="node-config-input-clientCertPath" placeholder="/path/to/client_cert.pem" style="width:calc(100% - 137px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-clientKeyPath"><i class="fa fa-key"></i> Client Key</label>
-            <input type="text" id="node-config-input-clientKeyPath" placeholder="/path/to/client_key.pem">
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            <label for="node-config-input-clientKeyPath" style="width:130px;"><i class="fa fa-key"></i> Client Key</label>
+            <input type="text" id="node-config-input-clientKeyPath" placeholder="/path/to/client_key.pem" style="width:calc(100% - 137px);">
+            <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
                 Leave empty if both certificate and key are in the same file.
             </div>
         </div>

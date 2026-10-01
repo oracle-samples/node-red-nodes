@@ -230,38 +230,38 @@ var sqlBindsMappingEditor = (function () {
 
 <script type="text/x-red" data-template-name="sql">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:130px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 137px);">
     </div>
     <div class="form-row">
-        <label for="node-input-connection"><i class="fa fa-database"></i> DB Connection</label>
-        <input type="text" id="node-input-connection">
+        <label for="node-input-connection" style="width:130px;"><i class="fa fa-database"></i> DB Connection</label>
+        <input type="text" id="node-input-connection" style="width:calc(100% - 137px);">
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-sqlSource"><i class="fa fa-toggle-on"></i> SQL Source</label>
+        <label for="node-input-sqlSource" style="width:130px;"><i class="fa fa-toggle-on"></i> SQL Source</label>
         <select id="node-input-sqlSource" style="width:150px;">
             <option value="editor">Editor</option>
             <option value="msg">msg.sql</option>
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-sqlcmd"><i class="fa fa-code"></i> SQL</label>
-        <textarea id="node-input-sqlcmd" rows="6" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
-        <div id="sql-msg-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;display:none;">
+        <label for="node-input-sqlcmd" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-code"></i> SQL</label>
+        <textarea id="node-input-sqlcmd" rows="6" style="width:calc(100% - 137px);font-family:monospace;font-size:12px;"></textarea>
+        <div id="sql-msg-hint" style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;display:none;">
             SQL will be read from <code>msg.sql</code> at runtime.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-bindsSource"><i class="fa fa-toggle-on"></i> Binds Source</label>
+        <label for="node-input-bindsSource" style="width:130px;"><i class="fa fa-toggle-on"></i> Binds Source</label>
         <select id="node-input-bindsSource" style="width:150px;">
             <option value="editor">Editor</option>
             <option value="msg">msg.binds</option>
         </select>
     </div>
     <div class="form-row" id="binds-mapping-container-wrapper">
-        <label><i class="fa fa-list"></i> Binds Mapping</label>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+        <label style="width:130px;"><i class="fa fa-list"></i> Binds Mapping</label>
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">
             Define bind variables to static values, numbers, booleans, dates, msg properties, and JSONata expressions. Drag &#9776; to reorder.
         </div>
         <div id="binds-mapping-container" style="margin-left:20px;margin-right:20px;"></div>
@@ -272,12 +272,12 @@ var sqlBindsMappingEditor = (function () {
     <input type="hidden" id="node-input-binds">
     <input type="hidden" id="node-input-bindsMappings">
     <div class="form-row">
-        <div id="binds-msg-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;display:none;">
+        <div id="binds-msg-hint" style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;display:none;">
             Binds will be read from <code>msg.binds</code> at runtime (JSON array or object).
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-maxrows"><i class="fa fa-sort-numeric-asc"></i> Max Rows</label>
+        <label for="node-input-maxrows" style="width:130px;"><i class="fa fa-sort-numeric-asc"></i> Max Rows</label>
         <input type="number" id="node-input-maxrows" min="1" max="10000" style="width:80px;">
     </div>
 </script>

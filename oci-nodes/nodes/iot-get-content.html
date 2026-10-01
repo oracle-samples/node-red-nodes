@@ -57,15 +57,15 @@ RED.nodes.registerType("iot-get-content", {
 <script type="text/x-red" data-template-name="iot-get-content">
     <div class="form-row">
         <label for="node-input-name" style="width:210px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <input type="text" id="node-input-name" style="width:calc(100% - 217px);">
     </div>
     <div class="form-row">
         <label for="node-input-ociConfig" style="width:210px;"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig">
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 217px);">
     </div>
     <div class="form-row">
         <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
-        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
+        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>" style="width:calc(100% - 217px);">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Set the instance OCID here or override it with <code>msg.digitalTwinInstanceOcid</code>.
         </div>

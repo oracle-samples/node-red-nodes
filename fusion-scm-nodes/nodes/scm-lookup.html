@@ -465,16 +465,16 @@ RED.nodes.registerType("scm-lookup", {
 
 <script type="text/x-red" data-template-name="scm-lookup">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server">
+        <label for="node-input-server" style="width:160px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 167px);">
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-lookupType"><i class="fa fa-list"></i> Lookup Type</label>
+        <label for="node-input-lookupType" style="width:160px;"><i class="fa fa-list"></i> Lookup Type</label>
         <select id="node-input-lookupType" style="width:200px;">
             <option value="custom">Custom</option>
             <option value="installedBaseAsset">Installed Base Asset</option>
@@ -496,46 +496,46 @@ RED.nodes.registerType("scm-lookup", {
         </select>
     </div>
     <div class="form-row work-order-id-section" style="display:none;">
-        <label for="node-input-workOrderId"><i class="fa fa-key"></i> Work Order ID</label>
-        <input type="text" id="node-input-workOrderId" placeholder="Fusion work order resource ID">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. This is the Fusion resource ID, not the displayed work order or batch number. <code>msg.workOrderId</code> overrides this field.</div>
+        <label for="node-input-workOrderId" style="width:160px;"><i class="fa fa-key"></i> Work Order ID</label>
+        <input type="text" id="node-input-workOrderId" placeholder="Fusion work order resource ID" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Required for this lookup. This is the Fusion resource ID, not the displayed work order or batch number. <code>msg.workOrderId</code> overrides this field.</div>
     </div>
     <div class="form-row work-order-operation-id-section" style="display:none;">
-        <label for="node-input-workOrderOperationId"><i class="fa fa-key"></i> Operation ID</label>
-        <input type="text" id="node-input-workOrderOperationId" placeholder="Fusion operation resource ID">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Required for this nested lookup. This is the Fusion operation resource ID, not the operation sequence. <code>msg.workOrderOperationId</code> overrides this field.</div>
+        <label for="node-input-workOrderOperationId" style="width:160px;"><i class="fa fa-key"></i> Operation ID</label>
+        <input type="text" id="node-input-workOrderOperationId" placeholder="Fusion operation resource ID" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Required for this nested lookup. This is the Fusion operation resource ID, not the operation sequence. <code>msg.workOrderOperationId</code> overrides this field.</div>
     </div>
     <div class="form-row organization-query-section">
-        <label for="node-input-organizationQueryField"><i class="fa fa-filter"></i> Find by</label>
+        <label for="node-input-organizationQueryField" style="width:160px;"><i class="fa fa-filter"></i> Find by</label>
         <select id="node-input-organizationQueryField" style="width:200px;">
             <option value="OrganizationName">Organization Name</option>
             <option value="OrganizationCode">Organization Code</option>
             <option value="OrganizationId">Organization ID</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;">Controls the Fusion query field. The output remains the full inventory organization response.</div>
+        <div style="margin-left:165px;font-size:11px;color:#888;">Controls the Fusion query field. The output remains the full inventory organization response.</div>
     </div>
     <hr/>
     <div class="custom-section scm-custom-endpoint-section" style="display:none;">
         <div class="form-row">
-            <label for="node-input-customUrl" style="width:125px;vertical-align:top;margin-top:2px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
-            <textarea id="node-input-customUrl" rows="3" style="width:calc(100% - 132px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
-            <div style="margin-left:130px;font-size:11px;color:#888;margin-top:2px;">Paste a complete Fusion GET URL or enter its base endpoint. A pasted query string is moved into the editable rows below.</div>
+            <label for="node-input-customUrl" style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
+            <textarea id="node-input-customUrl" rows="3" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
+            <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Paste a complete Fusion GET URL or enter its base endpoint. A pasted query string is moved into the editable rows below.</div>
         </div>
         <div class="form-row">
-            <label style="width:125px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Query Parameters</label>
-            <div style="display:inline-block;width:calc(100% - 132px);">
+            <label style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-filter"></i> Query Parameters</label>
+            <div style="display:inline-block;width:calc(100% - 167px);">
                 <input type="hidden" id="node-input-customQueryParams">
                 <div id="custom-query-params-container"></div>
                 <button type="button" class="editor-button" id="add-custom-query-param">
                     <i class="fa fa-plus"></i> Add Parameter
                 </button>
             </div>
-            <div style="margin-left:130px;font-size:11px;color:#888;margin-top:2px;">Optional ordered parameters such as <code>finder</code>, <code>q</code>, <code>fields</code>, <code>limit</code>, or <code>offset</code>. Repeated names are preserved.</div>
+            <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional ordered parameters such as <code>finder</code>, <code>q</code>, <code>fields</code>, <code>limit</code>, or <code>offset</code>. Repeated names are preserved.</div>
         </div>
     </div>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="lookup-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <label style="width:160px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="lookup-endpoint-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 167px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row predefined-query-section">
@@ -564,7 +564,7 @@ RED.nodes.registerType("scm-lookup", {
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional on-hand scope. Leave empty to read from <code>msg.subinventoryCode</code>.</div>
     </div>
     <div class="form-row query-filters-section">
-        <label for="node-input-queryFilters" style="width:160px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Additional Filters</label>
+        <label for="node-input-queryFilters" style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-filter"></i> Additional Filters</label>
         <textarea id="node-input-queryFilters" rows="4" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional JSON object appended to the REST <code>q</code> expression for extra narrowing. Field names may contain letters, numbers, underscores, and dots. Dedicated fields above take precedence over matching keys. Values containing <code>;</code> are rejected. Can be overridden by <code>msg.queryFilters</code>.</div>
     </div>

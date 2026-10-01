@@ -447,16 +447,16 @@ var scmMappingEditor = window.scmMappingEditor;
 
 <script type="text/x-red" data-template-name="fusion-request">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:140px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 147px);">
     </div>
     <div class="form-row">
-        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server" />
+        <label for="node-input-server" style="width:140px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 147px);" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-transactionType"><i class="fa fa-list"></i> Transaction Type</label>
+        <label for="node-input-transactionType" style="width:140px;"><i class="fa fa-list"></i> Transaction Type</label>
         <select id="node-input-transactionType" style="width:200px;">
             <option value="custom">Custom</option>
             <option value="createAsset">Create Asset</option>
@@ -466,7 +466,7 @@ var scmMappingEditor = window.scmMappingEditor;
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-method"><i class="fa fa-arrow-right"></i> Method</label>
+        <label for="node-input-method" style="width:140px;"><i class="fa fa-arrow-right"></i> Method</label>
         <select id="node-input-method" style="width:120px;">
             <option value="GET">GET</option>
             <option value="POST">POST</option>
@@ -476,48 +476,48 @@ var scmMappingEditor = window.scmMappingEditor;
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-requestMediaType"><i class="fa fa-file-code-o"></i> Media Type</label>
+        <label for="node-input-requestMediaType" style="width:140px;"><i class="fa fa-file-code-o"></i> Media Type</label>
         <select id="node-input-requestMediaType" style="width:200px;">
             <option value="resourceItem">ADF Resource Item</option>
             <option value="adfAction">ADF Action</option>
             <option value="json">JSON</option>
             <option value="adfBatch">ADF Batch</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
             ADF Action and ADF Batch require <code>POST</code>. Batch also requires the exact API-version root and a <code>parts</code> array from the selected payload source.
         </div>
     </div>
     <hr/>
     <div class="custom-section scm-custom-endpoint-section" style="display:none;">
         <div class="form-row" id="custom-path-row">
-            <label for="node-input-customPath" style="vertical-align:top;margin-top:2px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
-            <textarea id="node-input-customPath" rows="3" style="width:calc(100% - 107px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            <label for="node-input-customPath" style="vertical-align:top;margin-top:2px;width:140px;"><i class="fa fa-pencil"></i> Custom Endpoint</label>
+            <textarea id="node-input-customPath" rows="3" style="width:calc(100% - 147px);font-family:monospace;font-size:12px;" placeholder="https://hostname/fscmRestApi/resources/version/endpoint"></textarea>
+            <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">
                 Used only when Transaction Type is <code>Custom</code>. Enter an HTTPS URL at or below the configured SCM API-version root, without credentials or a fragment.
             </div>
         </div>
     </div>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="fusion-url-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <label style="width:140px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="fusion-url-display" class="scm-endpoint-preview" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 147px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-payloadSource"><i class="fa fa-sign-in"></i> Payload Source</label>
+        <label for="node-input-payloadSource" style="width:140px;"><i class="fa fa-sign-in"></i> Payload Source</label>
         <select id="node-input-payloadSource" style="width:200px;">
             <option value="mappings">Mapped fields</option>
             <option value="msgPayload">Entire msg.payload</option>
         </select>
     </div>
     <div class="form-row scm-direct-payload-hint" style="display:none;">
-        <div style="margin-left:105px;font-size:11px;color:#888;">
+        <div style="margin-left:145px;font-size:11px;color:#888;">
             Uses the complete <code>msg.payload</code> object as query parameters for <code>GET</code> or as the request body for write methods. Saved mappings are retained but ignored.
         </div>
     </div>
     <div class="scm-payload-mappings">
         <div class="form-row">
-            <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+            <label style="width:140px;"><i class="fa fa-list-ul"></i> Payload Mappings</label>
+            <div style="margin-left:145px;font-size:11px;color:#888;margin-bottom:4px;">
                 Map SCM API fields to dequeued data, message properties, typed static values including static JSON, or the current timestamp. Drag &#9776; to reorder.
                 Selecting a new transaction type will populate default fields.
                 For <code>GET</code>, mappings become query parameters; for <code>POST</code>/<code>PUT</code>/<code>PATCH</code>, mappings become the JSON body; for <code>DELETE</code>, mappings are not sent.

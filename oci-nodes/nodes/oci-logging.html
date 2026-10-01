@@ -172,39 +172,39 @@ RED.nodes.registerType("oci-logging", {
 
 <script type="text/x-red" data-template-name="oci-logging">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:130px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 137px);">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig" />
+        <label for="node-input-ociConfig" style="width:130px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 137px);" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-logId"><i class="fa fa-file-text-o"></i> Log OCID</label>
-        <input type="text" id="node-input-logId" placeholder="<log-ocid>">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-logId" style="width:130px;"><i class="fa fa-file-text-o"></i> Log OCID</label>
+        <input type="text" id="node-input-logId" placeholder="<log-ocid>" style="width:calc(100% - 137px);">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             OCID of the Custom Log created in OCI Console → Logging. If empty, reads from <code>msg.logId</code>.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-logSource"><i class="fa fa-desktop"></i> Log Source</label>
-        <input type="text" id="node-input-logSource" placeholder="source-system">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-logSource" style="width:130px;"><i class="fa fa-desktop"></i> Log Source</label>
+        <input type="text" id="node-input-logSource" placeholder="source-system" style="width:calc(100% - 137px);">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             Identifies the producer (e.g. <code>source-system</code>, <code>host-a</code>). <code>msg.logSource</code> can override this value.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-logType"><i class="fa fa-tag"></i> Log Type</label>
-        <input type="text" id="node-input-logType" placeholder="app.event-type">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-logType" style="width:130px;"><i class="fa fa-tag"></i> Log Type</label>
+        <input type="text" id="node-input-logType" placeholder="app.event-type" style="width:calc(100% - 137px);">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             Category/type label for the log records. <code>msg.logType</code> can override this value.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-severity"><i class="fa fa-exclamation-triangle"></i> Default Severity</label>
+        <label for="node-input-severity" style="width:130px;"><i class="fa fa-exclamation-triangle"></i> Default Severity</label>
         <select id="node-input-severity" style="width:200px;">
             <option value="">None</option>
             <option value="INFO">INFO</option>
@@ -213,24 +213,24 @@ RED.nodes.registerType("oci-logging", {
             <option value="CRITICAL">CRITICAL</option>
             <option value="DEBUG">DEBUG</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             Used as the <code>level</code> field if not already in payload. <code>msg.severity</code> can override this value.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-payloadSource"><i class="fa fa-exchange"></i> Payload Source</label>
+        <label for="node-input-payloadSource" style="width:130px;"><i class="fa fa-exchange"></i> Payload Source</label>
         <select id="node-input-payloadSource" style="width:200px;">
             <option value="mappings">Payload Mappings</option>
             <option value="payload">msg.payload</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">
             <b>Payload Mappings</b>: build the log entry using the mapping rows below.<br/>
             <b>msg.payload</b>: send <code>msg.payload</code> directly (use a function node upstream to build the payload).
         </div>
     </div>
 
-    <div id="ocilogging-payload-hint" style="display:none;margin-left:105px;margin-bottom:12px;padding:8px;background:#f0f7ff;border:1px solid #cce0ff;border-radius:4px;font-size:12px;">
+    <div id="ocilogging-payload-hint" style="display:none;margin-left:135px;margin-bottom:12px;padding:8px;background:#f0f7ff;border:1px solid #cce0ff;border-radius:4px;font-size:12px;">
         <i class="fa fa-info-circle"></i> The node will send <code>msg.payload</code> as-is as the log entry data.
         Use a <b>function</b> node before this node to build the payload from <code>msg.dequeued</code> or other sources.
     </div>
@@ -238,7 +238,7 @@ RED.nodes.registerType("oci-logging", {
     <div id="ocilogging-mappings-section">
         <div class="form-row">
             <label><i class="fa fa-list-ul"></i> Payload Mappings</label>
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-bottom:4px;">
+            <div style="margin-left:135px;font-size:11px;color:#888;margin-bottom:4px;">
                 Map log fields to dequeued data, message properties, or static values. Drag &#9776; to reorder.
             </div>
         </div>

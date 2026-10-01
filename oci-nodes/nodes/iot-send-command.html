@@ -65,23 +65,23 @@ RED.nodes.registerType("iot-send-command", {
 <script type="text/x-red" data-template-name="iot-send-command">
     <div class="form-row">
         <label for="node-input-name" style="width:210px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <input type="text" id="node-input-name" style="width:calc(100% - 217px);">
     </div>
     <div class="form-row">
         <label for="node-input-ociConfig" style="width:210px;"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig" />
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 217px);" />
     </div>
     <hr/>
     <div class="form-row">
         <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
-        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
+        <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>" style="width:calc(100% - 217px);">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Set the instance OCID here or override it with <code>msg.digitalTwinInstanceOcid</code>.
         </div>
     </div>
     <div class="form-row">
         <label for="node-input-requestEndpoint" style="width:210px;"><i class="fa fa-road"></i> Request Endpoint</label>
-        <input type="text" id="node-input-requestEndpoint" placeholder="/endpoints/device-001/commands">
+        <input type="text" id="node-input-requestEndpoint" placeholder="/endpoints/device-001/commands" style="width:calc(100% - 217px);">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Exact MQTT endpoint/topic the device or gateway subscribes to. <code>msg.requestEndpoint</code> can override this value.
         </div>
@@ -94,7 +94,7 @@ RED.nodes.registerType("iot-send-command", {
     </div>
     <div class="form-row response-wait-row">
         <label for="node-input-responseEndpoint" style="width:210px;"><i class="fa fa-reply"></i> Response Endpoint</label>
-        <input type="text" id="node-input-responseEndpoint" placeholder="/endpoints/device-001/responses">
+        <input type="text" id="node-input-responseEndpoint" placeholder="/endpoints/device-001/responses" style="width:calc(100% - 217px);">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             Exact MQTT endpoint/topic the device or gateway publishes back to. <code>msg.responseEndpoint</code> can override this value.
         </div>

@@ -72,22 +72,22 @@ RED.nodes.registerType("get-organization-id", {
 
 <script type="text/x-red" data-template-name="get-organization-id">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:140px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 147px);">
     </div>
     <div class="form-row">
-        <label for="node-input-server"><i class="fa fa-globe"></i> SCM Server</label>
-        <input type="text" id="node-input-server">
+        <label for="node-input-server" style="width:140px;"><i class="fa fa-globe"></i> SCM Server</label>
+        <input type="text" id="node-input-server" style="width:calc(100% - 147px);">
     </div>
     <hr/>
     <div class="form-row">
-        <label><i class="fa fa-link"></i> Endpoint</label>
-        <span id="get-org-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;">Select SCM Server to preview endpoint</span>
+        <label style="width:140px;"><i class="fa fa-link"></i> Endpoint</label>
+        <span id="get-org-endpoint-display" style="font-size:12px;color:#555;word-break:break-all;display:inline-block;width:calc(100% - 147px);vertical-align:top;">Select SCM Server to preview endpoint</span>
     </div>
     <hr/>
     <div class="form-row">
         <label for="node-input-organizationName" style="width:140px;"><i class="fa fa-hashtag"></i> Organization Name</label>
-        <input type="text" id="node-input-organizationName">
+        <input type="text" id="node-input-organizationName" style="width:calc(100% - 147px);">
         <div style="margin-left:145px;font-size:11px;color:#888;margin-top:2px;">Leave empty to read from <code>msg.organizationName</code>.</div>
     </div>
 </script>

@@ -100,76 +100,76 @@ RED.nodes.registerType("oci-object-storage", {
 
 <script type="text/x-red" data-template-name="oci-object-storage">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name">
+        <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig" />
+        <label for="node-input-ociConfig" style="width:160px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 167px);" />
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-operation"><i class="fa fa-exchange"></i> Operation</label>
+        <label for="node-input-operation" style="width:160px;"><i class="fa fa-exchange"></i> Operation</label>
         <select id="node-input-operation" style="width:200px;">
             <option value="upload">Upload</option>
             <option value="download">Download</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.operation</code>.
         </div>
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-namespace"><i class="fa fa-database"></i> Namespace</label>
-        <input type="text" id="node-input-namespace" placeholder="your-tenancy-namespace">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-namespace" style="width:160px;"><i class="fa fa-database"></i> Namespace</label>
+        <input type="text" id="node-input-namespace" placeholder="your-tenancy-namespace" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.namespace</code>. Find with <code>oci os ns get</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-bucketName"><i class="fa fa-folder-o"></i> Bucket</label>
-        <input type="text" id="node-input-bucketName" placeholder="my-bucket">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-bucketName" style="width:160px;"><i class="fa fa-folder-o"></i> Bucket</label>
+        <input type="text" id="node-input-bucketName" placeholder="my-bucket" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.bucketName</code>.
         </div>
     </div>
     <div class="form-row">
-        <label for="node-input-objectName"><i class="fa fa-file-o"></i> Object Name</label>
-        <input type="text" id="node-input-objectName" placeholder="path/to/file.txt">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-objectName" style="width:160px;"><i class="fa fa-file-o"></i> Object Name</label>
+        <input type="text" id="node-input-objectName" placeholder="path/to/file.txt" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             If empty, reads from <code>msg.objectName</code>.
         </div>
     </div>
     <hr/>
         <div class="form-row">
-            <label for="node-input-filePath"><i class="fa fa-hdd-o"></i> File Path</label>
-            <input type="text" id="node-input-filePath" placeholder="/tmp/example.bin">
-            <div id="file-path-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;"></div>
-            <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+            <label for="node-input-filePath" style="width:160px;"><i class="fa fa-hdd-o"></i> File Path</label>
+            <input type="text" id="node-input-filePath" placeholder="/tmp/example.bin" style="width:calc(100% - 167px);">
+            <div id="file-path-hint" style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;"></div>
+            <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
                 Use a full absolute path (for example <code>/path/to/example.bin</code>). Do not use shorthand or relative paths.
             </div>
         </div>
     <div class="form-row" id="row-content-type">
-        <label for="node-input-contentType"><i class="fa fa-file-code-o"></i> Content Type</label>
-        <input type="text" id="node-input-contentType" placeholder="application/octet-stream">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-contentType" style="width:160px;"><i class="fa fa-file-code-o"></i> Content Type</label>
+        <input type="text" id="node-input-contentType" placeholder="application/octet-stream" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Upload only. If empty, can be provided via <code>msg.contentType</code>.
         </div>
     </div>
     <div class="form-row" id="row-download-output">
-        <label for="node-input-downloadOutput"><i class="fa fa-list"></i> Download Output</label>
+        <label for="node-input-downloadOutput" style="width:160px;"><i class="fa fa-list"></i> Download Output</label>
         <select id="node-input-downloadOutput" style="width:200px;">
             <option value="buffer">Buffer</option>
             <option value="text">Text</option>
         </select>
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Download only. <b>Buffer</b> keeps binary-safe output. <b>Text</b> converts bytes to a string.
         </div>
     </div>
     <div class="form-row" id="row-encoding">
-        <label for="node-input-encoding"><i class="fa fa-font"></i> Text Encoding</label>
-        <input type="text" id="node-input-encoding" placeholder="utf8">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+        <label for="node-input-encoding" style="width:160px;"><i class="fa fa-font"></i> Text Encoding</label>
+        <input type="text" id="node-input-encoding" placeholder="utf8" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             Used only when Download Output is <b>Text</b>. <code>msg.encoding</code> can override this value.
         </div>
     </div>

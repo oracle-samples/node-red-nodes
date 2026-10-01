@@ -295,11 +295,11 @@ RED.nodes.registerType("db-connection", {
         <div id="tab-auth" class="red-ui-tab-content">
         <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
         <div class="form-row">
-            <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
-            <input type="text" id="node-config-input-name" placeholder="Optional display name">
+            <label for="node-config-input-name" style="width:245px;"><i class="fa fa-tag"></i> Name</label>
+            <input type="text" id="node-config-input-name" placeholder="Optional display name" style="width:calc(100% - 252px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-authType"><i class="fa fa-key"></i> Auth Type</label>
+            <label for="node-config-input-authType" style="width:245px;"><i class="fa fa-key"></i> Auth Type</label>
             <select id="node-config-input-authType" style="width:200px;">
                 <option value="basic">Basic (User/Pass)</option>
                 <option value="config">DB Token — Config File</option>
@@ -310,84 +310,84 @@ RED.nodes.registerType("db-connection", {
             </select>
         </div>
         <div class="form-row">
-            <label for="node-config-input-driverMode"><i class="fa fa-exchange"></i> Driver Mode</label>
+            <label for="node-config-input-driverMode" style="width:245px;"><i class="fa fa-exchange"></i> Driver Mode</label>
             <select id="node-config-input-driverMode" style="width:200px;">
                 <option value="thick">Thick (Oracle Client)</option>
                 <option value="thin">Thin (Pure JS)</option>
             </select>
         </div>
         <div class="form-row" style="margin-top:-8px;">
-            <span style="margin-left:120px;font-size:11px;color:#666;">
+            <span style="display:block;margin-left:250px;font-size:11px;color:#666;">
                 Driver mode is process-wide. Keep consistent across all db-connection nodes.
             </span>
         </div>
         <div class="form-row external-auth">
-            <label for="node-config-input-externalAuth" style="width:120px;"><i class="fa fa-shield"></i> External Auth</label>
+            <label for="node-config-input-externalAuth" style="width:245px;"><i class="fa fa-shield"></i> External Auth</label>
             <input type="checkbox" id="node-config-input-externalAuth" style="margin-left:0;width:auto;">
         </div>
         <div class="auth-section auth-basic">
             <div class="form-row">
-                <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
-                <input type="text" id="node-config-input-username">
+                <label for="node-config-input-username" style="width:245px;"><i class="fa fa-user"></i> Username</label>
+                <input type="text" id="node-config-input-username" style="width:calc(100% - 252px);">
             </div>
             <div class="form-row">
-                <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
-                <input type="password" id="node-config-input-password">
+                <label for="node-config-input-password" style="width:245px;"><i class="fa fa-lock"></i> Password</label>
+                <input type="password" id="node-config-input-password" style="width:calc(100% - 252px);">
             </div>
         </div>
         <div class="auth-section auth-config auth-session">
             <div class="form-row">
-                <label for="node-config-input-configFileLocation"><i class="fa fa-file-text-o"></i> Config File</label>
-                <input type="text" id="node-config-input-configFileLocation" placeholder="~/.oci/config">
+                <label for="node-config-input-configFileLocation" style="width:245px;"><i class="fa fa-file-text-o"></i> Config File</label>
+                <input type="text" id="node-config-input-configFileLocation" placeholder="~/.oci/config" style="width:calc(100% - 252px);">
             </div>
             <div class="form-row">
-                <label for="node-config-input-profile"><i class="fa fa-id-card-o"></i> Profile</label>
-                <input type="text" id="node-config-input-profile" placeholder="DEFAULT">
-                <div id="profile-caption" style="font-size:11px;color:#888;margin-top:3px;"></div>
+                <label for="node-config-input-profile" style="width:245px;"><i class="fa fa-id-card-o"></i> Profile</label>
+                <input type="text" id="node-config-input-profile" placeholder="DEFAULT" style="width:calc(100% - 252px);">
+                <div id="profile-caption" style="margin-left:250px;font-size:11px;color:#888;margin-top:3px;"></div>
             </div>
         </div>
         <div class="auth-section auth-simple">
             <div class="form-row">
-                <label for="node-config-input-fingerprint"><i class="fa fa-fingerprint"></i> Fingerprint</label>
-                <input type="text" id="node-config-input-fingerprint">
+                <label for="node-config-input-fingerprint" style="width:245px;"><i class="fa fa-fingerprint"></i> Fingerprint</label>
+                <input type="text" id="node-config-input-fingerprint" style="width:calc(100% - 252px);">
             </div>
             <div class="form-row">
-                <label for="node-config-input-privateKeyLocation"><i class="fa fa-key"></i> Private Key Path</label>
-                <input type="text" id="node-config-input-privateKeyLocation">
+                <label for="node-config-input-privateKeyLocation" style="width:245px;"><i class="fa fa-key"></i> Private Key Path</label>
+                <input type="text" id="node-config-input-privateKeyLocation" style="width:calc(100% - 252px);">
             </div>
             <div class="form-row">
-                <label for="node-config-input-passphrase"><i class="fa fa-lock"></i> Passphrase</label>
-                <input type="password" id="node-config-input-passphrase">
+                <label for="node-config-input-passphrase" style="width:245px;"><i class="fa fa-lock"></i> Passphrase</label>
+                <input type="password" id="node-config-input-passphrase" style="width:calc(100% - 252px);">
             </div>
             <div class="form-row">
-                <label for="node-config-input-regionId"><i class="fa fa-map-marker"></i> Region</label>
-                <input type="text" id="node-config-input-regionId">
+                <label for="node-config-input-regionId" style="width:245px;"><i class="fa fa-map-marker"></i> Region</label>
+                <input type="text" id="node-config-input-regionId" style="width:calc(100% - 252px);">
             </div>
             <div class="form-row">
-                <label for="node-config-input-userOCID"><i class="fa fa-user"></i> User OCID</label>
-                <input type="text" id="node-config-input-userOCID">
+                <label for="node-config-input-userOCID" style="width:245px;"><i class="fa fa-user"></i> User OCID</label>
+                <input type="text" id="node-config-input-userOCID" style="width:calc(100% - 252px);">
             </div>
             <div class="form-row">
-                <label for="node-config-input-tenancyOCID"><i class="fa fa-building"></i> Tenancy OCID</label>
-                <input type="text" id="node-config-input-tenancyOCID">
+                <label for="node-config-input-tenancyOCID" style="width:245px;"><i class="fa fa-building"></i> Tenancy OCID</label>
+                <input type="text" id="node-config-input-tenancyOCID" style="width:calc(100% - 252px);">
             </div>
         </div>
         <div class="auth-section auth-config auth-ip auth-rp auth-session auth-session-scope">
             <div class="form-row">
-                <label for="node-config-input-scope"><i class="fa fa-shield"></i> Scope</label>
-                <input type="text" id="node-config-input-scope">
+                <label for="node-config-input-scope" style="width:245px;"><i class="fa fa-shield"></i> Scope</label>
+                <input type="text" id="node-config-input-scope" style="width:calc(100% - 252px);">
             </div>
         </div>
         <div class="auth-section auth-basic auth-config auth-ip auth-rp auth-session auth-simple">
             <div class="form-row">
-                <label for="node-config-input-proxyUser"><i class="fa fa-user-circle-o"></i> Session User</label>
-                <input type="text" id="node-config-input-proxyUser" placeholder="optional">
-                <div class="basic-session-user-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+                <label for="node-config-input-proxyUser" style="width:245px;"><i class="fa fa-user-circle-o"></i> Session User</label>
+                <input type="text" id="node-config-input-proxyUser" placeholder="optional" style="width:calc(100% - 252px);">
+                <div class="basic-session-user-hint" style="margin-left:250px;font-size:11px;color:#888;margin-top:2px;">
                     Optional proxy target. Username authenticates and appears as <code>PROXY_USER</code>;
                     Session User is the effective schema and appears as <code>SESSION_USER</code>.
                     Existing <code>USERNAME[SESSION_USER]</code> values remain supported when Session User is empty.
                 </div>
-                <div class="token-session-user-hint" style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">
+                <div class="token-session-user-hint" style="margin-left:250px;font-size:11px;color:#888;margin-top:2px;">
                     Optional proxy target. The IAM identity authenticates; Session User is the effective
                     schema and appears as <code>SESSION_USER</code>.
                 </div>
@@ -399,16 +399,16 @@ RED.nodes.registerType("db-connection", {
         <div id="tab-connection" class="red-ui-tab-content">
         <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
         <div class="form-row">
-            <label for="node-config-input-tnsString" style="width:120px;vertical-align:top;margin-top:2px;"><i class="fa fa-server"></i> TNS String</label>
-            <textarea id="node-config-input-tnsString" rows="5" style="width:calc(100% - 127px);" placeholder="TNS alias or connect descriptor"></textarea>
-            <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
+            <label for="node-config-input-tnsString" style="vertical-align:top;margin-top:2px;width:245px;"><i class="fa fa-server"></i> TNS String</label>
+            <textarea id="node-config-input-tnsString" rows="5" style="width:calc(100% - 252px);" placeholder="TNS alias or connect descriptor"></textarea>
+            <div style="margin-left:250px;font-size:11px;color:#888;margin-top:2px;">
                 Required. Enter a TNS alias, or paste only the descriptor after <code>&lt;alias&gt; =</code> from <code>tnsnames.ora</code>.
             </div>
         </div>
         <div class="form-row">
-            <label for="node-config-input-walletLocation" style="width:120px;"><i class="fa fa-folder-open-o"></i> Wallet Directory</label>
-            <input type="text" id="node-config-input-walletLocation" placeholder="/path/to/extracted_wallet">
-            <div style="margin-left:125px;font-size:11px;color:#888;margin-top:2px;">
+            <label for="node-config-input-walletLocation" style="width:245px;"><i class="fa fa-folder-open-o"></i> Wallet Directory</label>
+            <input type="text" id="node-config-input-walletLocation" placeholder="/path/to/extracted_wallet" style="width:calc(100% - 252px);">
+            <div style="margin-left:250px;font-size:11px;color:#888;margin-top:2px;">
                 Enter the extracted wallet directory. Do not enter a ZIP file or <code>tnsnames.ora</code>.
                 Optional unless the database connection requires a wallet.
             </div>
@@ -419,23 +419,23 @@ RED.nodes.registerType("db-connection", {
         <div id="tab-pool" class="red-ui-tab-content">
         <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection Pool</legend>
         <div class="form-row">
-            <label for="node-config-input-usePool" style="width:140px;"><i class="fa fa-database"></i> Use Pool</label>
+            <label for="node-config-input-usePool" style="width:245px;"><i class="fa fa-database"></i> Use Pool</label>
             <input type="checkbox" id="node-config-input-usePool" style="margin-left:0;width:auto;">
         </div>
         <div class="form-row pool-options">
-            <label for="node-config-input-poolMin" style="width:140px;"><i class="fa fa-minus-circle"></i> Pool Min</label>
+            <label for="node-config-input-poolMin" style="width:245px;"><i class="fa fa-minus-circle"></i> Pool Min</label>
             <input type="number" id="node-config-input-poolMin" min="0" style="width:80px;">
         </div>
         <div class="form-row pool-options">
-            <label for="node-config-input-poolMax" style="width:140px;"><i class="fa fa-plus-circle"></i> Pool Max</label>
+            <label for="node-config-input-poolMax" style="width:245px;"><i class="fa fa-plus-circle"></i> Pool Max</label>
             <input type="number" id="node-config-input-poolMax" min="1" style="width:80px;">
         </div>
         <div class="form-row pool-options">
-            <label for="node-config-input-poolIncrement" style="width:140px;"><i class="fa fa-sort-numeric-asc"></i> Pool Increment</label>
+            <label for="node-config-input-poolIncrement" style="width:245px;"><i class="fa fa-sort-numeric-asc"></i> Pool Increment</label>
             <input type="number" id="node-config-input-poolIncrement" min="1" style="width:80px;">
         </div>
         <div class="form-row pool-options">
-            <label for="node-config-input-queueTimeout" style="width:140px;"><i class="fa fa-clock-o"></i> Queue Timeout (ms)</label>
+            <label for="node-config-input-queueTimeout" style="width:245px;"><i class="fa fa-clock-o"></i> Queue Timeout (ms)</label>
             <input type="number" id="node-config-input-queueTimeout" min="0" style="width:100px;">
         </div>
         </fieldset>
@@ -444,40 +444,38 @@ RED.nodes.registerType("db-connection", {
         <div id="tab-nls" class="red-ui-tab-content">
         <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Session Settings (NLS)</legend>
         <div class="form-row">
-            <label for="node-config-input-nlsLanguage" style="width:175px;"><i class="fa fa-globe"></i> NLS_LANGUAGE</label>
-            <input type="text" id="node-config-input-nlsLanguage" placeholder="e.g. AMERICAN">
+            <label for="node-config-input-nlsLanguage" style="width:245px;"><i class="fa fa-globe"></i> NLS_LANGUAGE</label>
+            <input type="text" id="node-config-input-nlsLanguage" placeholder="e.g. AMERICAN" style="width:calc(100% - 252px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-nlsTerritory" style="width:175px;"><i class="fa fa-map"></i> NLS_TERRITORY</label>
-            <input type="text" id="node-config-input-nlsTerritory" placeholder="e.g. AMERICA">
+            <label for="node-config-input-nlsTerritory" style="width:245px;"><i class="fa fa-map"></i> NLS_TERRITORY</label>
+            <input type="text" id="node-config-input-nlsTerritory" placeholder="e.g. AMERICA" style="width:calc(100% - 252px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-timeZone" style="width:175px;"><i class="fa fa-clock-o"></i> TIME_ZONE</label>
-            <input type="text" id="node-config-input-timeZone" placeholder="e.g. UTC or -05:00">
+            <label for="node-config-input-timeZone" style="width:245px;"><i class="fa fa-clock-o"></i> TIME_ZONE</label>
+            <input type="text" id="node-config-input-timeZone" placeholder="e.g. UTC or -05:00" style="width:calc(100% - 252px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-nlsNumeric" style="width:175px;"><i class="fa fa-calculator"></i> NLS_NUMERIC_CHARACTERS</label>
+            <label for="node-config-input-nlsNumeric" style="width:245px;"><i class="fa fa-calculator"></i> NLS_NUMERIC_CHARACTERS</label>
             <input type="text" id="node-config-input-nlsNumeric" placeholder=",." style="width:60px;">
         </div>
         <div class="form-row">
-            <label for="node-config-input-nlsDateFmt" style="width:175px;"><i class="fa fa-calendar"></i> NLS_DATE_FORMAT</label>
-            <input type="text" id="node-config-input-nlsDateFmt" placeholder="YYYY-MM-DD">
+            <label for="node-config-input-nlsDateFmt" style="width:245px;"><i class="fa fa-calendar"></i> NLS_DATE_FORMAT</label>
+            <input type="text" id="node-config-input-nlsDateFmt" placeholder="YYYY-MM-DD" style="width:calc(100% - 252px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-nlsTsFmt" style="width:175px;"><i class="fa fa-calendar"></i> NLS_TIMESTAMP_FORMAT</label>
-            <input type="text" id="node-config-input-nlsTsFmt" placeholder="YYYY-MM-DD HH24:MI:SS.FF">
+            <label for="node-config-input-nlsTsFmt" style="width:245px;"><i class="fa fa-calendar"></i> NLS_TIMESTAMP_FORMAT</label>
+            <input type="text" id="node-config-input-nlsTsFmt" placeholder="YYYY-MM-DD HH24:MI:SS.FF" style="width:calc(100% - 252px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-nlsTsTzFmt" style="width:175px;"><i class="fa fa-calendar"></i> NLS_TIMESTAMP_TZ_FORMAT</label>
-            <input type="text" id="node-config-input-nlsTsTzFmt" placeholder="YYYY-MM-DD HH24:MI:SS.FF TZH:TZM">
+            <label for="node-config-input-nlsTsTzFmt" style="width:245px;"><i class="fa fa-calendar"></i> NLS_TIMESTAMP_TZ_FORMAT</label>
+            <input type="text" id="node-config-input-nlsTsTzFmt" placeholder="YYYY-MM-DD HH24:MI:SS.FF TZH:TZM" style="width:calc(100% - 252px);">
         </div>
         <div class="form-row">
-            <label for="node-config-input-sessionInitSql" style="width:175px;"><i class="fa fa-code"></i> Advanced (restricted)</label>
+            <label for="node-config-input-sessionInitSql" style="width:245px;vertical-align:top;margin-top:2px;"><i class="fa fa-code"></i> Advanced (restricted)</label>
+            <textarea id="node-config-input-sessionInitSql" rows="6" style="width:calc(100% - 252px);" placeholder="ALTER SESSION SET ... ; ALTER SESSION SET ..."></textarea>
         </div>
-        <div class="form-row">
-            <textarea id="node-config-input-sessionInitSql" rows="6" style="width:100%;" placeholder="ALTER SESSION SET ... ; ALTER SESSION SET ..."></textarea>
-        </div>
-        <div class="form-tips" style="margin-top:4px;">
+        <div class="form-tips" style="margin-top:4px;margin-left:250px;">
             Advanced (restricted) accepts only <code>ALTER SESSION SET ...</code> statements.
             Limits: max 1000 characters and max 10 statements separated by <code>;</code>.
         </div>

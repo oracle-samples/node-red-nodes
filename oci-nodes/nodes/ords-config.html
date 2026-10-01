@@ -104,13 +104,13 @@ RED.nodes.registerType("ords-config", {
 <script type="text/x-red" data-template-name="ords-config">
     <div class="form-row">
         <label for="node-config-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-config-input-name" placeholder="Optional display name">
+        <input type="text" id="node-config-input-name" placeholder="Optional display name" style="width:calc(100% - 167px);">
     </div>
 
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Connection</legend>
     <div class="form-row">
         <label for="node-config-input-baseUrl" style="width:160px;"><i class="fa fa-link"></i> Base URL</label>
-        <input type="text" id="node-config-input-baseUrl" placeholder="https://host.example.com/base-path">
+        <input type="text" id="node-config-input-baseUrl" placeholder="https://host.example.com/base-path" style="width:calc(100% - 167px);">
         <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">
             ORDS/Data API base URL. Request nodes append relative paths such as <code>/20250531/rawCommandData</code>.
         </div>
@@ -124,19 +124,19 @@ RED.nodes.registerType("ords-config", {
     <fieldset><legend style="font-size:12px;font-weight:bold;color:#555;">Authentication</legend>
     <div class="form-row">
         <label for="node-config-input-clientId" style="width:160px;"><i class="fa fa-user"></i> Client ID</label>
-        <input type="text" id="node-config-input-clientId">
+        <input type="text" id="node-config-input-clientId" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
         <label for="node-config-input-clientSecret" style="width:160px;"><i class="fa fa-key"></i> Client Secret</label>
-        <input type="password" id="node-config-input-clientSecret">
+        <input type="password" id="node-config-input-clientSecret" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
         <label for="node-config-input-tokenUrl" style="width:160px;"><i class="fa fa-link"></i> Token URL</label>
-        <input type="text" id="node-config-input-tokenUrl" placeholder="https://.../oauth2/v1/token">
+        <input type="text" id="node-config-input-tokenUrl" placeholder="https://.../oauth2/v1/token" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
         <label for="node-config-input-scope" style="width:160px;"><i class="fa fa-shield"></i> Scope</label>
-        <input type="text" id="node-config-input-scope">
+        <input type="text" id="node-config-input-scope" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
         <label for="node-config-input-tokenExpiryFallbackMins" style="width:160px;"><i class="fa fa-clock-o"></i> Fallback Expiry (min)</label>
