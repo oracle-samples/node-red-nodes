@@ -534,74 +534,42 @@ var scmMappingEditor = window.scmMappingEditor;
 </script>
 
 <script type="text/x-red" data-help-name="fusion-request">
-<p>A unified Oracle Fusion SCM request node that supports all common transaction types
-and custom endpoints in a single configurable interface.</p>
+<p>Makes Oracle Fusion SCM REST requests using a preset transaction type or a custom endpoint.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Transaction Type</dt>
-    <dd>Selects the REST endpoint and pre-populates default field mappings:
+    <dt>SCM Server</dt><dd>Connection and OAuth authentication.</dd>
+    <dt>Transaction Type / Endpoint</dt><dd>Selects the endpoint and default mappings: Create Asset uses Installed Base Assets; Create Meter Reading uses Meter Readings; Miscellaneous Transaction and Subinventory Quantity Transfer use Inventory Staged Transactions. Endpoint is a read-only preview.</dd>
+    <dt>Custom URL</dt><dd>Used by Custom transaction type. Requires HTTPS, no credentials or fragment, and the server's exact <code>/fscmRestApi/resources/{api-version}</code> root or a resource below it. Custom requests do not follow redirects.</dd>
+    <dt>Method</dt><dd>GET, POST, PUT, PATCH or DELETE. GET sends selected data as query parameters; POST/PUT/PATCH send a JSON body; DELETE sends no request data.</dd>
+    <dt>Payload Source</dt><dd><code>Mapped fields</code> builds data only from the table, never falling back to <code>msg.payload</code>. POST/PUT/PATCH require mappings; GET/DELETE may omit them. <code>Entire msg.payload</code> uses a validated copy of the input object and ignores, but retains, saved mappings.</dd>
+    <dt>Payload Mappings</dt><dd>Each row selects an SCM Field, Source and Value: a path under <code>msg.dequeued</code>, any message property path, static text/number/boolean/JSON, or the current timestamp.</dd>
+    <dt>Media Type</dt><dd>
         <ul>
-            <li><b>Create Asset</b> &mdash; Installed Base Assets endpoint</li>
-            <li><b>Create Meter Reading</b> &mdash; Meter Readings endpoint</li>
-            <li><b>Miscellaneous Transaction</b> &mdash; Inventory Staged Transactions endpoint</li>
-            <li><b>Subinventory Quantity Transfer</b> &mdash; Inventory Staged Transactions endpoint</li>
-            <li><b>Custom</b> &mdash; provide your own endpoint URL</li>
+            <li><b>ADF Resource Item</b> (default): collection and item requests.</li>
+            <li><b>ADF Action:</b> POST only; supports <code>/action/name</code> URLs and action-in-payload requests on resource URLs.</li>
+            <li><b>JSON:</b> endpoints requiring <code>application/json</code>.</li>
+            <li><b>ADF Batch:</b> POST to the exact configured API-version root with a nonempty <code>parts</code> array.</li>
         </ul>
-    </dd>
-    <dt>Method</dt><dd>HTTP method (GET, POST, PUT, PATCH, DELETE).</dd>
-    <dt>Media Type</dt>
-    <dd>
-        <ul>
-            <li><b>ADF Resource Item</b> &mdash; resource collection and item requests.</li>
-            <li><b>ADF Action</b> &mdash; action requests. Requires <code>POST</code>; supports both <code>/action/name</code> URLs and Oracle's action-in-payload form on a resource URL.</li>
-            <li><b>JSON</b> &mdash; SCM endpoints that document <code>application/json</code>.</li>
-            <li><b>ADF Batch</b> &mdash; multi-part requests. Requires <code>POST</code> to the exact configured API-version root and a mapped <code>parts</code> array.</li>
-        </ul>
-    </dd>
-    <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Transaction Type and SCM Server.</dd>
-    <dt>Custom URL</dt><dd>Custom endpoint used only when Transaction Type is <code>Custom</code>. It must use HTTPS, cannot contain credentials or a fragment, and must remain at or below the configured SCM Server's exact <code>/fscmRestApi/resources/{api-version}</code> root. Custom requests do not follow redirects.</dd>
-    <dt>Payload Source</dt><dd><code>Mapped fields</code> builds request data only from the mapping table and requires at least one mapping for <code>POST</code>, <code>PUT</code>, and <code>PATCH</code>. Parameterless <code>GET</code> and <code>DELETE</code> requests may omit mappings. Mapped fields never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> uses a validated copy of the complete input object and ignores, but retains, saved mappings. For <code>GET</code> it becomes query parameters; for write methods it becomes the JSON body.</dd>
-    <dt>Payload Mappings</dt>
-    <dd>Map SCM API fields to values. Each row specifies:
-        <ul>
-            <li><b>SCM Field</b> &mdash; the API field name</li>
-            <li><b>Source</b> &mdash; <code>dequeued data</code> (reads from msg.dequeued), <code>msg property</code> (any msg path), <code>static text</code>, <code>static number</code>, <code>static boolean</code>, <code>static JSON</code>, or <code>current timestamp</code></li>
-            <li><b>Value</b> &mdash; the field name, property path, or literal value</li>
-        </ul>
-        For <code>GET</code>, mapped fields are sent as query parameters. For <code>POST</code>/<code>PUT</code>/<code>PATCH</code>, mapped fields are sent as the JSON request body. For <code>DELETE</code>, mapped fields are not sent.
     </dd>
 </dl>
 <h3>Outputs</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object|string</span></dt><dd>Raw API response body on success, error details on failure.</dd>
-    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code.</dd>
-    <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
+    <dt>payload <span class="property-type">object|string</span></dt><dd>Raw API response body; error details on Catch.</dd>
+    <dt>statusCode <span class="property-type">number</span></dt><dd>HTTP status code, or 0 when unavailable.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Failure details (<code>message</code>, <code>code</code>) routed to Catch.</dd>
 </dl>
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>msg.method <span class="property-type">string</span></dt><dd>Overrides the configured HTTP method for this message (e.g. <code>GET</code>, <code>POST</code>, <code>PATCH</code>). Case-insensitive.</dd>
+    <dt>msg.method <span class="property-type">string</span></dt><dd>Overrides Method for this message (case-insensitive).</dd>
 </dl>
-
 <h3>Details</h3>
-<p>This is the primary SCM transaction node. Select a transaction type to auto-populate the endpoint
-and default field mappings, or choose <b>Custom</b> to target any Fusion SCM REST endpoint.</p>
-<p>The node validates Custom URLs, methods, media types, and ADF Batch parts before acquiring an OAuth
-token. Batch part IDs must be unique; paths must be relative SCM resource paths, with or without a
-leading slash, and must not contain traversal. Slashless <code>get</code>, <code>create</code>,
-<code>update</code>, <code>replace</code>, and <code>delete</code> paths receive a leading slash in
-the outbound request without changing the incoming message; <code>invoke</code> paths are preserved;
-operations must be <code>get</code>, <code>create</code>, <code>update</code>, <code>replace</code>,
-<code>delete</code>, or <code>invoke</code>. Create, update, and replace operations require an object
-payload. Invoke operations may omit the payload for parameterless actions, but any supplied payload
-must be an object.</p>
-<p>Use the dedicated <b>smart operations event</b> node for
-<code>/api/scm-core/operational-data/v1/events</code>. The generic Custom mode is limited to the
-configured Fusion SCM resource hierarchy.</p>
-<p>Payload usage depends on the effective HTTP method: <code>GET</code> sends the selected payload
-source as query parameters, <code>POST</code>/<code>PUT</code>/<code>PATCH</code> sends it as the JSON
-request body, and <code>DELETE</code> does not send request data.</p>
-<p>On success, the node status is <code>read</code> for <code>GET</code>, <code>submitted</code> for
-<code>POST</code>, <code>updated</code> for <code>PUT</code>/<code>PATCH</code>, or <code>deleted</code>
-for <code>DELETE</code>. The output payload remains the raw Fusion response body.</p>
+<p>Batch parts require unique IDs and relative SCM resource paths without traversal. Operations are
+<code>get</code>, <code>create</code>, <code>update</code>, <code>replace</code>, <code>delete</code>, or
+<code>invoke</code>. Paths receive a leading slash when missing, except <code>invoke</code> paths,
+which are preserved; input data is unchanged. Create, update and replace require object payloads.
+Invoke may omit its payload, but a supplied payload must be an object.</p>
+<p>Validation runs before token acquisition. Success status is <code>read</code>, <code>submitted</code>,
+<code>updated</code>, or <code>deleted</code> for the effective method.</p>
+<p>For <code>/api/scm-core/operational-data/v1/events</code>, use <b>smart operations event</b>;
+Custom mode is restricted to the configured Fusion SCM resource hierarchy.</p>
 </script>

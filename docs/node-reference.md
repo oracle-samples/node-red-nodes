@@ -424,9 +424,9 @@ Palette label: `manage manufacturing work order details`.
 | SCM Server | Yes | References a scm-server config node |
 | Resource | Yes | Operation, Component, Resource, Serial, or Progress |
 | Action | Yes | Child collections support Create, List, Get, Update, and Delete where Fusion supports them; Progress supports Create only |
-| Work Order ID | Resource-dependent | Fusion manufacturing work order resource ID. If empty, reads `msg.workOrderId` |
-| Operation ID | Component/Resource | Fusion operation resource ID. If empty, reads `msg.operationId` |
-| Child ID | Get/Update/Delete | Operation, component, resource, or serial child record ID. If empty, reads `msg.childRecordId` |
+| Work Order ID | Resource-dependent | Fusion manufacturing work order resource ID. `msg.workOrderId` overrides the editor value |
+| Operation ID | Component/Resource | Fusion operation resource ID. `msg.operationId` overrides the editor value |
+| Child ID | Get/Update/Delete | Operation, component, resource, or serial child record ID. `msg.childRecordId` overrides the editor value |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected SCM Server, Resource, and Action |
 | Payload Source | Create/Update | `Mapped fields` (default) builds the child request from mappings. `Entire msg.payload` uses a validated copy of the complete input object and ignores, but retains, saved mappings |
 | Payload Mappings | Create/Update with Mapped fields | Structured rows mapping Fusion child-resource or operation-transaction fields to values |
@@ -443,7 +443,7 @@ Resource modes target these Fusion resources:
 
 Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`, read from matching `msg.payload.*` paths. Progress transactions read the nested `OperationTransactionDetail` collection from `msg.payload.OperationTransactionDetail` by default.
 
-**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` supply IDs when editor fields are blank. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
+**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` override their editor values. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
 
 **Outputs:** `msg.payload` (API response), `msg.manufacturingWorkOrderChild` (same successful API response), `msg.workOrderChild` (same successful API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
@@ -512,9 +512,9 @@ Palette label: `manage maintenance work order details`.
 | SCM Server | Yes | References a scm-server config node |
 | Resource | Yes | Operation, Material, Resource, or Cost Transaction |
 | Action | Yes | Child collections support Create, List, Get, Update, and Delete where Fusion supports them; Cost Transaction supports Create only |
-| Work Order ID | Resource-dependent | Fusion maintenance work order resource ID. If empty, reads `msg.workOrderId` |
-| Operation ID | Material/Resource | Fusion operation resource ID. If empty, reads `msg.operationId` |
-| Child ID | Get/Update/Delete | Operation, material, or resource child record ID. If empty, reads `msg.childRecordId` |
+| Work Order ID | Resource-dependent | Fusion maintenance work order resource ID. `msg.workOrderId` overrides the editor value |
+| Operation ID | Material/Resource | Fusion operation resource ID. `msg.operationId` overrides the editor value |
+| Child ID | Get/Update/Delete | Operation, material, or resource child record ID. `msg.childRecordId` overrides the editor value |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected SCM Server, Resource, and Action |
 | Payload Source | Create/Update | `Mapped fields` (default) builds the child request from mappings. `Entire msg.payload` uses a validated copy of the complete input object and ignores, but retains, saved mappings |
 | Payload Mappings | Create/Update with Mapped fields | Structured rows mapping Fusion child-resource or maintenance operation transaction fields to values |
@@ -530,7 +530,7 @@ Resource modes target these Fusion resources:
 
 Operation presets include `OperationSequenceNumber`, `OperationName`, `OperationDescription`, `WorkCenterCode`, `CountPointOperationFlag`, `AutoTransactFlag`, `PlannedStartDate`, and `PlannedCompletionDate`, read from matching `msg.payload.*` paths. Cost transactions read the nested `OperationTransactionDetail` collection from `msg.payload.OperationTransactionDetail` by default.
 
-**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` supply IDs when editor fields are blank. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
+**Inputs (runtime overrides):** `msg.resource` overrides the configured Resource; `msg.action` overrides the configured Action; `msg.workOrderId`, `msg.operationId`, and `msg.childRecordId` override their editor values. Mapping rows can read from `msg.payload`, `msg.dequeued`, any message property path, typed static values including `static JSON`, or the current timestamp. In Entire msg.payload mode, `msg.payload` is the complete Create or Update body. List, Get, and Delete do not send it.
 
 **Outputs:** `msg.payload` (API response), `msg.maintenanceWorkOrderChild` (same successful API response), `msg.workOrderChild` (same successful API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
@@ -567,7 +567,7 @@ Palette label: `delete scm record`.
 |-------|----------|-------------|
 | SCM Server | Yes | References a scm-server config node |
 | Delete Type | Yes | Asset, Meter, Misc, Subinventory, or Custom |
-| Resource ID | No | If empty, reads from `msg.resourceId` |
+| Resource ID | No | `msg.resourceId` overrides the editor value |
 | Custom Endpoint | Custom only | Editable HTTPS base endpoint used when Delete Type is `custom`. Query strings are not allowed, and the host must match the configured SCM Server |
 | Endpoint | Editor preview | Read-only endpoint preview based on selected Delete Type and SCM Server |
 
@@ -1134,7 +1134,7 @@ Publishes telemetry data to the IoT Platform via MQTT.
 
 Auto Timestamp rejects a null payload. Payloads that cannot be serialized as JSON also route to Catch with `invalid payload`, without publishing. Null remains unchanged when Auto Timestamp is disabled.
 
-**Outputs:** `msg.payload` (passed through), `msg.topic` (MQTT topic published to)
+**Outputs:** `msg.payload` (published payload, including any scalar wrapper or added timestamp), `msg.topic` (MQTT topic published to)
 
 Status uses an active dot while `connecting`, then reports `connected`, `publishing`, or `published` as the connection and publish operation progress.
 

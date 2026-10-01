@@ -191,29 +191,23 @@ RED.nodes.registerType("oci-object-storage", {
     <dt>Operation</dt>
     <dd><code>upload</code> or <code>download</code>. <code>msg.operation</code> can override this value.</dd>
     <dt>Namespace</dt>
-    <dd>Required at runtime. Set in node config or provide <code>msg.namespace</code>.</dd>
+    <dd>Required tenancy namespace.</dd>
     <dt>Bucket</dt>
-    <dd>Bucket name. If empty, reads from <code>msg.bucketName</code>.</dd>
+    <dd>Required bucket name.</dd>
     <dt>Object Name</dt>
-    <dd>Object path/name in the bucket. If empty, reads from <code>msg.objectName</code>.</dd>
+    <dd>Required object path/name within the bucket.</dd>
     <dt>File Path</dt>
     <dd>
-        Optional local path.
-        For upload, used only when <code>msg.payload</code> is absent or null. An empty string uploads zero bytes instead of reading the file.
-        For download, writes the downloaded object to this path (while still returning it in <code>msg.payload</code>).
-        Provide the full absolute path, for example <code>/path/to/nodered-downloaded.txt</code>.
+        Optional absolute local path. Upload reads it only when <code>msg.payload</code> is absent or null; an empty string payload uploads zero bytes. Download saves a copy here and returns the content as described below.
     </dd>
     <dt>Content Type</dt>
-    <dd>Upload-only optional MIME type. <code>msg.contentType</code> can override this value.</dd>
+    <dd>Optional upload MIME type.</dd>
     <dt>Download Output</dt>
     <dd>
-        Download-only output mode.
-        <code>buffer</code> (default) keeps <code>msg.payload</code> as a Buffer.
-        <code>text</code> converts payload bytes to a string using the selected encoding.
-        <code>msg.downloadOutput</code> can override this value.
+        <code>buffer</code> (default) returns bytes; <code>text</code> decodes them using Text Encoding.
     </dd>
     <dt>Text Encoding</dt>
-    <dd>Download-only when output is <code>text</code>. Default <code>utf8</code>. <code>msg.encoding</code> can override this value.</dd>
+    <dd>Used for text downloads. Default: <code>utf8</code>.</dd>
     <dt>Max Response Bytes</dt>
     <dd>Maximum buffered successful download size. Default: 16777216 bytes (16 MiB), including saved flows without this field. Messages cannot override it. Uploads are unaffected; SDK-handled service error bodies are outside this limit.</dd>
 </dl>
@@ -237,6 +231,7 @@ RED.nodes.registerType("oci-object-storage", {
 </dl>
 
 <h3>Runtime overrides</h3>
+<p>Message overrides of editor fields ignore undefined, null, and empty strings. <code>msg.payload</code> follows the separate upload rules below.</p>
 <p><b>File access:</b> Paths use the Node-RED process's filesystem permissions, and downloads can overwrite existing files. Validate incoming operation and path overrides against an allowlist before this node; editor settings do not restrict them.</p>
 <dl class="message-properties">
     <dt>msg.operation <span class="property-type">string</span></dt><dd>Overrides the Operation field: <code>upload</code> or <code>download</code>.</dd>
@@ -247,18 +242,10 @@ RED.nodes.registerType("oci-object-storage", {
     <dt>msg.contentType <span class="property-type">string</span></dt><dd>Overrides Content Type (upload only).</dd>
     <dt>msg.downloadOutput <span class="property-type">string</span></dt><dd>Overrides Download Output: <code>buffer</code> or <code>text</code> (download only).</dd>
     <dt>msg.encoding <span class="property-type">string</span></dt><dd>Overrides Text Encoding for text downloads (e.g. <code>utf8</code>, <code>ascii</code>).</dd>
-    <dt>msg.payload <span class="property-type">any</span></dt><dd>Upload body when operation is <code>upload</code>. If absent and File Path is set, the file is uploaded instead.</dd>
+    <dt>msg.payload <span class="property-type">any</span></dt><dd>Upload body. Absent or null input uses File Path; other values, including an empty string, take precedence.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>A download above Max Response Bytes stops reading and reports <code>OCI_RESPONSE_TOO_LARGE</code> through Catch, with no normal output or file write. Downloads are buffered even when a File Path is set. Raise the limit only for trusted larger objects and available memory.</p>
-<p>For uploads, the node sends <code>msg.payload</code> unless the payload is absent and File Path points to a local file. For downloads, <code>msg.payload</code> receives the object content even when a File Path is also used to save a copy locally.</p>
+<p>Downloads are buffered even when File Path is set. Exceeding Max Response Bytes stops reading and reaches Catch with <code>OCI_RESPONSE_TOO_LARGE</code>, with no normal output or file write. Raise the limit only for trusted larger objects and available memory.</p>
 
-<h3>Typical Flows</h3>
-<p><b>Upload JSON payload:</b><br/>
-<code>inject</code> (JSON) &rarr; <code>oci object storage</code> (upload) &rarr; <code>debug</code></p>
-<p><b>Upload from local file:</b><br/>
-<code>inject</code> (JSON null payload) &rarr; <code>oci object storage</code> (upload + file path) &rarr; <code>debug</code></p>
-<p><b>Download file:</b><br/>
-<code>inject</code> &rarr; <code>oci object storage</code> (download) &rarr; <code>file</code> / <code>debug</code></p>
 </script>

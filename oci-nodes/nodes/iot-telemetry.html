@@ -96,7 +96,7 @@ RED.nodes.registerType("iot-telemetry", {
     <dd>MQTT topic to publish to. If empty, reads from <code>msg.topic</code>.
     If both are absent, the node reports an error.</dd>
     <dt>QoS</dt>
-    <dd>MQTT QoS level for published messages. If empty, reads from <code>msg.qos</code>.</dd>
+    <dd>MQTT QoS level (0, 1, or 2). <code>msg.qos</code> can override it.</dd>
     <dt>Auto Timestamp</dt>
     <dd>Off by default. When enabled, adds a <code>time</code> field (epoch microseconds) to the
     payload if one is not already present. Prefer setting <code>time</code> at the device or upstream
@@ -110,8 +110,8 @@ RED.nodes.registerType("iot-telemetry", {
 
 <h3>Outputs</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object</span></dt>
-    <dd>The original payload (passed through on successful publish).</dd>
+    <dt>payload <span class="property-type">object | null</span></dt>
+    <dd>Published payload, including any scalar wrapper or added timestamp.</dd>
     <dt>topic <span class="property-type">string</span></dt>
     <dd>The MQTT topic the message was published to.</dd>
     <dt>error <span class="property-type">object</span></dt>
@@ -121,20 +121,10 @@ RED.nodes.registerType("iot-telemetry", {
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
     <dt>msg.topic <span class="property-type">string</span></dt><dd>Used when Topic is blank in the editor.</dd>
-    <dt>msg.qos <span class="property-type">number</span></dt><dd>Overrides configured QoS per message (0, 1, 2).</dd>
+    <dt>msg.qos <span class="property-type">number</span></dt><dd>Overrides configured QoS per message (0, 1, 2). Invalid values warn and use configured QoS.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>Publishes <code>msg.payload</code> to the configured topic. If the Topic field is blank,
-<code>msg.topic</code> is used instead. If neither is set the node reports an error.</p>
+<p>Structured telemetry must match the Digital Twin Model and Adapter definition. Unstructured telemetry can use any JSON object.</p>
 
-
-<p>For structured telemetry, the payload must match the Digital Twin Model and Adapter
-definition. For unstructured telemetry, the payload can be any JSON object.</p>
-
-<h3>Typical Flows</h3>
-<p><b>Timer-based sensor simulation:</b><br/>
-<code>inject</code> (repeat every 10s) → <code>function</code> (build payload) → <code>iot telemetry</code></p>
-<p><b>Dequeue → transform → publish:</b><br/>
-<code>dequeue</code> → <code>split</code> → <code>smo-transformer</code> → <code>iot telemetry</code></p>
 </script>

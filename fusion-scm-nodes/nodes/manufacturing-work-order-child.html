@@ -495,11 +495,11 @@ window.workOrderChildEditor = (function () {
 <h3>Inputs</h3>
 <dl class="message-properties">
     <dt>workOrderId <span class="property-type">string</span></dt>
-    <dd>Manufacturing work order resource ID when the editor field is blank.</dd>
+    <dd>Manufacturing work order resource ID; overrides the editor value.</dd>
     <dt>operationId <span class="property-type">string</span></dt>
-    <dd>Operation resource ID for Component and Resource modes when the editor field is blank.</dd>
+    <dd>Operation resource ID for Component and Resource modes; overrides the editor value.</dd>
     <dt>childRecordId <span class="property-type">string</span></dt>
-    <dd>Operation, component, resource, or serial child record ID for get, update, and delete actions.</dd>
+    <dd>Operation, component, resource, or serial ID for get, update and delete; overrides the editor value.</dd>
     <dt>payload <span class="property-type">object</span></dt>
     <dd>Source for mappings, or the complete child request when Payload Source is <code>Entire msg.payload</code>.</dd>
 </dl>

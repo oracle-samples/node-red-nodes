@@ -97,7 +97,7 @@ RED.nodes.registerType("get-ib-asset", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Serial Number</dt><dd>The value to query by. If left blank, reads from <code>msg.serialNumber</code>.</dd>
+    <dt>Serial Number</dt><dd>Fallback serial number when no message override is supplied.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint URL derived from the selected SCM Server.</dd>
 </dl>
 <h3>Outputs</h3>

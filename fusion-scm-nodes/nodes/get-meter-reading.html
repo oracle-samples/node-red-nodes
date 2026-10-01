@@ -111,8 +111,8 @@ RED.nodes.registerType("get-meter-reading", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Asset Number</dt><dd>Required asset identifier. If left blank, reads from <code>msg.assetNumber</code>.</dd>
-    <dt>Meter Code</dt><dd>Required meter identifier. If left blank, reads from <code>msg.meterCode</code>.</dd>
+    <dt>Asset Number</dt><dd>Required asset identifier; <code>msg.assetNumber</code> takes precedence.</dd>
+    <dt>Meter Code</dt><dd>Required meter identifier; <code>msg.meterCode</code> takes precedence.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint URL derived from the selected SCM Server.</dd>
 </dl>
 <h3>Outputs</h3>

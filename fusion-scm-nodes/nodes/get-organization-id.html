@@ -97,7 +97,7 @@ RED.nodes.registerType("get-organization-id", {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
-    <dt>Organization Name</dt><dd>The value to query by. If left blank, reads from <code>msg.organizationName</code>.</dd>
+    <dt>Organization Name</dt><dd>Fallback organization name when no message override is supplied.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint URL derived from the selected SCM Server.</dd>
 </dl>
 <h3>Outputs</h3>

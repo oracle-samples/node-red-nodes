@@ -278,17 +278,7 @@ RED.nodes.registerType("oci-log-analytics", {
     <dt>Default Severity</dt>
     <dd>Used as the <code>level</code> field if not already set. <code>msg.severity</code> can override this value.</dd>
     <dt>Payload Source</dt>
-    <dd>
-        <b>Payload Mappings</b> &mdash; build the log entry using the mapping rows. Each row specifies:
-        <ul>
-            <li><b>Log Field</b> &mdash; the field name in the log entry (e.g. <code>device</code>, <code>event</code>)</li>
-            <li><b>Source</b> &mdash; <code>dequeued data</code> reads from <code>msg.dequeued</code>,
-                <code>msg property</code> reads from any <code>msg</code> path,
-                <code>static value</code> uses a constant</li>
-            <li><b>Value</b> &mdash; field name, property path, or literal value</li>
-        </ul>
-        <b>msg.payload</b> &mdash; sends <code>msg.payload</code> directly. Use a function node upstream.
-    </dd>
+    <dd><b>Payload Mappings</b> builds a log entry from rows: Log Field names the output field; Source selects a field under <code>msg.dequeued</code>, any message property path, or a static value; Value supplies that path or literal. <b>msg.payload</b> uses the incoming payload directly.</dd>
 </dl>
 
 <h3>Outputs</h3>
@@ -302,25 +292,6 @@ RED.nodes.registerType("oci-log-analytics", {
 </dl>
 
 <h3>Details</h3>
-<p>The node ships with example mappings for a typical IoT threshold breach scenario:</p>
-<pre>
-Log Field         Source           Value
-─────────         ──────           ─────
-event             static value     THRESHOLD_BREACH
-device            dequeued data    deviceId
-location          dequeued data    location
-sht_temperature   dequeued data    sht_temperature
-threshold         dequeued data    threshold
-action            static value     shutdown_sent
-</pre>
-<p>These assume an upstream <b>dequeue</b> node provides <code>msg.dequeued</code> with device telemetry.
-Modify or replace these mappings to match your payload structure.</p>
+<p>Default mappings demonstrate a threshold breach: for example, <code>device</code> reads <code>msg.dequeued.deviceId</code> and <code>event</code> uses the static value <code>THRESHOLD_BREACH</code>. Change the mappings to match your data.</p>
 
-<h3>Typical Flows</h3>
-<p><b>Flow 1 &mdash; Log threshold breaches:</b><br/>
-<code>dequeue</code> &rarr; <code>switch</code> (threshold) &rarr; <code>oci log analytics</code> (with mappings)</p>
-<p><b>Flow 2 &mdash; Log command acknowledgments:</b><br/>
-<code>sql</code> (query RAW_COMMAND_DATA) &rarr; <code>switch</code> (DELIVERY_STATUS) &rarr; <code>function</code> &rarr; <code>oci log analytics</code> (msg.payload mode)</p>
-<p><b>Flow 3 &mdash; Log all errors:</b><br/>
-<code>catch</code> (all) &rarr; <code>function</code> &rarr; <code>oci log analytics</code> (msg.payload mode)</p>
 </script>

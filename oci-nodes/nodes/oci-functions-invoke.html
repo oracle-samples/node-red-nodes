@@ -111,9 +111,9 @@ RED.nodes.registerType("oci-functions-invoke", {
 </dl>
 
 <h3>Details</h3>
-<p>A response above Max Response Bytes stops reading and reports <code>OCI_RESPONSE_TOO_LARGE</code> through Catch, with no normal output. The function may already have completed; this limit does not undo its work. Raise the limit only for trusted larger responses and available memory.</p>
-<p>Detached success means OCI accepted the request, not that the function finished or succeeded. Track completion separately, or use Synchronous mode if the next node needs the function's returned result.</p>
-<p>The Invoke Base Endpoint must be the HTTPS OCI Functions base origin, without the function path. It is validated before OCI credentials are requested.</p>
-<p>Endpoints must use the exact OCI Functions host structure, an SDK-known OCI realm domain, and the default HTTPS port. Validation occurs before credentials are requested. The configured endpoint client is cached. A message-level endpoint override uses a request-scoped client whose circuit breaker is released after the response is read. The shared authentication provider remains owned by <code>oci-config</code>.</p>
-<p>All upstream properties are preserved. Invocation failures call <code>done(err)</code> and can be handled with a Node-RED Catch node.</p>
+<p>Responses above Max Response Bytes stop reading and reach Catch with <code>OCI_RESPONSE_TOO_LARGE</code>, without normal output. The function may already have completed; this limit does not undo its work. Raise it only for trusted larger responses and available memory.</p>
+<p>Detached success means OCI accepted the request, not that the function finished or succeeded. Track completion separately, or use Synchronous when the next node needs the result.</p>
+<p>The endpoint requires the exact OCI Functions host structure, an SDK-known OCI realm domain, the default HTTPS port, and no function path. Validation runs before credentials are requested.</p>
+<p>Upstream properties are preserved. Invocation failures reach a Node-RED Catch node.</p>
+
 </script>

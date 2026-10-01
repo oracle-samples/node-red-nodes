@@ -159,7 +159,7 @@ RED.nodes.registerType("delete-transaction", {
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Delete Type</dt><dd>Selects the REST endpoint for the resource type being deleted. Use <code>Custom</code> to provide your own base URL.</dd>
-    <dt>Resource ID</dt><dd>Identifier to append to the selected endpoint. If left blank, reads from <code>msg.resourceId</code>.</dd>
+    <dt>Resource ID</dt><dd>Identifier appended to the endpoint; <code>msg.resourceId</code> takes precedence.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the endpoint base URL for the selected Delete Type and SCM Server.</dd>
     <dt>Custom URL</dt><dd>Custom base endpoint used only when Delete Type is <code>Custom</code>. Query parameters are not allowed. Must use HTTPS and target the configured SCM server host; requests to any other host are rejected so the bearer token is not sent elsewhere.</dd>
 </dl>
@@ -173,7 +173,7 @@ RED.nodes.registerType("delete-transaction", {
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>msg.resourceId <span class="property-type">string</span></dt><dd>Resource ID — used when the Resource ID field is left blank.</dd>
+    <dt>msg.resourceId <span class="property-type">string</span></dt><dd>Overrides the configured Resource ID for this message.</dd>
     <dt>msg.mode <span class="property-type">string</span></dt><dd>Overrides the Delete Type for this message. Accepted values: <code>asset</code>, <code>meter</code>, <code>misc</code>, <code>subinventory</code>, <code>custom</code>.</dd>
 </dl>
 

@@ -311,44 +311,39 @@ RED.nodes.registerType("dequeue", {
 </script>
 
 <script type="text/x-red" data-help-name="dequeue">
-<p>Dequeues messages from an Oracle Advanced Queue (AQ).</p>
+<p>Reads messages from an Oracle Advanced Queue (AQ), with optional database-side filtering.</p>
 
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>DB Connection</dt><dd>Shared database connection configuration.</dd>
-    <dt>Mode</dt><dd><b>Transactional</b> (default) — triggered by an incoming message; supports begin/end-transaction for rollback protection. <b>Continuous</b> — starts automatically on deploy, listens indefinitely, commits immediately after each batch; no input port.</dd>
-    <dt>Queue Name</dt><dd>Schema-qualified queue name, e.g. <code>ADMIN.MY_QUEUE</code>.</dd>
-    <dt>Subscriber</dt><dd>Consumer name for multi-consumer queues. Leave empty only for single-consumer queues. <code>ORA-25231</code> means the queue requires this value.</dd>
-    <dt>Payload Type</dt><dd><b>JSON</b> — plain JS object. <b>RAW</b> — Buffer. <b>ADT</b> — Oracle object type, automatically converted to a plain JS object with uppercase attribute names.</dd>
-    <dt>Filter Source / Condition</dt><dd><b>None</b> (default) ignores all condition values. <b>Editor</b> applies the configured Oracle dequeue predicate. <b>Message</b> reads <code>msg.dequeueCondition</code> on each Transactional input, with no editor fallback; it is unavailable in Continuous mode. Active conditions must be nonblank single-line strings of at most 4000 UTF-8 bytes, without control characters. Supply a predicate, not a full SELECT. This sets the native dequeue condition; it does not create or change subscriber rules. Oracle validates predicate syntax and support for the selected queue and payload.</dd>
-    <dt>Dequeue Mode</dt><dd><b>Remove</b> (default) — message permanently deleted on commit. <b>Browse</b> — messages read without locking or removal, one at a time up to Batch Size. Only the first read waits for a message; the remaining reads return available messages without waiting. <b>Locked</b> — message locked for processing but not removed on commit; uses the same single-message reads and wait behavior as Browse.</dd>
-    <dt>Block Indefinitely / Wait (seconds)</dt><dd>In Transactional mode, how long to wait for a message. 0 = return immediately if empty.</dd>
-    <dt>Enable Retries / Retry Delay / Max Retries</dt><dd>In Continuous mode, controls reconnect behavior for DB/dequeue errors. A missing Subscriber for a multi-consumer queue stops immediately. Max Retries 0 = unlimited retries.</dd>
+    <dt>Mode</dt><dd><b>Transactional</b> (default) runs per input and supports Begin/End Transaction. <b>Continuous</b> starts on deploy, has no input port and commits each batch before downstream processing.</dd>
+    <dt>Queue Name / Subscriber</dt><dd>Schema-qualified queue name and existing consumer for multi-consumer queues. This field does not create a subscriber. Leave Subscriber blank only for single-consumer queues; otherwise Oracle returns <code>ORA-25231</code>.</dd>
+    <dt>Payload Type</dt><dd><b>JSON</b> (default): JavaScript value. <b>RAW</b>: Buffer. <b>ADT</b>: Oracle object converted to a plain object with uppercase attributes; specify the queue's Object Type.</dd>
+    <dt>Batch Size</dt><dd>Maximum records per call, each emitted separately. Default: 1; maximum: 10000.</dd>
+    <dt>Filter Source / Condition</dt><dd><b>None</b> (default) ignores conditions. <b>Editor</b> uses the configured predicate. <b>Message</b> requires <code>msg.dequeueCondition</code> per Transactional input, with no editor fallback; unavailable in Continuous mode. Conditions must be nonblank, single-line strings of at most 4000 UTF-8 bytes without control characters. Enter a predicate, not a SELECT. Oracle validates support for the queue and payload. This sets the native dequeue condition; it does not change subscriber rules.</dd>
+    <dt>Dequeue Mode</dt><dd><b>Remove</b> (default) removes messages on commit. <b>Browse</b> reads without locking/removing; <b>Locked</b> locks without removing on commit. Browse/Locked read one record at a time up to Batch Size; only the first read waits.</dd>
+    <dt>Block Indefinitely / Wait (seconds)</dt><dd>Transactional wait for messages; 0 returns immediately when empty.</dd>
+    <dt>Enable Retries / Retry Delay / Max Retries</dt><dd>Continuous reconnect controls for DB/dequeue errors. Max Retries 0 means unlimited. Missing Subscriber stops immediately.</dd>
 </dl>
 
 <h3>Outputs</h3>
 <dl class="message-properties">
-    <dt>payload <span class="property-type">object | Buffer | DbObject</span></dt>
-    <dd>The dequeued message payload. Type depends on Payload Type setting.</dd>
-    <dt>dequeued <span class="property-type">object | Buffer | DbObject</span></dt>
-    <dd>The same payload reference as <code>msg.payload</code> when emitted. Replacing <code>msg.payload</code> leaves this property available for mappings or recovery, provided downstream nodes preserve it. In-place changes to the object or Buffer also change <code>msg.dequeued</code>; it is not an immutable copy. A later Dequeue replaces it with that call's payload.</dd>
-    <dt>error <span class="property-type">object</span></dt>
-    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+    <dt>payload <span class="property-type">JSON value | Buffer | object</span></dt><dd>One dequeued payload per output.</dd>
+    <dt>dequeued <span class="property-type">JSON value | Buffer | object</span></dt><dd>The same payload reference at emission. Replacing <code>msg.payload</code> leaves <code>msg.dequeued</code> available if downstream nodes preserve it. In-place object/Buffer changes affect both; this is not an immutable copy. A later Dequeue replaces it; aggregation does not collect all originals here.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Failure details: <code>{ message, code }</code>.</dd>
 </dl>
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>dequeueCondition <span class="property-type">string</span></dt>
-    <dd>Required only with Filter Source set to Message. It does not override an Editor condition or enable filtering when None is selected.</dd>
+    <dt>dequeueCondition <span class="property-type">string</span></dt><dd>Required only for Message filtering; cannot override Editor or enable None.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>If <code>msg.transaction</code> is timed out, ended, or has no connection, the node reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Handle the error and start a new transaction before retrying. Messages with no transaction context keep their normal standalone behavior.</p>
-<p>In <b>Transactional</b> mode, if <code>msg.transaction.connection</code> is present (set by a begin-transaction node), the dequeue uses that shared connection; non-empty results do not auto-commit and the messages stay locked until end-transaction commits or rolls back. Without a transaction context, dequeue creates its own connection, auto-commits, and closes. The node reports <code>dequeuing...</code>, followed by <code>dequeued N</code> or <code>no messages</code>.</p>
-<p><b>Batch processing:</b> Each item is emitted separately with the same transaction. The first End finalizes the whole transaction, including every dequeued record. It does not wait for later records or branches. If their results must determine rollback, gather their completion before End. Batch Size 1 reduces this to one dequeued record but does not wait for its parallel branches.</p>
-<p><b>Empty results:</b> With a condition, an empty result means no matching message was returned; unmatched messages can remain in the queue. A managed dequeue with no messages commits previous work in that transaction and closes the connection without emitting a message. Failed DB work still requires rollback. An empty result is not proof that other branches finished: already executing DB work is allowed to finish, but queued or later work using the closed reference reports <code>DB_TRANSACTION_INACTIVE</code>.</p>
-<p><b>Error queue recovery:</b> If the original payload remains available under <code>msg.dequeued</code>, a Function can set <code>msg.payload = [msg.dequeued]</code> before a normal Enqueue with its editor Payload left empty. Check that the property exists first. The outer array preserves one AQ record even for an original JSON array. Use Auto-commit when the source transaction is already closed; an active Begin Transaction still needs its own End. This recovers payload content, not the original AQ message ID or delivery metadata. Aggregation does not make <code>msg.dequeued</code> a collection of all source records.</p>
-<p><code>msg.dequeued</code> stays in memory while the message is referenced; it is not durable recovery storage or a bound on backlog memory. A crash before the recovery enqueue commits can lose the payload. Continuous mode does not wait for downstream processing before fetching more messages.</p>
-<p>In <b>Continuous</b> mode, the node starts on deploy and listens using <code>AQ_DEQ_WAIT_FOREVER</code>. Status reports <code>dequeued N</code> for each non-empty batch, keeps the count visible for two seconds while the next blocking dequeue starts, then returns to the blue-ring <code>listening</code> state. On redeploy or stop, the blocking call is interrupted for a prompt shutdown. Commits immediately after each batch — rollback protection is not available. If the queue is multi-consumer, set <b>Subscriber</b>; otherwise Oracle returns <code>ORA-25231</code>.</p>
-<p>Terminal operational errors, including retry exhaustion, reach a scoped Catch once. Configuration diagnostics such as a missing Subscriber remain separate status/log messages.</p>
+<p><b>Transactions:</b> With an active Begin reference, nonempty reads use its connection without committing; applicable locks remain until finalization. Without transaction context, Dequeue commits and closes its own connection. Inactive references report <code>DB_TRANSACTION_INACTIVE</code> instead of starting standalone work.</p>
+<p><b>Batch completion:</b> Outputs share the transaction. The first End finalizes all its work and dequeued records without waiting for later records or branches. Gather required completions before End if their results must determine rollback. Batch Size 1 isolates one dequeued record, but does not coordinate its parallel branches.</p>
+<p><b>Empty results:</b> No matching records may leave unmatched messages queued. An empty managed Dequeue commits previous transaction work and closes without output; failed DB work still requires rollback. This does not prove other branches finished: active DB work can finish, but queued/later work with the closed reference reports <code>DB_TRANSACTION_INACTIVE</code>.</p>
+<p><b>Recovery:</b> Check <code>msg.dequeued</code> exists, then set <code>msg.payload = [msg.dequeued]</code> before Enqueue with editor Payload blank. The outer array preserves an original JSON array as one record. Use Auto-commit if the source transaction closed; an active Begin still needs End. This restores content, not AQ IDs or delivery metadata.</p>
+<p><code>msg.dequeued</code> remains in memory while referenced, without a backlog memory limit or crash durability. A crash before recovery commits can lose it. Continuous mode does not wait for downstream completion before fetching more.</p>
+<p><b>Continuous operation:</b> Listens with an indefinite AQ wait and interrupts it on stop/redeploy. Rollback protection is unavailable after its batch commit. Status shows <code>dequeued N</code> for two seconds, then <code>listening</code>. Transactional status shows <code>dequeuing...</code>, then <code>dequeued N</code> or <code>no messages</code>.</p>
+<p>Terminal operational errors, including retry exhaustion, reach scoped Catch once. Configuration diagnostics such as a missing Subscriber use separate status/log messages.</p>
 </script>

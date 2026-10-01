@@ -220,38 +220,28 @@ RED.nodes.registerType("enqueue", {
 
 <h3>Configuration</h3>
 <dl class="message-properties">
-    <dt>DB Connection</dt><dd>Database configuration for authentication.</dd>
+    <dt>DB Connection</dt><dd>Shared database connection configuration.</dd>
     <dt>Mode</dt>
-    <dd><strong>Transactional</strong> (default): use the incoming Begin Transaction and let End commit or roll back. Without a transaction context, open a standalone connection, enqueue, commit, and close it. <strong>Auto-commit</strong>: commit each input on a separate connection, even when its incoming transaction has closed. This neither commits nor rolls back the incoming Begin Transaction; an active original transaction still needs its own End. A failure on the separate connection does not mark the original transaction rollback-only.</dd>
-    <dt>Queue Name</dt><dd>Name of the AQ to enqueue into.</dd>
-    <dt>Recipients</dt><dd>Optional comma-separated subscriber names for multi-consumer queues, applied to each message in the batch. Surrounding spaces are removed; names retain their case. Empty list entries and control characters are rejected. Leave blank to use the queue's subscriptions.</dd>
+    <dd><b>Transactional</b> (default) uses the incoming Begin Transaction; End commits or rolls back. Without transaction context, it opens a connection, enqueues, commits and closes. <b>Auto-commit</b> always uses a separate connection and commits each input, including inputs carrying a closed transaction reference. It neither finalizes nor marks the original transaction rollback-only on failure; an active original still needs its own End.</dd>
+    <dt>Queue Name</dt><dd>Existing destination AQ.</dd>
+    <dt>Recipients</dt><dd>Optional comma-separated subscribers for each message in a multi-consumer queue. Spaces are trimmed; case is preserved. Empty entries and control characters are invalid. Blank uses the queue's subscriptions.</dd>
     <dt>Delivery Mode</dt>
-    <dd><strong>Persistent</strong> (default): messages are written to the queue table and committed to disk — durable across database restarts.
-    <strong>Buffered</strong>: in-memory messages requiring immediate visibility; JSON payloads are not supported. This node uses <code>enqMany</code> and does not configure immediate visibility, so buffered delivery may fail with <code>ORA-25298</code>. Thin mode also does not support immediate visibility with <code>enqMany</code>. Use Persistent for the documented workflow; switching driver mode alone does not configure visibility.</dd>
-    <dt>Payload Type</dt>
-    <dd><strong>JSON</strong> (default): payload is a JS object enqueued as <code>DB_TYPE_JSON</code>.
-    <strong>RAW</strong>: payload is a string encoded to a UTF-8 Buffer.
-    <strong>ADT</strong>: payload is a JS object instantiated as an Oracle DbObject using the specified Object Type. Field names must match the Oracle type's attribute names (uppercase).</dd>
-    <dt>Object Type</dt>
-    <dd>ADT only. Schema-qualified Oracle object type name, e.g. <code>ADMIN.MY_MSG_TYPE</code>. Must exist in the database and match the queue's payload type.</dd>
+    <dd><b>Persistent</b> (default) survives database restarts after commit. <b>Buffered</b> requires immediate visibility and does not support JSON. This node uses <code>enqMany</code> without immediate visibility, so Buffered may fail with <code>ORA-25298</code>. Thin mode does not support immediate visibility with <code>enqMany</code>; switching modes does not configure it. Use Persistent for the documented workflow.</dd>
+    <dt>Payload Type / Object Type</dt>
+    <dd><b>JSON</b> (default) uses <code>DB_TYPE_JSON</code>. <b>RAW</b> accepts a Buffer or UTF-8 string. <b>ADT</b> converts objects to the specified Oracle Object Type; use uppercase attribute names. The schema-qualified type must exist and match the queue.</dd>
     <dt>Payload</dt>
-    <dd>JSON: a single object or array — each element becomes one AQ message. RAW: a plain string encoded to a Buffer. ADT: a single object or array with uppercase field names matching the Oracle type. If empty, <code>msg.payload</code> is used instead. For JSON/ADT payload types, use <code>...</code> to open the JSON editor.</dd>
+    <dd>Configured value, or <code>msg.payload</code> when blank. JSON/ADT accepts one object or an array: each array element becomes one AQ message. RAW accepts plain text. Use <code>...</code> for the JSON/ADT editor.</dd>
 </dl>
 
 <h3>Outputs</h3>
-<p><strong>Pass Message</strong> is enabled by default and sends a msg after a successful enqueue. Disable it to use the node as a terminal sink.</p>
+<p><b>Pass Message</b> (enabled by default) forwards the input after success, adding <code>msg.count</code>. Disable it for a terminal sink.</p>
 <dl class="message-properties">
-    <dt>count <span class="property-type">number</span></dt>
-    <dd>Number of messages enqueued.</dd>
-    <dt>error <span class="property-type">object</span></dt>
-    <dd>Error details on failure: <code>{ message, code }</code>.</dd>
+    <dt>count <span class="property-type">number</span></dt><dd>Number of messages enqueued.</dd>
+    <dt>error <span class="property-type">object</span></dt><dd>Failure details: <code>{ message, code }</code>, routed through Catch.</dd>
 </dl>
 
 <h3>Details</h3>
-<p>In Transactional mode, an inactive transaction reference reports <code>DB_TRANSACTION_INACTIVE</code> without starting standalone database work. Messages with no transaction context keep their normal standalone behavior.</p>
-<p>By default, when <code>msg.transaction.connection</code> exists (from <code>begin-transaction</code>), enqueue uses that shared connection and does not auto-commit. The enqueue is finalized by <code>end-transaction</code> commit/rollback.</p>
-<p>Without a transaction context, enqueue opens its own connection, enqueues, commits, and closes.</p>
-<p>With the default payload source, each element of a JSON array is enqueued as a separate AQ message with <code>DB_TYPE_JSON</code> payload type.</p>
-<p>For payload recovery after a Dequeue, set <code>msg.payload = [msg.dequeued]</code> in a Function and leave the editor Payload empty. The outer array preserves one AQ record even when the original payload is itself a JSON array. Check that <code>msg.dequeued</code> exists before recovering, and match the queue's Payload Type. This restores payload content only, not the original AQ message ID or delivery metadata.</p>
-<p>Use Auto-commit if the source transaction has already closed. The destination queue must already exist. The node preserves the incoming transaction reference on success and Catch paths: an active original transaction still needs its own End; an already committed transaction cannot be rolled back. Re-enqueueing is replay, not rollback, and is not crash-safe until the recovery enqueue commits. External side effects may need application-level deduplication.</p>
+<p>Transactional mode rejects inactive references with <code>DB_TRANSACTION_INACTIVE</code>; it does not silently start standalone work. Auto-commit preserves the incoming transaction reference on success and Catch paths. End cannot roll back an independently committed enqueue.</p>
+<p><b>Payload recovery:</b> If <code>msg.dequeued</code> still contains the required payload, set <code>msg.payload = [msg.dequeued]</code> in a Function and leave editor Payload blank. Check the property exists and match the queue's Payload Type. The outer array keeps an original JSON array as one AQ record.</p>
+<p>Use Auto-commit when the source transaction has closed. This recovers content, not the original AQ message ID or delivery metadata. Re-enqueueing is replay, not rollback; it is not crash-safe until its commit succeeds. External side effects may need application-level deduplication.</p>
 </script>
