@@ -76,8 +76,7 @@ RED.nodes.registerType("iot-send-command", {
         <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
         <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
-            The OCID of the digital twin instance to send the command to.
-            <code>msg.digitalTwinInstanceOcid</code> always overrides this value. If empty, reads from <code>msg.digitalTwinOcid</code>.
+            Set the instance OCID here or override it with <code>msg.digitalTwinInstanceOcid</code>.
         </div>
     </div>
     <div class="form-row">

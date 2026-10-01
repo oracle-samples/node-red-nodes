@@ -67,7 +67,7 @@ RED.nodes.registerType("iot-get-content", {
         <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
         <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
-            <code>msg.digitalTwinInstanceOcid</code> always overrides this value. <code>msg.digitalTwinOcid</code> also overrides this value when the new property is absent.
+            Set the instance OCID here or override it with <code>msg.digitalTwinInstanceOcid</code>.
         </div>
     </div>
     <div class="form-row">
@@ -76,7 +76,7 @@ RED.nodes.registerType("iot-get-content", {
         <span style="font-size:12px;color:#666;"> Include model metadata in the content response</span>
     </div>
     <div class="form-tips" style="margin-left:215px;">
-        <b>Tip:</b> Use <code>msg.digitalTwinInstanceOcid</code> for the instance override. The legacy <code>msg.digitalTwinOcid</code> and <code>msg.shouldIncludeMetadata</code> remain supported.
+        <b>Tip:</b> <code>msg.shouldIncludeMetadata</code> can override Include Metadata.
     </div>
 </script>
 
@@ -88,7 +88,7 @@ RED.nodes.registerType("iot-get-content", {
     <dt>OCI Config</dt>
     <dd>References an <code>oci-config</code> node for authentication and region.</dd>
     <dt>Digital Twin Instance OCID</dt>
-    <dd>Digital twin instance OCID. If empty, reads from <code>msg.digitalTwinOcid</code>.</dd>
+    <dd>Digital twin instance OCID. Can be supplied or overridden using <code>msg.digitalTwinInstanceOcid</code>.</dd>
     <dt>Include Metadata</dt>
     <dd>When enabled, requests metadata in addition to content values.</dd>
 </dl>
@@ -111,7 +111,7 @@ RED.nodes.registerType("iot-get-content", {
 <dl class="message-properties">
     <dt>msg.digitalTwinInstanceOcid <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
     <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt>
-    <dd>Overrides the configured Digital Twin Instance OCID.</dd>
+    <dd>Legacy override for existing flows; overrides the configured identifier when <code>msg.digitalTwinInstanceOcid</code> is absent.</dd>
     <dt>msg.shouldIncludeMetadata <span class="property-type">boolean|string</span></dt>
     <dd>Overrides Include Metadata. Accepts booleans or true/false-like strings.</dd>
 </dl>

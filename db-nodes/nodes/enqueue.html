@@ -159,25 +159,25 @@ RED.nodes.registerType("enqueue", {
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-queueName"><i class="fa fa-list-ul"></i> Queue Name</label>
+        <label for="node-input-queueName" style="width:130px;"><i class="fa fa-list-ul"></i> Queue Name</label>
         <input type="text" id="node-input-queueName">
     </div>
     <div class="form-row">
-        <label for="node-input-recipients"><i class="fa fa-users"></i> Recipients</label>
+        <label for="node-input-recipients" style="width:130px;"><i class="fa fa-users"></i> Recipients</label>
         <input type="text" id="node-input-recipients">
-        <div style="margin-left:105px;font-size:11px;color:#888;margin-top:2px;">Comma-separated subscriber names, applied to every message. Leave blank to use the queue's subscriptions.</div>
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Comma-separated subscriber names, applied to every message. Leave blank to use the queue's subscriptions.</div>
     </div>
     <div class="form-row">
-        <label for="node-input-deliveryMode"><i class="fa fa-tachometer"></i> Delivery Mode</label>
+        <label for="node-input-deliveryMode" style="width:130px;"><i class="fa fa-tachometer"></i> Delivery Mode</label>
         <select id="node-input-deliveryMode" style="width:200px;">
             <option value="persistent">Persistent (default)</option>
             <option value="buffered">Buffered</option>
         </select>
     </div>
-    <div id="enqueue-persistent-note" style="margin-left:105px;font-size:11px;color:#888;margin-top:-6px;">
+    <div id="enqueue-persistent-note" style="margin-left:135px;font-size:11px;color:#888;margin-top:-6px;">
         Messages are written to the queue table and committed to disk — durable across database restarts.
     </div>
-    <div id="enqueue-buffered-warning" style="margin-left:105px;font-size:11px;color:#c47a00;margin-top:-6px;display:none;">
+    <div id="enqueue-buffered-warning" style="margin-left:135px;font-size:11px;color:#c47a00;margin-top:-6px;display:none;">
         Buffered messages require immediate visibility and do not support JSON payloads. This node does not configure immediate visibility; use Persistent for the documented workflow.
     </div>
     <hr/>
