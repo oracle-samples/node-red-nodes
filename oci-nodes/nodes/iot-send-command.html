@@ -77,7 +77,7 @@ RED.nodes.registerType("iot-send-command", {
         <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
             The OCID of the digital twin instance to send the command to.
-            <code>msg.digitalTwinInstanceId</code> always overrides this value. If empty, reads from <code>msg.digitalTwinOcid</code>.
+            <code>msg.digitalTwinInstanceOcid</code> always overrides this value. If empty, reads from <code>msg.digitalTwinOcid</code>.
         </div>
     </div>
     <div class="form-row">
@@ -157,7 +157,7 @@ RED.nodes.registerType("iot-send-command", {
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>msg.digitalTwinInstanceId <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
+    <dt>msg.digitalTwinInstanceOcid <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
     <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt><dd>Legacy fallback when the configured identifier is empty and the new override is absent.</dd>
     <dt>msg.requestEndpoint <span class="property-type">string</span></dt><dd>Overrides Request Endpoint when provided.</dd>
     <dt>msg.responseEndpoint <span class="property-type">string</span></dt><dd>Overrides Response Endpoint when provided.</dd>

@@ -9,43 +9,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [0.7.1] - 2026-10-01
 
 ### Added
-- `dequeue` accepts an optional database-side condition from the editor or `msg.dequeueCondition`.
-- `enqueue` provides Transactional and Auto-commit modes.
-- `iot-send-command` and `iot-get-content` accept `msg.digitalTwinInstanceId` without removing the legacy message property.
+- `dequeue` can filter messages in the database using a condition set in the editor or `msg.dequeueCondition`.
+- `enqueue` lets you choose Transactional or Auto-commit mode.
+- `iot-send-command` and `iot-get-content` accept `msg.digitalTwinInstanceOcid`; existing flows using `msg.digitalTwinOcid` still work.
 
 ### Changed
-- `dequeue` groups optional controls into collapsible Filtering and Advanced sections while keeping transaction guidance visible.
-- `package.json` declares the used OCI SDK components directly instead of the umbrella `oci-sdk` dependency.
-- `iot-send-command` and `iot-get-content` display Digital Twin Instance OCID as the identifier label.
-- `oci-api-request` uses a distinct globe icon and grouped request and response fields.
-- `oci-object-storage` and `oci-functions-invoke` limit buffered successful responses to a configurable 16 MiB by default, cancel oversized reads, and report `OCI_RESPONSE_TOO_LARGE` through Catch before normal output or download file writes.
+- `dequeue` puts optional settings in collapsible Filtering and Advanced sections and keeps transaction guidance visible.
+- `package.json` installs only the OCI SDK components used by the nodes.
+- `iot-send-command` and `iot-get-content` label the identifier field Digital Twin Instance OCID.
+- `oci-api-request` replaces its cloud icon with a globe and groups request and response settings.
+- `oci-object-storage` and `oci-functions-invoke` reject oversized successful responses (default limit: 16 MiB, configurable), stop reading, and send `OCI_RESPONSE_TOO_LARGE` to Catch before output or download file writes.
 
 ### Fixed
 - `enqueue` aligns Payload Type, Object Type and Payload fields in the editor.
-- `dequeue` reads Browse and Locked batches one message at a time to avoid false empty results from native array operations.
-- `smo-transformer` preserves custom mapped field names and tests required fields against its own data properties.
-- `db-connection` releases request-owned token-client circuit breakers after successful or failed token requests.
-- `iot-config` preserves the highest requested QoS for shared subscriptions and applies MQTT wildcard rules to system topics.
-- `iot-update-relationship` honors documented message overrides and configured default content.
-- `oci-logging` and `oci-log-analytics` preserve accepted mapped field names as own properties.
-- `dequeue` releases late-acquired continuous connections without starting queue work after shutdown.
-- `dequeue` finalizes empty managed transactions and reports terminal continuous operational failures through Catch.
-- `sql` accepts Oracle alternative-quoted literals and comments before anonymous PL/SQL blocks.
-- `db-connection`, `oci-error` and `scm-error` redact sensitive diagnostics consistently across processing and connection-test paths.
-- `dequeue` normalizes positive fractional batch sizes to at least one.
-- `smo-transformer` finalizes distinct source transactions before merging fragments and reports partial commit outcomes for recovery.
-- `SCM lookup, work-order, child and delete nodes` encode resource path identifiers once and reject path-navigation identifiers.
-- `ords-config` honors short token lifetimes without extending them to the fallback expiry.
-- `oci-ords-poll` applies its deadline to queued and active work and cancels local requests on timeout or close.
-- `OCI SDK nodes` release owned circuit-breaker resources on close, including clients initialized during shutdown.
-- `oci-monitoring-publish` preserves accepted property names without invoking prototype setters.
-- `oci-config` redacts credential-test failures and releases test-client circuit breakers without closing the shared provider.
-- `db-connection` completes pooled session initialization through the driver callback, including initialization failures.
-- `db-connection` applies advanced-only session initialization and uses a complete initialization identity for Thick pools without requesting unsupported Thin tags.
-- `scm-server` honors disabled Expiry Fallback when a token response has no expiry, while deduplicating concurrent token requests.
-- `smo-transformer` enforces Max Pending Age from the first fragment even when new fragments arrive or Stale Timeout is longer.
-- `oci-queue-out` and `oci-kafka-consumer` preserve accepted property and header names without invoking prototype setters; Kafka Producer rejects `__proto__` headers that the client library would otherwise discard.
-- `package.json` manifests restrict package contents to approved files.
+- `dequeue` no longer reports a queue as empty when Browse or Locked batches contain messages.
+- `smo-transformer` keeps custom mapped field names intact and only counts required fields that are present in the event data.
+- `db-connection` stops token-client background timers after both successful and failed token requests.
+- `iot-config` keeps the highest requested QoS when nodes share a subscription and matches system topics according to MQTT wildcard rules.
+- `iot-update-relationship` uses message overrides and configured default content as documented.
+- `oci-logging` and `oci-log-analytics` keep supported mapped field names intact instead of dropping special names.
+- `dequeue` closes connections that arrive after Continuous mode has stopped, without reading more messages.
+- `dequeue` closes empty managed transactions and sends errors that stop Continuous mode to Catch.
+- `sql` correctly handles Oracle alternative quotes and comments before anonymous PL/SQL blocks.
+- `db-connection`, `oci-error` and `scm-error` hide sensitive details in processing errors and connection-test results.
+- `dequeue` uses a batch size of at least one when given a positive fraction.
+- `smo-transformer` commits separate source transactions before combining message fragments and reports which commits succeeded or failed if recovery is needed.
+- `SCM lookup, work-order, child and delete nodes` correctly encode IDs in request URLs and reject IDs that could navigate to another path.
+- `ords-config` respects short token lifetimes instead of caching them for the longer fallback lifetime.
+- `oci-ords-poll` includes queue waiting time in its timeout and cancels local requests on timeout or shutdown.
+- `OCI SDK nodes` stop client background timers on shutdown or redeploy, including clients that finish starting during shutdown.
+- `oci-monitoring-publish` keeps supported dimension and metadata names intact instead of dropping special names.
+- `oci-config` hides sensitive credential-test errors and stops test-client background timers while keeping shared authentication available.
+- `db-connection` finishes pooled session setup and reports setup failures instead of leaving requests waiting.
+- `db-connection` applies Advanced Init SQL even without other session settings and uses the correct session setup in Thin and Thick pools.
+- `scm-server` avoids caching tokens with no expiry when Expiry Fallback is off and shares one token request across concurrent callers.
+- `smo-transformer` measures Max Pending Age from the first fragment, so later fragments or a longer Stale Timeout cannot extend the wait.
+- `oci-queue-out` and `oci-kafka-consumer` keep supported property and header names intact; `oci-kafka-producer` rejects `__proto__` headers instead of silently losing them.
+- `package.json` lists the files allowed in each package, keeping unlisted files out of the download.
 
 ---
 

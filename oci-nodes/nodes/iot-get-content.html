@@ -67,7 +67,7 @@ RED.nodes.registerType("iot-get-content", {
         <label for="node-input-digitalTwinOcid" style="width:210px;"><i class="fa fa-microchip"></i> Digital Twin Instance OCID</label>
         <input type="text" id="node-input-digitalTwinOcid" placeholder="<digital-twin-instance-ocid>">
         <div style="margin-left:215px;font-size:11px;color:#888;margin-top:2px;">
-            <code>msg.digitalTwinInstanceId</code> always overrides this value. <code>msg.digitalTwinOcid</code> also overrides this value when the new property is absent.
+            <code>msg.digitalTwinInstanceOcid</code> always overrides this value. <code>msg.digitalTwinOcid</code> also overrides this value when the new property is absent.
         </div>
     </div>
     <div class="form-row">
@@ -76,7 +76,7 @@ RED.nodes.registerType("iot-get-content", {
         <span style="font-size:12px;color:#666;"> Include model metadata in the content response</span>
     </div>
     <div class="form-tips" style="margin-left:215px;">
-        <b>Tip:</b> Use <code>msg.digitalTwinInstanceId</code> for the instance override. The legacy <code>msg.digitalTwinOcid</code> and <code>msg.shouldIncludeMetadata</code> remain supported.
+        <b>Tip:</b> Use <code>msg.digitalTwinInstanceOcid</code> for the instance override. The legacy <code>msg.digitalTwinOcid</code> and <code>msg.shouldIncludeMetadata</code> remain supported.
     </div>
 </script>
 
@@ -109,7 +109,7 @@ RED.nodes.registerType("iot-get-content", {
 
 <h3>Runtime overrides</h3>
 <dl class="message-properties">
-    <dt>msg.digitalTwinInstanceId <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
+    <dt>msg.digitalTwinInstanceOcid <span class="property-type">string</span></dt><dd>Nonempty instance OCID; overrides both the configured value and the legacy message property.</dd>
     <dt>msg.digitalTwinOcid <span class="property-type">string</span></dt>
     <dd>Overrides the configured Digital Twin Instance OCID.</dd>
     <dt>msg.shouldIncludeMetadata <span class="property-type">boolean|string</span></dt>

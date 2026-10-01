@@ -1157,14 +1157,14 @@ Status reports `received` for each command and immediately restores blue-ring `l
 
 ### iot-send-command
 
-Both nodes prefer `msg.digitalTwinInstanceId` when supplied and reject invalid new overrides. Without it, existing precedence is preserved: Get Content prefers legacy `msg.digitalTwinOcid` over configuration; Send Command prefers the configured identifier over the legacy property. The saved `digitalTwinOcid` field remains supported.
+Both nodes prefer `msg.digitalTwinInstanceOcid` when supplied and reject invalid new overrides. Without it, existing precedence is preserved: Get Content prefers legacy `msg.digitalTwinOcid` over configuration; Send Command prefers the configured identifier over the legacy property. The saved `digitalTwinOcid` field remains supported.
 
 Sends commands to devices via the OCI REST API.
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | OCI Config | Yes | References an oci-config node (not iot-config — this uses the REST API) |
-| Digital Twin Instance OCID | No* | Device to send the command to. *Required here or through `msg.digitalTwinInstanceId` / legacy `msg.digitalTwinOcid` |
+| Digital Twin Instance OCID | No* | Device to send the command to. *Required here or through `msg.digitalTwinInstanceOcid` / legacy `msg.digitalTwinOcid` |
 | Request Endpoint | Yes | Exact endpoint/topic the device or gateway subscribes to. Can be overridden by `msg.requestEndpoint` |
 | Wait for Response | No | Includes response endpoint so the platform waits for device ack. Default: enabled. |
 | Response Endpoint | Response only | Exact endpoint/topic the device or gateway publishes responses to. Can be overridden by `msg.responseEndpoint` |
@@ -1185,10 +1185,10 @@ Retrieves digital twin instance content from the OCI IoT REST API.
 | Field | Required | Description |
 |-------|----------|-------------|
 | OCI Config | Yes | References an `oci-config` node for authentication/region |
-| Digital Twin Instance OCID | Yes* | Digital twin instance OCID. *Can be overridden by `msg.digitalTwinInstanceId` or legacy `msg.digitalTwinOcid` |
+| Digital Twin Instance OCID | Yes* | Digital twin instance OCID. *Can be overridden by `msg.digitalTwinInstanceOcid` or legacy `msg.digitalTwinOcid` |
 | Include Metadata | No | Includes metadata in the response when enabled. Can be overridden by `msg.shouldIncludeMetadata`. |
 
-**Input:** `msg.digitalTwinInstanceId` (preferred override), `msg.digitalTwinOcid` (legacy override), `msg.shouldIncludeMetadata` (optional runtime override; boolean or true/false-like string)
+**Input:** `msg.digitalTwinInstanceOcid` (preferred override), `msg.digitalTwinOcid` (legacy override), `msg.shouldIncludeMetadata` (optional runtime override; boolean or true/false-like string)
 
 **Outputs:** `msg.payload` (digital twin content object), `msg.statusCode`, `msg.etag`, `msg.opcRequestId`, `msg.digitalTwinOcid`, `msg.shouldIncludeMetadata`
 

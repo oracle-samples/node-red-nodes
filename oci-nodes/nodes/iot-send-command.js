@@ -114,7 +114,7 @@ module.exports = function (RED) {
 
                 const digitalTwinId = twinIdentity.resolve(node.digitalTwinOcid, msg);
                 if (!digitalTwinId) {
-                    const err = new Error("No Digital Twin Instance OCID configured or provided in msg.digitalTwinOcid");
+                    const err = new Error("No Digital Twin Instance OCID configured or provided in msg.digitalTwinInstanceOcid or msg.digitalTwinOcid");
                     node.status({ fill: "red", shape: "ring", text: "no twin OCID" });
                     msg.error = { message: err.message, code: null };
                     msg.statusCode = 0;

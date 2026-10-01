@@ -4,13 +4,13 @@
 */
 
 function resolve(configured, msg, legacyMessageFirst) {
-    if (Object.prototype.hasOwnProperty.call(msg, "digitalTwinInstanceId")) {
-        if (typeof msg.digitalTwinInstanceId !== "string" || !msg.digitalTwinInstanceId.trim()) {
-            var err = new Error("msg.digitalTwinInstanceId must be a nonempty digital twin instance identifier");
+    if (Object.prototype.hasOwnProperty.call(msg, "digitalTwinInstanceOcid")) {
+        if (typeof msg.digitalTwinInstanceOcid !== "string" || !msg.digitalTwinInstanceOcid.trim()) {
+            var err = new Error("msg.digitalTwinInstanceOcid must be a nonempty Digital Twin Instance OCID");
             err.code = "OCI_INPUT_INVALID";
             throw err;
         }
-        return msg.digitalTwinInstanceId.trim();
+        return msg.digitalTwinInstanceOcid.trim();
     }
     if (legacyMessageFirst) {
         return String(msg.digitalTwinOcid !== undefined && msg.digitalTwinOcid !== null
