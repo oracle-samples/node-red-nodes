@@ -182,7 +182,7 @@ RED.nodes.registerType("enqueue", {
     </div>
     <hr/>
     <div class="form-row">
-        <label for="node-input-payloadType"><i class="fa fa-file-code-o"></i> Payload Type</label>
+        <label for="node-input-payloadType" style="width:130px;"><i class="fa fa-file-code-o"></i> Payload Type</label>
         <select id="node-input-payloadType" style="width:200px;">
             <option value="json">JSON</option>
             <option value="raw">RAW</option>
@@ -190,9 +190,9 @@ RED.nodes.registerType("enqueue", {
         </select>
     </div>
     <div id="enqueue-adt-row" class="form-row" style="display:none">
-        <label for="node-input-adtTypeName"><i class="fa fa-cube"></i> Object Type</label>
+        <label for="node-input-adtTypeName" style="width:130px;"><i class="fa fa-cube"></i> Object Type</label>
         <input type="text" id="node-input-adtTypeName" placeholder="SCHEMA.TYPE_NAME">
-        <div style="font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
+        <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Schema-qualified Oracle object type name (uppercase). e.g. <code>ADMIN.MY_MSG_TYPE</code></div>
     </div>
     <div class="form-row">
         <label for="node-input-userPayload" style="width:130px;vertical-align:top;margin-top:2px;"><i class="fa fa-code"></i> Payload</label>

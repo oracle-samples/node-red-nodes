@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `oci-object-storage` and `oci-functions-invoke` limit buffered successful responses to a configurable 16 MiB by default, cancel oversized reads, and report `OCI_RESPONSE_TOO_LARGE` through Catch before normal output or download file writes.
 
 ### Fixed
+- `enqueue` aligns Payload Type, Object Type and Payload fields in the editor.
 - `dequeue` reads Browse and Locked batches one message at a time to avoid false empty results from native array operations.
 - `smo-transformer` preserves custom mapped field names and tests required fields against its own data properties.
 - `db-connection` releases request-owned token-client circuit breakers after successful or failed token requests.
