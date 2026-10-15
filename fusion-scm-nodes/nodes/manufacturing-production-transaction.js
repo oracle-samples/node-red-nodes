@@ -36,7 +36,7 @@
 
 module.exports = function(RED) {
     var axios = require("axios");
-    var HttpsProxyAgent = require("https-proxy-agent").HttpsProxyAgent;
+    var HttpsProxyAgent = require("../lib/proxy-agent.js").HttpsProxyAgent;
     var ensureHttps = require("../lib/url.js").ensureHttps;
     var scmMapping = require("../lib/scm-mapping.js");
     var scmError = require("../lib/scm-error.js");
@@ -191,8 +191,11 @@ module.exports = function(RED) {
     }
 
     function wrapDetail(detail, mode) {
-        if (Object.prototype.hasOwnProperty.call(detail, mode.detailField)) {
-            return detail;
+        if (Object.prototype.hasOwnProperty.call(detail, "OperationTransactionDetail") ||
+            Object.prototype.hasOwnProperty.call(detail, "MaterialTransactionDetail")) {
+            throwValidationError(
+                "Provide a logical transaction detail without OperationTransactionDetail or MaterialTransactionDetail wrappers"
+            );
         }
 
         var payload = {};

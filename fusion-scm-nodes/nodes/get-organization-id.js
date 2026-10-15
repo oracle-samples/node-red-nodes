@@ -36,9 +36,10 @@
 
 module.exports = function(RED) {
     const axios = require("axios");
-    const { HttpsProxyAgent } = require("https-proxy-agent");
+    const { HttpsProxyAgent } = require("../lib/proxy-agent.js");
     const { ensureHttps } = require("../lib/url.js");
     const scmError = require("../lib/scm-error.js");
+    const scmQuery = require("../lib/scm-query.js");
 
     function GetOrganizationId(config) {
         RED.nodes.createNode(this, config);
@@ -65,14 +66,14 @@ module.exports = function(RED) {
                     return done(err);
                 }
 
-                node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
-                const token = await node.server.getToken();
-
                 const baseUrl = node.server.buildUrl("inventoryOrganizations");
                 const parsed = new URL(baseUrl);
-                parsed.searchParams.set("q", `OrganizationName=${paramValue}`);
+                parsed.searchParams.set("q", scmQuery.buildQueryEquality("OrganizationName", paramValue, "string"));
                 const finalUrl = parsed.toString();
                 ensureHttps(finalUrl);
+
+                node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
+                const token = await node.server.getToken();
 
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
                 const response = await axios.get(finalUrl, {
@@ -80,6 +81,7 @@ module.exports = function(RED) {
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
+                        "REST-Framework-Version": scmQuery.QUERY_FRAMEWORK_VERSION,
                         "Authorization": `Bearer ${token}`,
                         "Content-Type": "application/json"
                     }
@@ -95,7 +97,10 @@ module.exports = function(RED) {
                 send(msg);
                 done();
             } catch (err) {
-                scmError.handleNodeError(node, msg, err, done, { statusText: "read failed" });
+                scmError.handleNodeError(node, msg, err, done, {
+                    statusText: err.scmQueryValidationError ? "invalid query" : "read failed",
+                    statusShape: err.scmQueryValidationError ? "ring" : "dot"
+                });
             }
         });
     }

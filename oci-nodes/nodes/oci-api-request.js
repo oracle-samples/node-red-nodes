@@ -37,6 +37,7 @@
 module.exports = function (RED) {
     var apiRequest = require("../lib/oci-api-request.js");
     var ociError = require("../lib/oci-error.js");
+    var createOperationState = require("../lib/oci-operation.js");
 
     function preserveTransaction(outMsg, msg) {
         if (msg.transaction) {
@@ -83,9 +84,13 @@ module.exports = function (RED) {
         node.query = config.query || "{}";
         node.headers = config.headers || "{}";
         node.responseType = config.responseType || "auto";
+        node.maxResponseBytes = config.maxResponseBytes;
         node.timeoutMs = Number(config.timeoutMs || 30000);
 
+        var operation = createOperationState(node);
+
         node.on("input", async function (msg, send, done) {
+            if (operation.isClosed()) return done();
             try {
                 var prepared = apiRequest.prepareRequest({
                     endpoint: node.endpoint,
@@ -96,13 +101,16 @@ module.exports = function (RED) {
                     headers: node.headers,
                     runtimeHeaders: msg.ociHeaders,
                     responseType: node.responseType,
+                    maxResponseBytes: node.maxResponseBytes,
                     timeoutMs: node.timeoutMs,
                     payload: msg.payload
                 });
 
                 node.status({ fill: "yellow", shape: "dot", text: "requesting" });
                 var provider = await node.ociConfig.getAuthProvider();
-                var response = await apiRequest.executeSignedRequest(provider, prepared);
+                if (operation.isClosed()) return done();
+                var response = await apiRequest.executeSignedRequest(provider, prepared, operation.signal);
+                if (operation.isClosed()) return done();
                 var responseHeaders = response.responseHeaders;
                 var outMsg = Object.assign({}, msg, {
                     payload: response.payload,
@@ -120,6 +128,7 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
+                if (operation.isClosed()) return done();
                 ociError.handleNodeError(node, msg, err, done, {
                     statusShape: err.isValidationError ? "ring" : "dot",
                     statusText: err.isValidationError ? "invalid request" : "request failed"

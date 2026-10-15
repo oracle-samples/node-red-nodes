@@ -452,7 +452,7 @@ window.scmMappingEditor = (function () {
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Action</dt><dd><code>Create</code> posts a new work order to <code>maintenanceWorkOrders</code>. <code>Update</code> sends HTTP PATCH to an existing work order by resource ID.</dd>
     <dt>Work Order ID</dt><dd>Required for Update unless supplied at runtime as <code>msg.workOrderId</code>.</dd>
-    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the work order only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings.</dd>
+    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the work order only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings. In <code>Entire msg.payload</code>, arrays retain their positions: empty slots become JSON <code>null</code>, and non-index properties are ignored.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map Fusion API fields to values. Each row specifies:
         <ul>

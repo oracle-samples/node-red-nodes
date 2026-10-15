@@ -489,7 +489,7 @@ window.workOrderChildEditor = (function () {
 <h3>Configuration</h3>
 <dl class="message-properties">
     <dt>Payload Source</dt>
-    <dd>For Create and Update, <code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings. Read and Delete actions do not send a request body.</dd>
+    <dd>For Create and Update, <code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings. Read and Delete actions do not send a request body. In <code>Entire msg.payload</code>, arrays retain their positions: empty slots become JSON <code>null</code>, and non-index properties are ignored.</dd>
 </dl>
 
 <h3>Inputs</h3>

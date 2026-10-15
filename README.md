@@ -27,6 +27,8 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 
 - **oci-nodes**
   - `oci-api-request` for signed OCI HTTPS API requests
+  - `oci-vault-secret` and `oci-certificate` for retrieving secret and certificate material
+  - `oci-t2-publish` for publishing timestamped numeric measurements to OCI Monitoring
   - `oci-monitoring-publish` and `oci-monitoring-query` for custom metrics and MQL queries
   - OCI authentication config (Config File, Instance Principal, Resource Principal, API Key)
   - `oci-streaming-config`, `oci-streaming-out`, `oci-streaming-in`, and `oci-streaming-commit` for publishing and consuming native OCI Streaming with automatic or explicit consumer-group commits
@@ -83,7 +85,7 @@ gh repo clone oracle-samples/node-red-nodes
 #### Prerequisites
 
 - Node-RED v2.0+
-- Node.js v18+ (see the [dependency compatibility note](docs/installation.md))
+- Node.js v18.0.0+ (see the [dependency compatibility note](docs/installation.md))
 - npm
 - Oracle Client libraries supported by node-oracledb (required only when DB `Driver Mode` is `Thick`)
 
@@ -91,7 +93,7 @@ gh repo clone oracle-samples/node-red-nodes
 
 Install the node package using the [installation guide](./docs/installation.md#12-install-dependencies). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
-ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
+ORDS request/poll nodes use Node.js v18.0.0+ built-in HTTP APIs and do not require an additional npm package.
 
 #### Oracle Client Libraries
 

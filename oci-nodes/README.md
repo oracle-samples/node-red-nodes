@@ -15,58 +15,61 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | **ords-config** | config | ORDS OAuth client-credentials configuration for ORDS request and polling nodes. |
 | **iot-config** | config | MQTT connection to the OCI IoT Platform. Supports Basic and Certificate auth, persistent sessions, command subscriptions, and advanced connection tuning (clean session, keepalive, reconnect period, connect timeout). MQTTS on port 8883 only. |
 
-### OCI Services
+### Service Nodes
 
 | Node | Category | Description |
 |------|----------|-------------|
-| **oci-api-request** | oci | Sends signed OCI HTTPS requests with configurable methods, response decoding, and timeouts. |
-| **oci-monitoring-publish** | oci | Publishes one custom metric data point per input message. |
-| **oci-monitoring-query** | oci | Queries OCI Monitoring metric series using MQL. |
-| **oci-streaming-out** | oci | Publishes one record or an explicit batch to native OCI Streaming. |
-| **oci-streaming-in** | oci | Consumes native OCI Streaming through a consumer group with automatic or manual commits. |
-| **oci-streaming-commit** | oci | Explicitly commits a record emitted by Streaming In in Manual mode. |
-| **oci-kafka-producer** | oci | Publishes `msg.payload` to a configured or message-routed managed Kafka topic. |
-| **oci-kafka-consumer** | oci | Consumes one managed Kafka topic with automatic or manual offset commits. |
-| **oci-kafka-commit** | oci | Explicitly commits a record emitted by Kafka Consumer in Manual mode. |
-| **oci-functions-invoke** | oci | Invokes an OCI Function synchronously or detached. |
-| **oci-queue-out** | oci | Publishes one message or an explicit batch of up to 20 OCI Queue messages. |
-| **oci-queue-in** | oci | Long-polls OCI Queue and emits receipt-bearing messages without auto-deleting them. |
-| **oci-queue-ack** | oci | Explicitly acknowledges successful processing by deleting a received queue message. |
-| **oci-notification** | oci | Publishes messages to OCI Notifications topics (email, Slack, PagerDuty, webhook, SMS, OCI Functions). |
-| **oci-log-analytics** | oci | Uploads log events to OCI Log Analytics for search, parsing, and analytics workflows. |
-| **oci-logging** | oci | Pushes log entries to OCI Logging (Custom Logs) using the Logging Ingestion API (`putLogs`). |
-| **oci-object-storage** | oci | Uploads and downloads objects to/from OCI Object Storage using payloads or local file paths. |
-| **oci-ords-request** | oci | Sends one-shot ORDS HTTP requests using custom relative paths, with IoT Data API presets as shortcuts. |
-| **oci-ords-poll** | oci | Polls ORDS endpoints, including command delivery/response status through Raw Command Data. |
+| **oci-api-request** | OCI Services | Sends signed OCI HTTPS requests with configurable methods, response decoding, and timeouts. |
+| **oci-monitoring-publish** | OCI Observability | Publishes one custom metric data point per input message. |
+| **oci-t2-publish** | OCI Observability | Publishes timestamped numeric measurements to OCI Monitoring. |
+| **oci-vault-secret** | oci | Retrieves a selected secret version from OCI Vault. |
+| **oci-certificate** | oci | Retrieves certificate or CA material; private-key retrieval is opt-in. |
+| **oci-monitoring-query** | OCI Observability | Queries OCI Monitoring metric series using MQL. |
+| **oci-streaming-out** | OCI Streaming | Publishes one record or an explicit batch to native OCI Streaming. |
+| **oci-streaming-in** | OCI Streaming | Consumes native OCI Streaming through a consumer group with automatic or manual commits. |
+| **oci-streaming-commit** | OCI Streaming | Explicitly commits a record emitted by Streaming In in Manual mode. |
+| **oci-kafka-producer** | OCI Streaming | Publishes `msg.payload` to a configured or message-routed managed Kafka topic. |
+| **oci-kafka-consumer** | OCI Streaming | Consumes one managed Kafka topic with automatic or manual offset commits. |
+| **oci-kafka-commit** | OCI Streaming | Explicitly commits a record emitted by Kafka Consumer in Manual mode. |
+| **oci-functions-invoke** | OCI Services | Invokes an OCI Function synchronously or detached. |
+| **oci-queue-out** | OCI Messaging | Publishes one message or an explicit batch of up to 20 OCI Queue messages. |
+| **oci-queue-in** | OCI Messaging | Long-polls OCI Queue and emits receipt-bearing messages without auto-deleting them. |
+| **oci-queue-ack** | OCI Messaging | Explicitly acknowledges successful processing by deleting a received queue message. |
+| **oci-notification** | OCI Messaging | Publishes messages to OCI Notifications topics (email, Slack, PagerDuty, webhook, SMS, OCI Functions). |
+| **oci-log-analytics** | OCI Observability | Uploads log events to OCI Log Analytics for search, parsing, and analytics workflows. |
+| **oci-logging** | OCI Observability | Pushes log entries to OCI Logging (Custom Logs) using the Logging Ingestion API (`putLogs`). |
+| **oci-object-storage** | OCI Services | Uploads and downloads objects to/from OCI Object Storage using payloads or local file paths. |
+| **oci-ords-request** | OCI Services | Sends one-shot ORDS HTTP requests using custom relative paths, with IoT Data API presets as shortcuts. |
+| **oci-ords-poll** | OCI Services | Polls ORDS endpoints, including command delivery/response status through Raw Command Data. |
 
 ### IoT — Cloud Side (REST API via oci-config)
 
 | Node | Category | Description |
 |------|----------|-------------|
-| **iot-send-command** | oci | Sends commands to devices via the OCI REST API. |
-| **iot-get-content** | oci | Reads digital twin instance content via the OCI REST API. |
-| **iot-update-relationship** | oci | Updates digital twin relationship content via the OCI REST API. |
+| **iot-send-command** | OCI IoT | Sends commands to devices via the OCI REST API. |
+| **iot-get-content** | OCI IoT | Reads digital twin instance content via the OCI REST API. |
+| **iot-update-relationship** | OCI IoT | Updates digital twin relationship content via the OCI REST API. |
 
 ### IoT — Device Side (MQTT via iot-config)
 
 | Node | Category | Description |
 |------|----------|-------------|
-| **iot-subscribe** | oci | Receives commands delivered by OCI IoT to the configured device through an MQTT request endpoint. |
-| **iot-telemetry** | oci | Publishes telemetry data to the IoT Platform. |
+| **iot-subscribe** | OCI IoT | Receives commands delivered by OCI IoT to the configured device through an MQTT request endpoint. |
+| **iot-telemetry** | OCI IoT | Publishes telemetry data to the IoT Platform. |
 
 ## Installation
 
 ### Prerequisites
 
 - Node-RED v2.0+
-- Node.js v18+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md))
+- Node.js v18.0.0+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.8.0/docs/installation.md))
 - An OCI tenancy with appropriate IAM policies
 
 ### Install the Node Package
 
-Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.8.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
-ORDS request/poll nodes use Node.js v18+ built-in HTTP APIs and do not require an additional npm package.
+ORDS request/poll nodes use Node.js v18.0.0+ built-in HTTP APIs and do not require an additional npm package.
 
 ## Error Handling
 
@@ -78,7 +81,7 @@ OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep
 
 ### oci-config (OCI REST API Authentication)
 
-Used by: `oci-api-request`, `oci-monitoring-publish`, `oci-monitoring-query`, `oci-streaming-config`, `oci-functions-invoke`, `oci-queue-config`, `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
+Used by: `oci-api-request`, `oci-monitoring-publish`, `oci-t2-publish`, `oci-monitoring-query`, `oci-streaming-config`, `oci-functions-invoke`, `oci-queue-config`, `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `oci-vault-secret`, `oci-certificate`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|

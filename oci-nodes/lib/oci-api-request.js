@@ -1,4 +1,5 @@
 var common = require("oci-common");
+var responseSupport = require("./oci-response.js");
 
 var ALLOWED_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
 var BODY_METHODS = ["POST", "PUT", "PATCH"];
@@ -161,6 +162,13 @@ function prepareRequest(options) {
     if (["auto", "json", "text", "buffer"].indexOf(responseType) === -1) {
         throw validationError("Response type must be auto, json, text, or buffer");
     }
+    var maxResponseBytes;
+    try {
+        maxResponseBytes = responseSupport.responseLimit(options.maxResponseBytes);
+    } catch (err) {
+        err.isValidationError = true;
+        throw err;
+    }
     return {
         request: {
             method: method,
@@ -170,7 +178,8 @@ function prepareRequest(options) {
         },
         method: method,
         timeoutMs: timeoutMs,
-        responseType: responseType
+        responseType: responseType,
+        maxResponseBytes: maxResponseBytes
     };
 }
 
@@ -182,12 +191,15 @@ function headersToObject(headers) {
     return result;
 }
 
-async function decodeResponse(response, responseType) {
+async function decodeResponse(response, responseType, maxResponseBytes, method) {
     if (response.status === 204 || response.status === 205) return null;
+    // HEAD and 304 may describe the GET representation size without sending that body.
+    var contentLength = method === "HEAD" || response.status === 304 ? null : response.headers.get("content-length");
+    var buffer = await responseSupport.readBuffer(response.body, maxResponseBytes, contentLength);
     if (responseType === "buffer") {
-        return Buffer.from(await response.arrayBuffer());
+        return buffer;
     }
-    var text = await response.text();
+    var text = buffer.toString("utf8");
     if (!text) return null;
     var contentType = response.headers.get("content-type") || "";
     var parseJson = responseType === "json" ||
@@ -220,13 +232,22 @@ function responseError(response, payload, responseHeaders) {
     return err;
 }
 
-async function executeSignedRequest(provider, prepared) {
+function closedError() {
+    var err = new Error("OCI node is stopping");
+    err.code = "OCI_NODE_CLOSED";
+    return err;
+}
+
+async function executeSignedRequest(provider, prepared, lifecycleSignal) {
+    if (lifecycleSignal && lifecycleSignal.aborted) throw closedError();
     var controller = new AbortController();
     var signer = new common.DefaultRequestSigner(provider);
     var client = new common.FetchHttpClient(signer, null, {
         redirect: "manual",
         signal: controller.signal
     });
+    function abortOnClose() { controller.abort(); }
+    if (lifecycleSignal) lifecycleSignal.addEventListener("abort", abortOnClose, { once: true });
     var timer = setTimeout(function () {
         controller.abort();
     }, prepared.timeoutMs);
@@ -234,7 +255,7 @@ async function executeSignedRequest(provider, prepared) {
     try {
         var response = await client.send(prepared.request);
         var responseHeaders = headersToObject(response.headers);
-        var payload = await decodeResponse(response, prepared.responseType);
+        var payload = await decodeResponse(response, prepared.responseType, prepared.maxResponseBytes, prepared.method);
         if (!response.ok) throw responseError(response, payload, responseHeaders);
         return {
             payload: payload,
@@ -245,6 +266,7 @@ async function executeSignedRequest(provider, prepared) {
         };
     } catch (err) {
         if (err && err.name === "AbortError") {
+            if (lifecycleSignal && lifecycleSignal.aborted) throw closedError();
             var timeoutError = new Error("OCI API request timed out after " + prepared.timeoutMs + " ms");
             timeoutError.code = "ETIMEDOUT";
             throw timeoutError;
@@ -252,6 +274,7 @@ async function executeSignedRequest(provider, prepared) {
         throw err;
     } finally {
         clearTimeout(timer);
+        if (lifecycleSignal) lifecycleSignal.removeEventListener("abort", abortOnClose);
     }
 }
 

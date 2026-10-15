@@ -43,7 +43,7 @@ module.exports = function (RED) {
                     circuitBreaker: new common.CircuitBreaker({ disableClientCircuitBreaker: true })
                 } : undefined
             );
-            return createdClient;
+            return require("../lib/sdk-diagnostics.js")(createdClient);
         }
 
         node.getClient = async function (signal) {

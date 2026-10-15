@@ -78,35 +78,54 @@ module.exports = function (RED) {
 
         let _authProvider = null;
         let _authProviderPromise = null;
+        var closed = false;
+        var closePromise = null;
+
+        function assertOpen() {
+            if (closed) {
+                var err = new Error("OCI configuration is closed");
+                err.code = "OCI_NODE_CLOSED";
+                throw err;
+            }
+        }
+
+        async function disposeProvider(provider) {
+            if (!provider || typeof provider.closeProvider !== "function") return;
+            try {
+                await provider.closeProvider();
+            } catch (err) {
+                node.warn("OCI authentication provider cleanup failed");
+            }
+        }
 
         /**
          * Returns an OCI AuthenticationDetailsProvider based on the selected auth type.
          * Caches the provider after first creation.
          */
         node.getAuthProvider = async function () {
+            assertOpen();
             if (_authProvider) return _authProvider;
-            if (_authProviderPromise) return _authProviderPromise;
-
-            _authProviderPromise = (async function () {
+            if (!_authProviderPromise) _authProviderPromise = (async function () {
+                var provider;
                 switch (node.authType) {
                     case "config":
-                        _authProvider = new common.ConfigFileAuthenticationDetailsProvider(
+                        provider = new common.ConfigFileAuthenticationDetailsProvider(
                             node.configFilePath,
                             node.profile
                         );
                         break;
 
                     case "instancePrincipal":
-                        _authProvider = await new common.InstancePrincipalsAuthenticationDetailsProviderBuilder().build();
+                        provider = await new common.InstancePrincipalsAuthenticationDetailsProviderBuilder().build();
                         break;
 
                     case "resourcePrincipal":
-                        _authProvider = await common.ResourcePrincipalAuthenticationDetailsProvider.builder();
+                        provider = await common.ResourcePrincipalAuthenticationDetailsProvider.builder();
                         break;
 
                     case "simple":
                         var privateKey = await readPrivateKey(node.privateKeyPath, node.passphrase);
-                        _authProvider = new common.SimpleAuthenticationDetailsProvider(
+                        provider = new common.SimpleAuthenticationDetailsProvider(
                             node.tenancyOcid,
                             node.userOcid,
                             node.fingerprint,
@@ -120,15 +139,38 @@ module.exports = function (RED) {
                         throw new Error("Unsupported OCI auth type: " + node.authType);
                 }
 
-                return _authProvider;
+                if (closed) {
+                    await disposeProvider(provider);
+                    assertOpen();
+                }
+                _authProvider = provider;
+                return provider;
             })();
 
+            var pending = _authProviderPromise;
             try {
-                return await _authProviderPromise;
+                var provider = await pending;
+                assertOpen();
+                return provider;
             } finally {
-                _authProviderPromise = null;
+                if (_authProviderPromise === pending) _authProviderPromise = null;
             }
         };
+
+        node.on("close", function (removed, done) {
+            closed = true;
+            // Service nodes share this identity; only its config owner may close it.
+            if (!closePromise) {
+                var provider = _authProvider;
+                _authProvider = null;
+                closePromise = disposeProvider(provider);
+            }
+            closePromise.then(function () {
+                if (typeof removed === "function") removed();
+                else if (typeof done === "function") done();
+            });
+            // Pending initialization disposes its provider when it eventually settles.
+        });
 
         /**
          * Returns the configured region string (e.g. "us-ashburn-1").
@@ -164,6 +206,7 @@ module.exports = function (RED) {
             identity = new (require("oci-identity")).IdentityClient({
                 authenticationDetailsProvider: provider
             });
+            require("../lib/sdk-diagnostics.js")(identity);
             const region = node.getRegion();
             if (region) {
                 identity.regionId = region;

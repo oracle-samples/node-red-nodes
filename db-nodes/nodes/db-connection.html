@@ -112,7 +112,7 @@ RED.nodes.registerType("db-connection", {
         name: { value: "" },
         usePool: { value: false },
         authType: { value: "basic" },
-        driverMode: { value: "thick" },
+        driverMode: { value: "thin" },
         tnsString: {
             value: "",
             required: true,
@@ -152,7 +152,8 @@ RED.nodes.registerType("db-connection", {
     credentials: {
         username: { type: "text" },
         password: { type: "password" },
-        passphrase: { type: "password" }
+        passphrase: { type: "password" },
+        walletPassword: { type: "password" }
     },
     label: function () {
         var labels = { basic: "Basic", config: "DB Token (Config File)", instancePrincipal: "DB Token (Instance Principal)", resourcePrincipal: "DB Token (Resource Principal)", sessionToken: "DB Token (Session Token)", simple: "DB Token (API Key)" };
@@ -196,6 +197,12 @@ RED.nodes.registerType("db-connection", {
         updateAuthFields();
         $("#node-config-input-authType").on("change", updateAuthFields);
         $("#node-config-input-usePool").on("change", updateAuthFields);
+
+        function updateWalletFields() {
+            $("#wallet-password-row").toggle($("#node-config-input-driverMode").val() === "thin");
+        }
+        updateWalletFields();
+        $("#node-config-input-driverMode").on("change", updateWalletFields);
 
         $("#node-config-input-nlsNumeric").on("change", function(){
             var v = $(this).val();
@@ -318,7 +325,7 @@ RED.nodes.registerType("db-connection", {
         </div>
         <div class="form-row" style="margin-top:-8px;">
             <span style="display:block;margin-left:250px;font-size:11px;color:#666;">
-                Driver mode is process-wide. Keep consistent across all db-connection nodes.
+                Driver mode is process-wide. Keep all DB Connection nodes consistent. Restart Node-RED to change the active mode.
             </span>
         </div>
         <div class="form-row external-auth">
@@ -411,6 +418,13 @@ RED.nodes.registerType("db-connection", {
             <div style="margin-left:250px;font-size:11px;color:#888;margin-top:2px;">
                 Enter the extracted wallet directory. Do not enter a ZIP file or <code>tnsnames.ora</code>.
                 Optional unless the database connection requires a wallet.
+            </div>
+        </div>
+        <div class="form-row" id="wallet-password-row">
+            <label for="node-config-input-walletPassword" style="width:245px;"><i class="fa fa-lock"></i> Wallet Password</label>
+            <input type="password" id="node-config-input-walletPassword" autocomplete="new-password" style="width:calc(100% - 252px);">
+            <div style="margin-left:250px;font-size:11px;color:#888;margin-top:2px;">
+                Required for an encrypted <code>ewallet.pem</code> in Thin mode. Use the password set when downloading or creating the wallet.
             </div>
         </div>
         </fieldset>
@@ -523,14 +537,16 @@ RED.nodes.registerType("db-connection", {
     <dd>Required TNS alias or connect descriptor. From <code>tnsnames.ora</code>, copy only the descriptor after <code>&lt;alias&gt; =</code>.</dd>
     <dt>Wallet Directory</dt>
     <dd>For wallet-based connections, enter the extracted directory, not the ZIP or <code>tnsnames.ora</code> file. Thick mode resolves aliases from this directory and applies the wallet to the descriptor; Thin mode uses it for network and wallet configuration.</dd>
+    <dt>Wallet Password</dt>
+    <dd>Thin mode requires the password for an encrypted <code>ewallet.pem</code>. Enter the password set when downloading or creating the wallet, not the database password or OCI API-key passphrase. Stored as a credential and ignored in Thick mode; leave blank for an unencrypted wallet or a connection without a wallet.</dd>
     <dt>External Auth</dt>
     <dd>Enable for every DB Token type to use IAM credentials instead of a database password.</dd>
     <dt>Driver Mode</dt>
-    <dd><b>Thick</b> uses Oracle Client libraries; <b>Thin</b> uses JavaScript. The mode is process-wide: all active DB Connection nodes must agree.</dd>
+    <dd><b>Thin</b> (default) uses JavaScript; <b>Thick</b> uses Oracle Client libraries. Existing saved Thick settings are preserved. The mode is process-wide: all active DB Connection nodes must agree. Restart Node-RED to change the active mode.</dd>
     <dt>Scope</dt>
     <dd>Optional DB-token restriction to a compartment or database. Blank uses tenancy-wide scope <code>urn:oracle:db::id::*</code>; permissions still determine access.</dd>
     <dt>Session User</dt>
-    <dd>Optional effective schema (<code>SESSION_USER</code>) for Basic or DB Token proxy sessions. Basic authenticates with Username; DB Token authenticates with the IAM identity. Supported in Thin and Thick modes with node-oracledb 7.</dd>
+    <dd>Optional effective schema (<code>SESSION_USER</code>) for Basic or DB Token proxy sessions. Basic authenticates with Username; DB Token authenticates with the IAM identity. Supported in Thin and Thick modes.</dd>
 </dl>
 
 <h3>Connection Pool</h3>

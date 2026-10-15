@@ -36,7 +36,7 @@
 
 module.exports = function(RED) {
     const axios = require("axios");
-    const { HttpsProxyAgent } = require("https-proxy-agent");
+    const { HttpsProxyAgent } = require("../lib/proxy-agent.js");
     const { ensureHttps, ensureAllowedScmResourceUrl, appendPathSegments } = require("../lib/url.js");
     const scmQuery = require("../lib/scm-query.js");
     const scmError = require("../lib/scm-error.js");
@@ -235,12 +235,12 @@ module.exports = function(RED) {
                                     meterCode
                                 )
                             );
-                            const meterQuery = buildQueryExpression("", undefined, meterFilters);
+                            const meterQuery = scmQuery.buildQueryExpression("", undefined, meterFilters);
                             if (meterQuery) {
                                 params.set("q", meterQuery);
                             }
                         } else {
-                            params.set("q", buildQueryExpression(queryParam, queryValue, lookupRequest.queryFilters));
+                            params.set("q", scmQuery.buildQueryExpression(queryParam, queryValue, lookupRequest.queryFilters));
                         }
                         finalUrl = `${baseUrl}?${params.toString()}`;
                     }
@@ -273,6 +273,9 @@ module.exports = function(RED) {
                         "Content-Type": "application/json"
                     }
                 };
+                if (lookupType !== "custom") {
+                    requestOptions.headers["REST-Framework-Version"] = scmQuery.QUERY_FRAMEWORK_VERSION;
+                }
                 const response = lookupType === "meterReading"
                     ? await scmQuery.fetchAllCollectionPages(
                         finalUrl,
@@ -308,7 +311,7 @@ module.exports = function(RED) {
     }
 
     function parseQueryFilters(value) {
-        if (!hasValue(value)) {
+        if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) {
             return {};
         }
 
@@ -334,6 +337,9 @@ module.exports = function(RED) {
                 throw new Error("Additional Filters JSON contains an invalid field name: " + key);
             }
             const value = filters[key];
+            if (value !== undefined && value !== null) {
+                scmQuery.buildQueryEquality(key, value);
+            }
             if (hasValue(value)) {
                 parsed[key] = value;
             }
@@ -383,26 +389,6 @@ module.exports = function(RED) {
         err.code = err.code ? String(err.code) : null;
         msg.error = { message: err.message, code: err.code };
         return done(err);
-    }
-
-    function assertSafeQueryValue(value) {
-        // ";" separates filters in a Fusion q expression.
-        if (String(value).indexOf(";") !== -1) {
-            throw new Error("Query value must not contain ';' (Fusion query filter separator)");
-        }
-    }
-
-    function buildQueryExpression(primaryParam, primaryValue, queryFilters) {
-        const parts = [];
-        if (hasValue(primaryParam) && hasValue(primaryValue)) {
-            assertSafeQueryValue(primaryValue);
-            parts.push(`${primaryParam}=${primaryValue}`);
-        }
-        Object.keys(queryFilters || {}).forEach((key) => {
-            assertSafeQueryValue(queryFilters[key]);
-            parts.push(`${key}=${queryFilters[key]}`);
-        });
-        return parts.join(";");
     }
 
     function workOrderIdPath() {

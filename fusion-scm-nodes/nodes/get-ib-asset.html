@@ -59,8 +59,9 @@ RED.nodes.registerType("get-ib-asset", {
                 return;
             }
             var base = "https://" + serverNode.hostname + "/fscmRestApi/resources/" + serverNode.version + "/" + endpoint;
-            var queryValue = $("#node-input-serialNumber").val().trim();
-            $endpoint.text(queryValue ? base + "?q=SerialNumber=" + queryValue : base);
+            var queryValue = $("#node-input-serialNumber").val();
+            var query = "SerialNumber='" + queryValue.replace(/'/g, "''") + "'";
+            $endpoint.text(queryValue ? base + "?q=" + encodeURIComponent(query) : base);
         }
 
         updateEndpointPreview();
@@ -111,5 +112,6 @@ RED.nodes.registerType("get-ib-asset", {
     <dt>msg.serialNumber <span class="property-type">string</span></dt><dd>Overrides the Serial Number for this message.</dd>
 </dl>
 <h3>Details</h3>
+<p>Serial Number is matched as a literal value using REST framework 2. Quotes, punctuation and query operators in the value are treated as data. Objects, arrays and non-finite numbers are rejected before authentication.</p>
 <p>Sends a <code>GET</code> request to the Installed Base Assets endpoint, filtering by <code>SerialNumber</code>. Returns the matching asset record(s) in <code>msg.payload</code>. To query a different endpoint or use a custom query parameter, use the <b>scm lookup</b> node in custom mode instead.</p>
 </script>

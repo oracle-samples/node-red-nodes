@@ -37,6 +37,7 @@
 module.exports = function (RED) {
     var kafkaSupport = require("../lib/oci-kafka.js");
     var ociError = require("../lib/oci-error.js");
+    var createOperationState = require("../lib/oci-operation.js");
 
     function OciKafkaProducerNode(config) {
         RED.nodes.createNode(this, config);
@@ -50,7 +51,10 @@ module.exports = function (RED) {
         }
         node.topic = config.topic || "";
 
+        var operation = createOperationState(node);
+
         node.on("input", async function (msg, send, done) {
+            if (operation.isClosed()) return done();
             var validationFailure = false;
             try {
                 var kafkaInput = msg.kafka && typeof msg.kafka === "object" && !Array.isArray(msg.kafka)
@@ -77,10 +81,12 @@ module.exports = function (RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "publishing" });
                 var producer = await node.kafkaConfig.getProducer();
+                if (operation.isClosed()) return done();
                 var result = await producer.send({
                     topic: topic,
                     messages: [message]
                 });
+                if (operation.isClosed()) return done();
                 var outMsg = Object.assign({}, msg, {
                     kafka: Object.assign({}, kafkaInput, {
                         topic: topic,
@@ -93,6 +99,7 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
+                if (operation.isClosed()) return done();
                 validationFailure = validationFailure || Boolean(err && err.isValidation);
                 var safeError = typeof node.kafkaConfig.sanitizeError === "function"
                     ? node.kafkaConfig.sanitizeError(err)

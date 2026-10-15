@@ -2,7 +2,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("oci-streaming-out", {
-    category: "oci",
+    category: "OCI Streaming",
     paletteLabel: "streaming out",
     defaults: {
         name: { value: "" },
@@ -66,4 +66,5 @@ RED.nodes.registerType("oci-streaming-out", {
 
 <h3>Prerequisites</h3>
 <p>The OCI principal selected by the Streaming Config must have <code>stream-push</code> permission for the target native OCI stream.</p>
+    <p>On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.</p>
 </script>

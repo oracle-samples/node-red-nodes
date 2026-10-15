@@ -381,7 +381,7 @@ window.scmEndpointPreview = (function () {
 <dl class="message-properties">
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Endpoint</dt><dd>Auto-built from server config for this node type.</dd>
-    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings.</dd>
+    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> sends a validated copy of the complete input object and ignores, but retains, saved mappings. In <code>Entire msg.payload</code>, arrays retain their positions: empty slots become JSON <code>null</code>, and non-index properties are ignored.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map SCM API fields to values. Each row specifies:
         <ul>

@@ -1,5 +1,5 @@
 var axios = require("axios");
-var HttpsProxyAgent = require("https-proxy-agent").HttpsProxyAgent;
+var HttpsProxyAgent = require("./proxy-agent.js").HttpsProxyAgent;
 var ensureHttps = require("./url.js").ensureHttps;
 var appendPathSegments = require("./url.js").appendPathSegments;
 var scmMapping = require("./scm-mapping.js");

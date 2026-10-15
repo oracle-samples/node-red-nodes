@@ -1,0 +1,98 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. -->
+<script type="text/javascript">
+function certificateInteger(value, minimum, maximum) {
+    return (typeof value === "number" || (typeof value === "string" && /^\d+$/.test(value))) &&
+        Number.isSafeInteger(Number(value)) && Number(value) >= minimum && Number(value) <= maximum;
+}
+RED.nodes.registerType("oci-certificate", {
+    category: "oci", color: "#F0CC72", icon: "font-awesome/fa-certificate",
+    paletteLabel: "certificate", inputs: 1, outputs: 1,
+    defaults: {
+        name: { value: "" }, ociConfig: { type: "oci-config", required: true },
+        resourceType: { value: "certificate", validate: function (v) { return ["certificate", "caBundle", "caAuthority"].indexOf(v) !== -1; } }, resourceId: { value: "" }, stage: { value: "CURRENT", validate: function (v) { return ["CURRENT", "PENDING", "LATEST", "PREVIOUS", "DEPRECATED"].indexOf(v) !== -1; } }, versionNumber: { value: "", validate: function (v) { return v === "" || certificateInteger(v, 1, Number.MAX_SAFE_INTEGER); } }, includePrivateKey: { value: false },
+        maxConcurrent: { value: 4, required: true, validate: function (v) { return certificateInteger(v, 1, 32); } },
+        maxQueue: { value: 100, required: true, validate: function (v) { return certificateInteger(v, 1, 10000); } },
+        timeoutMs: { value: 30000, required: true, validate: function (v) { return certificateInteger(v, 1000, 300000); } }
+    },
+    label: function () { return this.name || "certificate"; },
+    oneditprepare: function () {
+        function updateResource() {
+            var type = $("#node-input-resourceType").val();
+            var labels = { certificate: "Certificate OCID", caBundle: "CA bundle OCID", caAuthority: "CA authority OCID" };
+            $("#certificate-resource-label").text(labels[type] || "Resource OCID");
+            $("#node-input-resourceId").attr("placeholder", type === "certificate" ? "<certificate-ocid>" : type === "caBundle" ? "<ca-bundle-ocid>" : "<certificate-authority-ocid>");
+            $("#certificate-version-rows").toggle(type !== "caBundle");
+            $("#certificate-key-row").toggle(type === "certificate");
+            if (type !== "certificate") $("#node-input-includePrivateKey").prop("checked", false);
+        }
+        $("#node-input-resourceType").on("change", updateResource); updateResource();
+    }
+});
+</script>
+<script type="text/html" data-template-name="oci-certificate">
+    <div class="form-row">
+        <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 167px);">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ociConfig" style="width:160px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 167px);">
+    </div>
+    <fieldset><legend style="font-size:12px;font-weight:bold;">Certificate material</legend>
+    <div class="form-row">
+        <label for="node-input-resourceType" style="width:160px;"><i class="fa fa-bars"></i> Certificate type</label>
+        <select id="node-input-resourceType" style="width:200px;"><option value="certificate">Certificate</option><option value="caBundle">CA bundle</option><option value="caAuthority">Certificate authority</option></select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-resourceId" style="width:160px;"><i class="fa fa-file-text-o"></i> <span id="certificate-resource-label">Certificate OCID</span></label>
+        <input type="text" id="node-input-resourceId" placeholder="&lt;certificate-ocid&gt;" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;margin-top:4px;">Leave blank to use <code>msg.certificateResourceId</code>.</div>
+    </div>
+    </fieldset>
+    <div id="certificate-version-rows">
+    <fieldset><legend style="font-size:12px;font-weight:bold;">Version</legend>
+    <div class="form-row">
+        <label for="node-input-stage" style="width:160px;"><i class="fa fa-tag"></i> Version stage</label>
+        <select id="node-input-stage" style="width:200px;"><option value="CURRENT">Current</option><option value="PENDING">Pending</option><option value="LATEST">Latest</option><option value="PREVIOUS">Previous</option><option value="DEPRECATED">Deprecated</option></select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-versionNumber" style="width:160px;"><i class="fa fa-hashtag"></i> Version number</label>
+        <input type="number" id="node-input-versionNumber" placeholder="Optional" style="width:120px;" min="1" step="1">
+        <div style="margin-left:165px;font-size:11px;margin-top:4px;">When set, this number takes precedence over the selected stage.</div>
+    </div>
+    </fieldset>
+    </div>
+    <div id="certificate-key-row">
+    <fieldset><legend style="font-size:12px;font-weight:bold;">Private key</legend>
+    <div class="form-row">
+        <label for="node-input-includePrivateKey" style="width:160px;"><i class="fa fa-key"></i> Include private key</label>
+        <input type="checkbox" id="node-input-includePrivateKey" style="width:auto;vertical-align:middle;">
+        <div style="margin-left:165px;font-size:11px;margin-top:4px;">Off by default. Enable only when a TLS client needs a private key and IAM permits retrieval.</div>
+    </div>
+    </fieldset>
+    </div>
+    <details><summary style="margin:15px 0;cursor:pointer;">Request limits</summary>
+    <div class="form-row">
+        <label for="node-input-maxConcurrent" style="width:160px;"><i class="fa fa-tasks"></i> Max concurrent</label>
+        <input type="number" id="node-input-maxConcurrent" min="1" max="32" step="1" style="width:100px;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-maxQueue" style="width:160px;"><i class="fa fa-tasks"></i> Max queued</label>
+        <input type="number" id="node-input-maxQueue" min="1" max="10000" step="1" style="width:100px;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-timeoutMs" style="width:160px;"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
+        <input type="number" id="node-input-timeoutMs" min="1000" max="300000" step="1" style="width:100px;">
+    </div>
+    <div style="margin-left:165px;font-size:11px;margin-top:4px;">Timeout includes queue, authentication and request time. Pending messages are held in memory.</div>
+    </details>
+    <div class="form-tips" style="margin-left:165px;">Retrieves material from OCI Certificates. It does not configure built-in TLS Config, upload files or refresh active TLS connections.</div>
+</script>
+<script type="text/x-red" data-help-name="oci-certificate">
+<p>Retrieves an OCI Certificates certificate, CA bundle or certificate-authority bundle using OCI Config and the required IAM permissions.</p>
+<h3>Configuration</h3><p>Select the resource type and OCID. Certificate and authority requests support version stage (CURRENT by default) or a positive version number; an explicit number wins. CA bundles do not use version selectors. Certificate retrieval is public-only unless Include Private Key is explicitly selected and IAM permits it.</p>
+<h3>Inputs</h3><p><code>msg.certificateResourceId</code> supplies the OCID when the configured field is empty. Private-key access cannot be enabled by an input message.</p>
+<h3>Outputs</h3><p><code>msg.payload</code> contains the SDK bundle: certificates provide <code>certificatePem</code> and <code>certChainPem</code>, with <code>privateKeyPem</code> only when requested; CA bundles provide <code>caBundlePem</code>; authority bundles provide <code>certificatePem</code>. If private-key retrieval is selected but the response has no key, the request fails. Metadata includes <code>msg.opcRequestId</code> and <code>msg.statusCode</code>. Other properties and transaction references are preserved.</p>
+<p>Each input retrieves fresh material. This node does not replace built-in TLS Config, install files, refresh active TLS connections or automatically configure MQTT/HTTP/TCP nodes. Runtime integration is required to supply this material to those nodes. Do not log or persist private-key output. Errors go once to scoped Catch with sanitized <code>msg.error</code>.</p>
+<h3>Request limits</h3><p>Defaults: 4 active jobs, 100 queued messages and a 30000 ms timeout, including authentication. Overload, timeout and retrieval errors go to Catch once. Timed-out active work keeps its slot until it settles; requests are not retried automatically. Limits count messages, not bytes. Closing the node cancels pending work and suppresses late output without closing shared authentication.</p>
+</script>

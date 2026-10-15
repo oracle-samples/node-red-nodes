@@ -60,13 +60,16 @@ module.exports = function(RED) {
             return;
         }
 
-        node.on("input", async (msg, send, done) => {
+        var operation = require("../lib/db-operation.js")(node);
+        node.on("input", operation.wrap(async (msg, send, done) => {
             let connection;
             let ownConnection = false;
             let arr;
             var lease;
+            var needsRollback = false;
 
             try {
+                operation.assertOpen();
                 if (!node.independentTransaction) transactions.get(msg, config.connection);
                 if (config.recoverOriginalPayload === true) {
                     var unavailable = new Error("Original Payload is unavailable. Remove recoverOriginalPayload from the imported configuration and set msg.payload explicitly for recovery.");
@@ -75,6 +78,7 @@ module.exports = function(RED) {
                 }
                 if (!node.independentTransaction) {
                     lease = await transactions.acquire(msg, config.connection);
+                    operation.assertOpen();
                     dbError.assertActiveTransaction(msg.transaction);
                 }
                 var recipients = oracleAq.normalizeRecipients(node.recipients);
@@ -86,6 +90,7 @@ module.exports = function(RED) {
                     ownConnection = true;
                 }
 
+                operation.assertOpen();
                 try {
                     arr = oracleAq.normalizeEnqueuePayload(node.payloadType, node.userPayload, msg.payload);
                 } catch (parseErr) {
@@ -101,17 +106,22 @@ module.exports = function(RED) {
                 const queue = await connection.getQueue(node.queueName, {
                     payloadType: queuePayloadType,
                 });
+                operation.assertOpen();
 
                 oracleAq.configureEnqueueQueue(queue, oracledb, node);
 
                 var messages = oracleAq.createEnqueueMessages(node.payloadType, queue, arr, recipients);
 
+                needsRollback = ownConnection;
                 await queue.enqMany(messages);
+                operation.assertOpen();
                 if (ownConnection) {
                     // AQ enqueueMany is not auto-committed — messages stay invisible to
                     // consumers until explicitly committed.
                     await connection.commit();
+                    needsRollback = false;
                 }
+                operation.assertOpen();
 
                 node.status({ fill: "green", shape: "dot", text: `enqueued ${messages.length}` });
                 if (node.enableOutput) {
@@ -130,9 +140,12 @@ module.exports = function(RED) {
                 }
                 done();
             } catch (err) {
-                if (connection && ownConnection) {
-                    try { await connection.rollback(); } catch (rollbackErr) { /* preserve enqueue failure */ }
+                if (connection && needsRollback) {
+                    try { await connection.rollback(); } catch (rollbackErr) {
+                        node.warn("Failed to roll back connection: " + dbError.redactText(rollbackErr.message));
+                    }
                 }
+                if (operation.isClosing()) return operation.stopped(err, lease, done);
                 dbError.handleNodeError(node, msg, err, done, {
                     statusText: err.code === "DB_AQ_RECOVERY_UNAVAILABLE" ? "invalid configuration" : "enqueue failed",
                     statusShape: err.code === "DB_AQ_RECOVERY_UNAVAILABLE" ? "ring" : "dot",
@@ -146,7 +159,7 @@ module.exports = function(RED) {
                     }
                 }
             }
-        });
+        }));
     }
 
     RED.nodes.registerType("enqueue", DbEnqueueNode);

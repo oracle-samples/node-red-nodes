@@ -74,12 +74,15 @@ module.exports = function(RED) {
         // Falls back to a standalone connection with auto-commit when no transaction
         // is present on msg.
         if (node.mode === "transactional") {
-            node.on("input", async function (msg, send, done) {
+            var operation = require("../lib/db-operation.js")(node);
+            node.on("input", operation.wrap(async function (msg, send, done) {
                 var connection = null;
                 var ownConnection = false;
                 var lease;
+                var needsRollback = false;
 
                 try {
+                    operation.assertOpen();
                     if (config.retainOriginalPayload === true) {
                         transactions.get(msg, config.connection);
                         var unavailable = new Error("Retain Original is unavailable. Remove retainOriginalPayload from the imported configuration and use msg.dequeued for payload recovery.");
@@ -87,6 +90,7 @@ module.exports = function(RED) {
                         throw unavailable;
                     }
                     lease = await transactions.acquire(msg, config.connection);
+                    operation.assertOpen();
                     dbError.assertActiveTransaction(msg.transaction);
                     var condition = oracleAq.resolveDequeueCondition(node, msg);
                     node.status({ fill: "yellow", shape: "dot", text: "dequeuing..." });
@@ -98,21 +102,31 @@ module.exports = function(RED) {
                         ownConnection = true;
                     }
 
+                    operation.assertOpen();
                     const queue = await connection.getQueue(node.queueName, {
                         payloadType: queuePayloadType,
                     });
+                    operation.assertOpen();
 
                     oracleAq.configureDequeueQueue(queue, oracledb, Object.assign({}, node, { condition: condition }), connection);
 
-                    const messages = await oracleAq.dequeueMessages(queue, oracledb, node.batchSize);
+                    needsRollback = ownConnection;
+                    const messages = await oracleAq.dequeueMessages(queue, oracledb, node.batchSize, function () {
+                        return !operation.isClosing();
+                    });
+                    operation.assertOpen();
                     oracleAq.recordDequeueSelection(queue, oracledb, node, connection);
 
                     const payloads = messages ? messages.map(m => oracleAq.dbObjectToPojo(m.payload)) : [];
 
                     if (ownConnection) {
                         await connection.commit();
-                        await connection.close();
+                        needsRollback = false;
+                        operation.assertOpen();
+                        var completedConnection = connection;
                         connection = null;
+                        await completedConnection.close();
+                        operation.assertOpen();
                     }
 
                     if (payloads.length === 0) {
@@ -150,17 +164,25 @@ module.exports = function(RED) {
 
                     done();
                 } catch (err) {
-                    if (connection && ownConnection) {
-                        try { await connection.close(); } catch (e) {}
+                    if (connection && needsRollback) {
+                        try { await connection.rollback(); } catch (rollbackErr) {
+                            node.warn("Failed to roll back connection: " + dbError.redactText(rollbackErr.message));
+                        }
                     }
+                    if (operation.isClosing()) return operation.stopped(err, lease, done);
                     dbError.handleNodeError(node, msg, err, done, {
                         statusText: err.code === "DB_AQ_CONDITION_INVALID" ? "invalid condition" : err.code === "DB_AQ_RECOVERY_UNAVAILABLE" ? "invalid configuration" : "dequeue failed",
                         statusShape: err.code === "DB_AQ_RECOVERY_UNAVAILABLE" || err.code === "DB_AQ_CONDITION_INVALID" ? "ring" : "dot"
                     });
                 } finally {
                     if (lease) lease.release();
+                    if (connection && ownConnection) {
+                        try { await connection.close(); } catch (closeErr) {
+                            node.warn("Failed to close connection: " + dbError.redactText(closeErr.message));
+                        }
+                    }
                 }
-            });
+            }));
         }
 
         // ─── CONTINUOUS MODE ──────────────────────────────────────────────────

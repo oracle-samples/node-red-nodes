@@ -191,7 +191,24 @@ module.exports = function (RED) {
             .replace(/^\/+/, "")
             .split("/")
             .filter(function (part) { return part !== ""; })
-            .map(function (part) { return encodeURIComponent(decodeURIComponent(part)); })
+            .map(function (part) {
+                var decoded = decodeURIComponent(part);
+                var checked = decoded;
+                // Reject separators and dot segments before URL or server decoding can change the target path.
+                for (var depth = 0; ; depth++) {
+                    if (checked === "." || checked === ".." || /[\/\\\u0000-\u001f\u007f]/.test(checked)) {
+                        throw new Error("Relative ORDS path must not contain dot segments or encoded separators");
+                    }
+                    if (!/%[0-9a-f]{2}/i.test(checked)) break;
+                    if (depth >= 8) throw new Error("Relative ORDS path has excessive nested encoding");
+                    try {
+                        checked = decodeURIComponent(checked);
+                    } catch (err) {
+                        break;
+                    }
+                }
+                return encodeURIComponent(decoded);
+            })
             .join("/");
         return {
             path: encodedPath,
@@ -415,6 +432,9 @@ module.exports = function (RED) {
 
             var encoded = encodeRelativePath(rawPath);
             var url = new URL(encoded.path, base);
+            if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) {
+                throw new Error("Relative ORDS path must remain within the configured base path");
+            }
             if (encoded.query) {
                 var embeddedParams = new URLSearchParams(encoded.query);
                 embeddedParams.forEach(function (value, key) {

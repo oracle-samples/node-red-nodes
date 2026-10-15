@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.8.0] - 2026-10-15
+
+### Added
+- `db-connection` supports encrypted Thin-mode wallets with a separate Wallet Password credential.
+- `oci-vault-secret` retrieves OCI Vault secrets as text, JSON or binary content using OCI Config.
+- `oci-certificate` retrieves OCI certificate and CA bundles, with explicit private-key retrieval and bounded requests.
+- `oci-t2-publish` publishes `msg.timestamp` and numeric `msg.data` to OCI Monitoring with validated metric configuration, bounded request queues, timeouts and Catch error handling.
+
+### Changed
+- `db-connection` defaults new configurations to Thin; saved Thick selections remain available.
+- `package.json` updates the OCI SDK components to 2.142.2.
+- `oci-nodes` groups Streaming, Messaging, Observability, Services and IoT nodes into separate palette categories.
+- `oci-api-request` limits successful and error response bodies to 16 MiB by default, with a configurable Max Response Bytes setting.
+- `scm-lookup`, `get-ib-asset` and `get-organization-id` use REST framework version 2 for built-in equality filters; Custom query mode remains unchanged.
+
+### Fixed
+- `fusion-scm-nodes` verifies the destination certificate identity for HTTPS proxy requests, including IP-address destinations.
+- `oci-kafka-consumer` rejects unissued commit tokens before calling Kafka or modifying shared objects.
+- `ords-config` prevents relative paths and record IDs from escaping the configured base path.
+- `scm-lookup`, `get-ib-asset` and `get-organization-id` treat lookup values as data instead of query expressions.
+- `iot-config` isolates each subscriber's payload so one flow cannot alter another subscription's data.
+- `oci-config` releases owned authentication resources when removed or redeployed, including providers that finish initializing after closure.
+- `sql` accepts valid Oracle bind names and matches unquoted bind names without case sensitivity.
+- `smo-transformer` keeps distinct event identities separate, applies explicit null values correctly, and keeps its preview consistent with runtime replacement behavior.
+- `dequeue`, `enqueue` and `sql` stop new database work after removal and clean up their pending connections.
+- `oci-api-request`, `oci-queue-out`, `oci-queue-ack`, `oci-streaming-out` and `oci-kafka-producer` stop new requests after removal and suppress late output.
+- `sql` accepts trigger references such as `:NEW` and `:OLD` without requiring application binds.
+- `fusion-scm-nodes` preserves array positions when copying complete payloads and ignores array properties that are not elements.
+- `manufacturing-production-transaction` rejects already wrapped input instead of allowing it to conflict with the selected transaction mode.
+- `OCI SDK nodes` redact recognized credential fields and patterns in SDK error diagnostics while preserving request retry behavior.
+
 ## [0.7.1] - 2026-10-01
 
 ### Added

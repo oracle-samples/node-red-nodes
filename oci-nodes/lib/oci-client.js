@@ -36,6 +36,7 @@
 
 // SDK clients own circuit-breaker timers, but share their authentication provider.
 module.exports = function createClientManager(node) {
+    var guardSdkDiagnostics = require("./sdk-diagnostics.js");
     var closed = false;
     var clients = new Set();
     var pending = new Map();
@@ -61,7 +62,7 @@ module.exports = function createClientManager(node) {
 
     async function create(factory, configure) {
         assertOpen();
-        var client = await factory();
+        var client = guardSdkDiagnostics(await factory());
         clients.add(client);
         try {
             assertOpen();

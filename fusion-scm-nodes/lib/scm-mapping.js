@@ -53,9 +53,7 @@ function cloneJsonValue(value, path, activeObjects) {
         throwUnsupportedJsonValue(path);
     }
     if (Array.isArray(value)) {
-        return cloneJsonCollection(value, path, activeObjects, function (array, index, clonedValue) {
-            array.push(clonedValue);
-        }, []);
+        return cloneJsonArray(value, path, activeObjects);
     }
     if (isPlainObject(value)) {
         return cloneJsonCollection(value, path, activeObjects, function (object, key, clonedValue) {
@@ -63,6 +61,25 @@ function cloneJsonValue(value, path, activeObjects) {
         }, {});
     }
     throwUnsupportedJsonValue(path);
+}
+
+function cloneJsonArray(value, path, activeObjects) {
+    if (activeObjects.has(value)) {
+        throwUnsupportedJsonValue(path);
+    }
+    activeObjects.add(value);
+
+    var length = value.length;
+    var copy = new Array(length);
+    // JSON array positions include holes; named properties are not array elements.
+    for (var i = 0; i < length; i++) {
+        copy[i] = Object.prototype.hasOwnProperty.call(value, i)
+            ? cloneJsonValue(value[i], formatPath(path, i), activeObjects)
+            : null;
+    }
+
+    activeObjects.delete(value);
+    return copy;
 }
 
 function cloneJsonCollection(value, path, activeObjects, addValue, copy) {

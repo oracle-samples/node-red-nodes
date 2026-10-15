@@ -390,7 +390,7 @@ module.exports = function (RED) {
     for (var i = 0; i < keys.length; i++) {
       var k = keys[i];
       if (hasOwnField(result, k) && result[k] != null && typeof result[k] === "object" && !Array.isArray(result[k]) &&
-          typeof b[k] === "object" && !Array.isArray(b[k])) {
+          b[k] != null && typeof b[k] === "object" && !Array.isArray(b[k])) {
         setOwnField(result, k, assignOwnFields(assignOwnFields({}, result[k]), b[k]));
       } else {
         setOwnField(result, k, b[k]);
@@ -408,7 +408,7 @@ module.exports = function (RED) {
 
   function buildCompositeKey(outputPayload, eventTypeCode) {
     if (outputPayload.entityCode == null || outputPayload.eventTime == null) return null;
-    return outputPayload.entityCode + "_" + outputPayload.eventTime + "_" + eventTypeCode;
+    return JSON.stringify([String(outputPayload.entityCode), String(outputPayload.eventTime), String(eventTypeCode)]);
   }
 
   function clearCompositeTimer(staleTimers, key) {

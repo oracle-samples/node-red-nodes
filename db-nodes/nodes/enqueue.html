@@ -242,6 +242,7 @@ RED.nodes.registerType("enqueue", {
 
 <h3>Details</h3>
 <p>Transactional mode rejects inactive references with <code>DB_TRANSACTION_INACTIVE</code>; it does not silently start standalone work. Auto-commit preserves the incoming transaction reference on success and Catch paths. End cannot roll back an independently committed enqueue.</p>
+<p>On stop/redeploy, late connections close without queue work. Standalone uncommitted work is rolled back if shutdown starts before commit; a commit already submitted may finish. The node waits for pending calls and suppresses output while closing. Interrupted managed work is marked rollback-only and remains with its Begin/End owner. Auto-commit mode leaves any incoming managed transaction unchanged.</p>
 <p><b>Payload recovery:</b> If <code>msg.dequeued</code> still contains the required payload, set <code>msg.payload = [msg.dequeued]</code> in a Function and leave editor Payload blank. Check the property exists and match the queue's Payload Type. The outer array keeps an original JSON array as one AQ record.</p>
 <p>Use Auto-commit when the source transaction has closed. This recovers content, not the original AQ message ID or delivery metadata. Re-enqueueing is replay, not rollback; it is not crash-safe until its commit succeeds. External side effects may need application-level deduplication.</p>
 </script>

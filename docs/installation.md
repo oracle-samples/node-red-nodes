@@ -5,7 +5,7 @@ This guide includes all installation steps and verification steps.
 ## Prerequisites
 
 - Node-RED (v2.0+)
-- Node.js (v18+)
+- Node.js (v18.0.0+)
 - npm (comes with Node.js)
 - Oracle Client libraries supported by node-oracledb (required only when `db-connection` Driver Mode is set to `Thick`)
 
@@ -38,7 +38,7 @@ After cloning, install the node package, not only its dependency libraries. For 
 cd ~/.node-red/node-red-nodes
 npm pack
 cd ..
-npm install ./node-red-nodes/node-red-nodes-0.7.1.tgz
+npm install ./node-red-nodes/node-red-nodes-0.8.0.tgz
 ```
 
 `npm pack` creates the `.tgz` archive; `npm install` installs it into the Node-RED user directory. Use the filename printed by `npm pack` if the package version differs, then restart Node-RED to load the installed nodes. This installs a node package; it does not import a flow through the editor.
@@ -94,7 +94,9 @@ Thin mode uses JavaScript and does not require Oracle Client libraries. Thick mo
 
 The node passes `ORACLE_CLIENT_LIB`, when set, to `initOracleClient` as `libDir`. On Linux, configure the system library search path before starting Node-RED; setting `libDir` alone does not replace that requirement. Do not copy installed native dependencies between incompatible runtime images.
 
-Node-oracledb driver mode is process-wide. Later DB nodes reuse an initialized Thick driver; fully restart Node-RED before switching modes or changing Oracle Client library settings.
+New DB Connection configurations default to Thin. Saved Thick settings remain unchanged. Driver mode is process-wide; fully restart Node-RED before switching modes or changing Oracle Client library settings.
+
+For a Thin-mode wallet connection, set **Wallet Directory** to the extracted directory containing `ewallet.pem`. If that file is encrypted, enter the password set when downloading or creating the wallet in **Wallet Password**, then save, deploy and use **Test Database Connection**. This is separate from the database password and OCI API-key passphrase. Thick mode can use an auto-login `cwallet.sso` without this password, so a working Thick connection may still need it after switching to Thin. An `NJS-505` error containing `bad decrypt` indicates a wallet decryption failure before SQL runs; check the wallet password and that it belongs to the selected wallet. See the [driver's mTLS wallet setup](https://node-oracledb.readthedocs.io/en/latest/user_guide/connection_handling.html#connecting-with-node-oracledb-thin-mode-using-mtls).
 
 ## 1.3 Install from Local `.tgz` in Palette Manager
 
@@ -123,7 +125,7 @@ From the repository root:
 npm pack
 ```
 
-This creates a file like `node-red-nodes-0.7.1.tgz`. Upload that file in Palette Manager:
+This creates a file like `node-red-nodes-0.8.0.tgz`. Upload that file in Palette Manager:
 
 1. Open Node-RED editor.
 2. Menu → **Manage palette** → **Install**.
@@ -138,8 +140,8 @@ Windows (PowerShell):
 
 ```powershell
 cd $env:TEMP
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.1.tgz
-cd .\node-red-nodes-0.7.1
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.8.0.tgz
+cd .\node-red-nodes-0.8.0
 npm pack
 ```
 
@@ -147,8 +149,8 @@ Windows (cmd):
 
 ```cmd
 cd /d %TEMP%
-tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.7.1.tgz
-cd node-red-nodes-0.7.1
+tar -xf C:\Users\<you>\Downloads\node-red-nodes-0.8.0.tgz
+cd node-red-nodes-0.8.0
 npm pack
 ```
 
@@ -156,8 +158,8 @@ Linux/macOS:
 
 ```bash
 cd /tmp
-tar -xf ~/Downloads/node-red-nodes-0.7.1.tgz
-cd node-red-nodes-0.7.1
+tar -xf ~/Downloads/node-red-nodes-0.8.0.tgz
+cd node-red-nodes-0.8.0
 npm pack
 ```
 
@@ -182,7 +184,7 @@ If your registry must be reached directly, set `NO_PROXY`/`no_proxy` for that re
 
 1. Fully restart the Node-RED process or container using the method appropriate to your installation. Deploying flows alone does not restart Node-RED.
 
-2. Confirm the nodes appear in the palette under their categories: oracle db, oracle fusion scm, and oci.
+2. Confirm the nodes appear under `oracle db`, `oracle fusion scm`, and the OCI palette groups: `OCI Streaming`, `OCI Messaging`, `OCI Observability`, `OCI Services`, and `OCI IoT`. Vault Secret and Certificate appear under `oci`.
 
 3. Import an example JSON flow and deploy it:
    - See [Import Examples Guide](./import-examples.md)
@@ -197,6 +199,6 @@ Each installed package installs all dependencies declared in its own `package.js
 | SCM nodes only | `axios`, `https-proxy-agent` |
 | OCI Functions, native OCI Streaming, Queue, Notifications, Logging, Log Analytics, Object Storage, or IoT control-plane nodes | Individual `oci-*` SDK service packages used by these nodes |
 | OCI Managed Kafka (OCI Streaming with Apache Kafka) producer or consumer | `@confluentinc/kafka-javascript@1.10.1` |
-| ORDS request/poll nodes | No additional package beyond Node.js v18+ |
+| ORDS request/poll nodes | No additional package beyond Node.js v18.0.0+ |
 | IoT Telemetry or IoT Subscribe | `mqtt` |
 | Everything | All of the above |
