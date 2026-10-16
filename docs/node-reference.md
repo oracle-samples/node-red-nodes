@@ -621,10 +621,9 @@ Each node targets a fixed SCM endpoint. To query a different endpoint or use a c
 |------------------|-------|
 | OCI Streaming | Streaming In, Out and Commit; Kafka Consumer, Producer and Commit |
 | OCI Messaging | Queue In, Out and Ack; Notification |
-| OCI Observability | Monitoring Publish and Query; T2 Publish; Logging; Log Analytics |
-| OCI Services | API Request; Functions Invoke; Object Storage; ORDS Request and Poll |
+| OCI Observability | Monitoring Publish and Query; Logging; Log Analytics |
+| OCI Services | API Request; Functions Invoke; Object Storage; ORDS Request and Poll; Vault Secret; Certificate |
 | OCI IoT | Telemetry; Subscribe; Send Command; Get Content; Update Relationship |
-| oci | Vault Secret; Certificate |
 
 Configuration nodes are selected through the related node's editor. Palette categories do not change node types or saved flow configuration.
 
@@ -694,12 +693,17 @@ Publishes one custom OCI Monitoring metric data point per input message.
 | Resource Group | No | Optional metric group within the namespace |
 | Dimensions | No | JSON object containing string dimension values. Default: `{}` |
 | Metadata | No | JSON object containing string metadata values. Default: `{}` |
+| Timeout (ms) | No | Under Advanced; default `30000`, whole number from `1000` to `300000` |
 
 **Input:** `msg.payload` is either a finite number or an object with required numeric `value` and optional `timestamp`, `count`, `compartmentId`, `namespace`, `name`, `resourceGroup`, `dimensions`, and `metadata`. Per-message dimensions and metadata replace their configured maps.
 
 **Outputs:** `msg.payload` contains `failedMetricsCount`, `failedMetrics`, `opcRequestId`, and `statusCode`; the node also sets `msg.statusCode`, `msg.opcRequestId`, and `msg.error` on failure (`{ message, code }`). A nonzero `failedMetricsCount` routes the message through Catch because this node submits exactly one metric data point; `msg.payload` retains the rejection details.
 
 The node derives the realm-correct regional `telemetry-ingestion` endpoint from the OCI SDK endpoint. Use it for selected operational measurements such as latency, availability, throughput, queue depth, and failure counts; send detailed diagnostic events to OCI Logging.
+
+Each node allows 4 active operations and 100 waiting messages. Excess inputs report `MonitoringQueueFull` through Catch. Timeout includes waiting, authentication and the SDK request; it reports `MonitoringTimeout` while retaining the active slot until the underlying work settles. Timeout and overload preserve the input payload. Redeployment reports `MonitoringNodeClosed` for unfinished work and suppresses late output. Pending work is memory-only; these limits count messages, not bytes. A timeout does not guarantee cancellation of a request already sent.
+
+A timeout or shutdown cannot undo a metric already accepted by OCI. Retrying an uncertain publication can publish it again.
 
 ### oci-vault-secret
 
@@ -741,34 +745,6 @@ Retrieves a certificate, CA bundle or certificate-authority bundle from OCI Cert
 
 Each input retrieves fresh material. Supplying it to an HTTP/MQTT/TCP TLS client requires separate integration; fetching a bundle alone does not configure those nodes. Do not log or persist private-key output. The same bounded queues, timeout, sanitized Catch and shutdown behavior as Vault Secret apply. Retrieval does not upload or rotate certificates.
 
-### oci-t2-publish
-
-Publishes one timestamped numeric measurement to OCI Monitoring per input. Uses the native `PostMetricData` API; it is not an OpenTelemetry/OTLP exporter.
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| OCI Config | Yes | Shared OCI authentication and region |
-| Compartment OCID | No* | Metric compartment; uses the OCI Config default when blank. *One must provide a value |
-| Namespace | Yes | Starts with a letter; remaining characters are letters, digits or underscores. Reserved `oci_` and `oracle_` prefixes are rejected |
-| Metric Name | Yes | Starts with a letter; remaining characters are letters, digits, periods, underscores, hyphens or dollar signs |
-| Resource Group | No | Optional group using the same character rules as Metric Name |
-| Dimensions | Yes | JSON object with 1–20 nonempty string entries. Keys are printable ASCII without spaces, up to 256 characters; values up to 512 characters |
-| Metadata | No | JSON object of string entries, with keys and values up to 256 characters. Default: `{}` |
-| Max concurrent | Yes | Active jobs, including authentication. Default: `4`; range `1–32` |
-| Max queued | Yes | Pending messages awaiting capacity. Default: `100`; range `1–10000` |
-| Requests / sec | Yes | Maximum Monitoring request starts per second on this node, after authentication. Default: `20`; range `1–50` |
-| Timeout (ms) | Yes | Deadline including queue, authentication and request time. Default: `30000`; range `1000–300000` |
-
-**Input:** Required top-level `msg.timestamp` (ISO date/time with timezone, a Date, or integer Unix milliseconds) and finite numeric `msg.data`. Zero and negative values are valid. Numeric strings and Unix seconds are not converted. The node does not infer values from `msg.payload` or normalize AQ records; map the selected measurement to these fields upstream. Metric identity and dimensions come from configuration, not message overrides.
-
-**Output:** The original message properties are preserved, with `msg.payload` replaced by `{ failedMetricsCount, failedMetrics, opcRequestId, statusCode }`. Also sets `msg.statusCode` and `msg.opcRequestId`. Catch receives validation, service, overload (`MonitoringQueueFull`) and timeout (`MonitoringTimeout`) errors. Service metric rejection (`MetricRejected`) preserves sanitized rejection details in `msg.payload`; other failures preserve the input payload.
-
-The OCI SDK derives the regional `telemetry-ingestion` endpoint. OCI validates the timestamp ingestion window (less than two hours old and less than ten minutes in the future). Credentials need permission to publish metrics into the selected compartment. Publishing is an external side effect and is not undone by an Oracle DB rollback.
-
-T2 Publish nodes sharing one OCI Config share a 50/s operation-start budget. This does not coordinate existing Monitoring Publish nodes, different OCI Config nodes, other processes or applications. Requests are not automatically retried. Timeout or shutdown cannot undo a request already accepted remotely; retrying an uncertain result can publish the measurement again.
-
-Queue limits count messages, not bytes. Pending messages remain in memory, so limit upstream payload sizes and input rate. A timed-out operation retains its concurrency slot until the underlying authentication/request settles, bounding stalled work. Redeployment rejects unfinished work, suppresses late output and cleans up owned clients without closing shared authentication. Pending work is not durable across process termination.
-
 ### oci-monitoring-query
 
 Queries OCI Monitoring metric series using Monitoring Query Language (MQL).
@@ -782,12 +758,15 @@ Queries OCI Monitoring metric series using Monitoring Query Language (MQL).
 | Resource Group | No | Optional resource group filter |
 | Resolution | No | Optional query resolution such as `1m` |
 | Lookback (min) | No | Relative time range ending now. Default: `60` |
+| Timeout (ms) | No | Under Advanced; default `30000`, whole number from `1000` to `300000` |
 
 **Runtime overrides:** `msg.metricQuery` may contain `compartmentId`, `namespace`, `query`, `resourceGroup`, `resolution`, `lookbackMinutes`, `startTime`, or `endTime`. Explicit times must be valid and start time must precede end time.
 
 **Outputs:** `msg.payload` is the array of returned metric streams and aggregated data points; the node also sets `msg.statusCode`, `msg.opcRequestId`, and `msg.error` on failure (`{ message, code }`).
 
-All three nodes preserve upstream message fields, including the opaque `msg._dbTransaction` reference. OCI operations are external side effects and are not rolled back by End Transaction. Route failures through a scoped Catch; each failed input reports once. Do not send transaction references to OCI services.
+API Request, Monitoring Publish and Monitoring Query preserve upstream message fields, including the opaque `msg._dbTransaction` reference. OCI operations are external side effects and are not rolled back by End Transaction. Route failures through a scoped Catch; each failed input reports once. Do not send transaction references to OCI services.
+
+Each node allows 4 active operations and 100 waiting messages. Excess inputs report `MonitoringQueueFull` through Catch. Timeout includes waiting, authentication and the SDK request; it reports `MonitoringTimeout` while retaining the active slot until the underlying work settles. Timeout and overload preserve the input payload. Redeployment reports `MonitoringNodeClosed` for unfinished work and suppresses late output. Pending work is memory-only; these limits count messages, not bytes. A timeout does not guarantee cancellation of a request already sent.
 
 ### oci-streaming-config (Config Node)
 

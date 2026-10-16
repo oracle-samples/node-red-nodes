@@ -15,7 +15,11 @@ RED.nodes.registerType("oci-monitoring-query", {
         query: { value: "", required: true },
         resourceGroup: { value: "" },
         resolution: { value: "" },
-        lookbackMinutes: { value: 60, required: true, validate: RED.validators.number() }
+        lookbackMinutes: { value: 60, required: true, validate: RED.validators.number() },
+        timeoutMs: { value: 30000, required: true, validate: function (value) {
+            return (typeof value === "number" || (typeof value === "string" && /^\d+$/.test(value))) &&
+                Number.isSafeInteger(Number(value)) && Number(value) >= 1000 && Number(value) <= 300000;
+        } }
     },
     inputs: 1,
     outputs: 1,
@@ -63,6 +67,14 @@ RED.nodes.registerType("oci-monitoring-query", {
             Used when the input message does not provide explicit start and end times.
         </div>
     </div>
+    <details>
+        <summary>Advanced</summary>
+        <div class="form-row" style="margin-top:10px;">
+            <label style="width:130px;" for="node-input-timeoutMs"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
+            <input type="number" id="node-input-timeoutMs" min="1000" max="300000" step="1" style="width:100px;">
+            <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Includes queueing, authentication and the request. Default: 30000 ms.</div>
+        </div>
+    </details>
 </script>
 
 <script type="text/x-red" data-help-name="oci-monitoring-query">
@@ -91,5 +103,7 @@ RED.nodes.registerType("oci-monitoring-query", {
 <p><code>msg.metricQuery</code> may contain <code>compartmentId</code>, <code>namespace</code>, <code>query</code>, <code>resourceGroup</code>, <code>resolution</code>, <code>lookbackMinutes</code>, <code>startTime</code>, or <code>endTime</code>. Explicit times must be valid date/time values and start time must precede end time.</p>
 
 <h3>Details</h3>
+<p>Timeout defaults to 30000 ms (1000–300000), including queueing and authentication. Each node allows 4 active operations and 100 waiting messages. Excess inputs go to Catch with <code>MonitoringQueueFull</code>; deadlines report <code>MonitoringTimeout</code>. These errors preserve the input payload. A timed-out operation retains its slot until the underlying work settles. Pending messages are memory-only; limits count messages, not bytes.</p>
+<p>Redeployment rejects unfinished work with <code>MonitoringNodeClosed</code> and suppresses late output. A reported timeout does not guarantee cancellation of a request already sent to OCI.</p>
 <p>Use this node to retrieve time-series measurements for dashboards, threshold evaluation, or downstream processing. It does not retrieve detailed diagnostic log records.</p>
 </script>

@@ -28,7 +28,6 @@ This project provides a set of custom Node-RED nodes that integrate the Oracle D
 - **oci-nodes**
   - `oci-api-request` for signed OCI HTTPS API requests
   - `oci-vault-secret` and `oci-certificate` for retrieving secret and certificate material
-  - `oci-t2-publish` for publishing timestamped numeric measurements to OCI Monitoring
   - `oci-monitoring-publish` and `oci-monitoring-query` for custom metrics and MQL queries
   - OCI authentication config (Config File, Instance Principal, Resource Principal, API Key)
   - `oci-streaming-config`, `oci-streaming-out`, `oci-streaming-in`, and `oci-streaming-commit` for publishing and consuming native OCI Streaming with automatic or explicit consumer-group commits

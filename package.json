@@ -68,7 +68,6 @@
       "oci-config": "oci-nodes/nodes/oci-config.js",
       "oci-api-request": "oci-nodes/nodes/oci-api-request.js",
       "oci-monitoring-publish": "oci-nodes/nodes/oci-monitoring-publish.js",
-      "oci-t2-publish": "oci-nodes/nodes/oci-t2-publish.js",
       "oci-monitoring-query": "oci-nodes/nodes/oci-monitoring-query.js",
       "oci-streaming-config": "oci-nodes/nodes/oci-streaming-config.js",
       "oci-streaming-out": "oci-nodes/nodes/oci-streaming-out.js",
@@ -269,8 +268,6 @@
     "oci-nodes/nodes/ords-config.js",
     "oci-nodes/package.json",
     "oci-nodes/lib/iot-identity.js",
-    "oci-nodes/nodes/oci-t2-publish.js",
-    "oci-nodes/nodes/oci-t2-publish.html",
     "oci-nodes/nodes/oci-vault-secret.js",
     "oci-nodes/nodes/oci-vault-secret.html",
     "oci-nodes/nodes/oci-certificate.js",
@@ -280,6 +277,7 @@
     "db-nodes/lib/db-operation.js",
     "db-nodes/lib/sdk-diagnostics.js",
     "oci-nodes/lib/oci-operation.js",
-    "oci-nodes/lib/sdk-diagnostics.js"
+    "oci-nodes/lib/sdk-diagnostics.js",
+    "oci-nodes/lib/oci-monitoring-operation.js"
   ]
 }

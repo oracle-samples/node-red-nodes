@@ -36,7 +36,6 @@
 
 module.exports = function (RED) {
     var monitoring = require("oci-monitoring");
-    var ociError = require("../lib/oci-error.js");
 
     function validationError(message) {
         var err = new Error(message);
@@ -88,6 +87,9 @@ module.exports = function (RED) {
         node.resolution = config.resolution || "";
         node.lookbackMinutes = Number(config.lookbackMinutes || 60);
         var clientManager = require("../lib/oci-client.js")(node);
+        var submit = require("../lib/oci-monitoring-operation.js")(node, config, {
+            running: "querying", success: "queried", invalid: "invalid query", failed: "query failed"
+        });
 
         function getClient() {
             return clientManager.get("default", async function () {
@@ -99,8 +101,8 @@ module.exports = function (RED) {
             });
         }
 
-        node.on("input", async function (msg, send, done) {
-            try {
+        node.on("input", function (msg, send, done) {
+            submit(msg, send, done, async function (check) {
                 var input = msg.metricQuery === undefined ? {} : msg.metricQuery;
                 if (!input || typeof input !== "object" || Array.isArray(input)) {
                     throw validationError("msg.metricQuery must be an object");
@@ -140,12 +142,13 @@ module.exports = function (RED) {
                 if (resourceGroup) details.resourceGroup = String(resourceGroup);
                 if (resolution) details.resolution = String(resolution);
 
-                node.status({ fill: "yellow", shape: "dot", text: "querying" });
                 var client = await getClient();
+                check();
                 var response = await client.summarizeMetricsData({
                     compartmentId: compartmentId,
                     summarizeMetricsDataDetails: details
                 });
+                check();
                 var statusCode = response.__httpStatusCode || 200;
                 var outMsg = Object.assign({}, msg, {
                     payload: response.items || [],
@@ -154,16 +157,9 @@ module.exports = function (RED) {
                 });
                 preserveTransaction(outMsg, msg);
 
-                node.status({ fill: "green", shape: "dot", text: "queried" });
                 clientManager.assertOpen();
-                send(outMsg);
-                done();
-            } catch (err) {
-                ociError.handleNodeError(node, msg, err, done, {
-                    statusShape: err.isValidationError ? "ring" : "dot",
-                    statusText: err.isValidationError ? "invalid query" : "query failed"
-                });
-            }
+                return outMsg;
+            });
         });
     }
 

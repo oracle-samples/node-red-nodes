@@ -5,7 +5,7 @@ function certificateInteger(value, minimum, maximum) {
         Number.isSafeInteger(Number(value)) && Number(value) >= minimum && Number(value) <= maximum;
 }
 RED.nodes.registerType("oci-certificate", {
-    category: "oci", color: "#F0CC72", icon: "font-awesome/fa-certificate",
+    category: "OCI Services", color: "#F0CC72", icon: "font-awesome/fa-certificate",
     paletteLabel: "certificate", inputs: 1, outputs: 1,
     defaults: {
         name: { value: "" }, ociConfig: { type: "oci-config", required: true },

@@ -20,11 +20,10 @@ Custom Node-RED nodes for Oracle Cloud Infrastructure (OCI) service integration 
 | Node | Category | Description |
 |------|----------|-------------|
 | **oci-api-request** | OCI Services | Sends signed OCI HTTPS requests with configurable methods, response decoding, and timeouts. |
-| **oci-monitoring-publish** | OCI Observability | Publishes one custom metric data point per input message. |
-| **oci-t2-publish** | OCI Observability | Publishes timestamped numeric measurements to OCI Monitoring. |
-| **oci-vault-secret** | oci | Retrieves a selected secret version from OCI Vault. |
-| **oci-certificate** | oci | Retrieves certificate or CA material; private-key retrieval is opt-in. |
-| **oci-monitoring-query** | OCI Observability | Queries OCI Monitoring metric series using MQL. |
+| **oci-monitoring-publish** | OCI Observability | Publishes one custom metric data point per input message, with bounded pending work and a configurable timeout. |
+| **oci-vault-secret** | OCI Services | Retrieves a selected secret version from OCI Vault. |
+| **oci-certificate** | OCI Services | Retrieves certificate or CA material; private-key retrieval is opt-in. |
+| **oci-monitoring-query** | OCI Observability | Queries OCI Monitoring metric series using MQL, with bounded pending work and a configurable timeout. |
 | **oci-streaming-out** | OCI Streaming | Publishes one record or an explicit batch to native OCI Streaming. |
 | **oci-streaming-in** | OCI Streaming | Consumes native OCI Streaming through a consumer group with automatic or manual commits. |
 | **oci-streaming-commit** | OCI Streaming | Explicitly commits a record emitted by Streaming In in Manual mode. |
@@ -81,7 +80,7 @@ OCI, IoT REST, and ORDS action nodes route failures through Catch nodes and keep
 
 ### oci-config (OCI REST API Authentication)
 
-Used by: `oci-api-request`, `oci-monitoring-publish`, `oci-t2-publish`, `oci-monitoring-query`, `oci-streaming-config`, `oci-functions-invoke`, `oci-queue-config`, `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `oci-vault-secret`, `oci-certificate`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
+Used by: `oci-api-request`, `oci-monitoring-publish`, `oci-monitoring-query`, `oci-streaming-config`, `oci-functions-invoke`, `oci-queue-config`, `oci-notification`, `oci-logging`, `oci-log-analytics`, `oci-object-storage`, `oci-vault-secret`, `oci-certificate`, `iot-send-command`, `iot-get-content`, `iot-update-relationship`
 
 | Auth Type | When to Use | Fields Required |
 |-----------|-------------|-----------------|

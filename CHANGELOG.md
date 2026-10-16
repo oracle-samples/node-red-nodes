@@ -6,15 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.8.0] - 2026-10-15
+## [0.8.0] - 2026-10-16
 
 ### Added
 - `db-connection` supports encrypted Thin-mode wallets with a separate Wallet Password credential.
 - `oci-vault-secret` retrieves OCI Vault secrets as text, JSON or binary content using OCI Config.
 - `oci-certificate` retrieves OCI certificate and CA bundles, with explicit private-key retrieval and bounded requests.
-- `oci-t2-publish` publishes `msg.timestamp` and numeric `msg.data` to OCI Monitoring with validated metric configuration, bounded request queues, timeouts and Catch error handling.
 
 ### Changed
+- `oci-monitoring-publish` and `oci-monitoring-query` add a configurable Timeout under Advanced, limit each node to 4 active operations and 100 waiting messages, and report overload/timeouts through Catch.
 - `db-connection` defaults new configurations to Thin; saved Thick selections remain available.
 - `package.json` updates the OCI SDK components to 2.142.2.
 - `oci-nodes` groups Streaming, Messaging, Observability, Services and IoT nodes into separate palette categories.
