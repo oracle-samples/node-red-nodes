@@ -24,7 +24,7 @@ node-oracledb - https://github.com/oracle/node-oracledb
 License: Apache License 2.0, UPL
 -------------------------------------------------------------------------------
 
-Copyright (c) 2015, 2025 Oracle and/or its affiliates.
+Copyright (c) 2015, 2026, Oracle and/or its affiliates.
 
 This software is dual-licensed to you under the Universal Permissive License
 (UPL) 1.0 as shown at https://oss.oracle.com/licenses/upl and Apache License
@@ -199,8 +199,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ===============================================================================
 
-OCI SDK component packages: oci-common, oci-functions, oci-identity, oci-identitydataplane, oci-iot, oci-loganalytics, oci-loggingingestion, oci-monitoring, oci-objectstorage, oci-ons, oci-queue, oci-streaming
-Version: 2.141.0
+OCI SDK component packages: oci-certificates, oci-common, oci-functions, oci-identity, oci-identitydataplane, oci-iot, oci-loganalytics, oci-loggingingestion, oci-monitoring, oci-objectstorage, oci-ons, oci-queue, oci-secrets, oci-streaming
+Version: 2.142.2
 Source: https://github.com/oracle/oci-typescript-sdk
 License: Apache License 2.0, UPL
 -------------------------------------------------------------------------------

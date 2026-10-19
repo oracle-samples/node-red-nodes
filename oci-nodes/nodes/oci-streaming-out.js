@@ -3,6 +3,7 @@
 module.exports = function (RED) {
     var streamingSupport = require("../lib/oci-streaming.js");
     var ociError = require("../lib/oci-error.js");
+    var createOperationState = require("../lib/oci-operation.js");
 
     function OciStreamingOutNode(config) {
         RED.nodes.createNode(this, config);
@@ -15,7 +16,10 @@ module.exports = function (RED) {
             return;
         }
 
+        var operation = createOperationState(node);
+
         node.on("input", async function (msg, send, done) {
+            if (operation.isClosed()) return done();
             try {
                 var input = msg.ociStreaming && typeof msg.ociStreaming === "object" && !Array.isArray(msg.ociStreaming)
                     ? msg.ociStreaming
@@ -31,7 +35,9 @@ module.exports = function (RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "publishing" });
                 var client = await node.streamingConfig.getClient();
+                if (operation.isClosed()) return done();
                 var response = await client.putMessages(request);
+                if (operation.isClosed()) return done();
                 var result = response.putMessagesResult || {};
                 var responseRequestId = response.opcRequestId || opcRequestId || null;
                 var statusCode = response.__httpStatusCode || 200;
@@ -71,6 +77,7 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
+                if (operation.isClosed()) return done();
                 ociError.handleNodeError(node, msg, err, done, {
                     statusText: "publish failed",
                     statusShape: err.isValidation ? "ring" : "dot",

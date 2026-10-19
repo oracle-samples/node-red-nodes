@@ -40,12 +40,13 @@ module.exports = function (RED) {
     var transactions = require("../lib/db-transaction.js")(RED);
 
     // Blank string literals, quoted identifiers, and comments in sql so the
-    // placeholder regex cannot match ':' inside literal values like 'call :id'.
+    // bind scan cannot match ':' inside literal values like 'call :id'.
     // Spaces replace content character-for-character to keep indices aligned.
-    function stripSqlForBindScan(sql) {
+    function stripSqlForBindScan(sql, onBind) {
         var out = "";
         var state = "normal";
         var alternativeQuoteEnd;
+        var lastWasString = false;
 
         for (var i = 0; i < sql.length; i++) {
             var ch = sql[i];
@@ -56,32 +57,48 @@ module.exports = function (RED) {
                     var delimiter = sql[i + 2];
                     alternativeQuoteEnd = ({ "[": "]", "{": "}", "(": ")", "<": ">" })[delimiter] || delimiter;
                     state = "alternative_quote";
+                    lastWasString = true;
                     out += "   ";
                     i += 2;
                     continue;
                 }
                 if (ch === "'") {
                     state = "single_quote";
+                    lastWasString = true;
                     out += " ";
                     continue;
                 }
                 if (ch === "\"") {
                     state = "double_quote";
+                    lastWasString = false;
                     out += " ";
                     continue;
                 }
                 if (ch === "-" && next === "-") {
                     state = "line_comment";
+                    lastWasString = false;
                     out += "  ";
                     i++;
                     continue;
                 }
                 if (ch === "/" && next === "*") {
                     state = "block_comment";
+                    lastWasString = false;
                     out += "  ";
                     i++;
                     continue;
                 }
+                // A colon following a string is an Oracle JSON member separator.
+                if (ch === ":" && !lastWasString && sql[i - 1] !== ":") {
+                    var bind = /^:\s*(?:"([^"]*)"|(\p{Alpha}[\p{L}\p{N}_$#]*)|([0-9]+))/u.exec(sql.slice(i));
+                    if (bind) {
+                        if (onBind) onBind(bind[1], bind[2], bind[3]);
+                        out += " ".repeat(bind[0].length);
+                        i += bind[0].length - 1;
+                        continue;
+                    }
+                }
+                if (!/\s/u.test(ch)) lastWasString = false;
                 out += ch;
                 continue;
             }
@@ -150,28 +167,22 @@ module.exports = function (RED) {
             return { named: new Set(), positionalMax: 0 };
         }
 
-        var sanitized = stripSqlForBindScan(sql);
         var named = new Set();
         var positionalMax = 0;
-        // (^|[^:]) prevents matching :: which is Oracle's type-cast operator.
-        var namedRe = /(^|[^:]):([a-zA-Z_][a-zA-Z0-9_]*)/g;
-        var positionalRe = /(^|[^:]):([0-9]+)\b/g;
-        var match;
-
-        while ((match = namedRe.exec(sanitized)) !== null) {
-            named.add(match[2]);
-        }
-        while ((match = positionalRe.exec(sanitized)) !== null) {
-            var n = parseInt(match[2], 10);
-            if (!Number.isNaN(n) && n > positionalMax) {
-                positionalMax = n;
+        stripSqlForBindScan(sql, function (quotedName, name, position) {
+            if (position !== undefined) {
+                positionalMax = Math.max(positionalMax, Number(position));
+            } else {
+                named.add(quotedName !== undefined ? quotedName : name.toUpperCase());
             }
-        }
+        });
 
         return { named: named, positionalMax: positionalMax };
     }
 
     function verifyBindParity(sql, binds) {
+        // DDL has no application binds; trigger :NEW/:OLD names belong to its body.
+        if (/^\s*(?:ALTER|CREATE|DROP|ANALYZE|AUDIT|COMMENT|GRANT|REVOKE|TRUNCATE)\b/i.test(stripSqlForBindScan(sql))) return;
         var placeholders = extractBindPlaceholders(sql);
         var named = placeholders.named;
         var positionalMax = placeholders.positionalMax;
@@ -197,9 +208,15 @@ module.exports = function (RED) {
             if (positionalMax > 0) {
                 throw new Error("Positional bind placeholders require array binds");
             }
+            var bindNames = new Set(Object.keys(binds).map(function (name) {
+                var normalized = name.startsWith('"') && name.endsWith('"')
+                    ? name.slice(1, -1) : name.toUpperCase();
+                // The driver's optional colon prefix is removed from the original key.
+                return normalized.startsWith(":") ? name.slice(1) : normalized;
+            }));
             var missing = [];
             named.forEach(function(name) {
-                if (!Object.prototype.hasOwnProperty.call(binds, name)) {
+                if (!bindNames.has(name)) {
                     missing.push(name);
                 }
             });
@@ -388,13 +405,16 @@ module.exports = function (RED) {
             return namedBinds;
         }
 
-        node.on("input", async (msg, send, done) => {
+        var operation = require("../lib/db-operation.js")(node);
+        node.on("input", operation.wrap(async (msg, send, done) => {
             let connection;
             let ownConnection = false;
             var lease;
 
             try {
+                operation.assertOpen();
                 lease = await transactions.acquire(msg, config.connection);
+                operation.assertOpen();
                 dbError.assertActiveTransaction(msg.transaction);
                 let sql;
                 if (node.sqlSource === "msg") {
@@ -456,6 +476,7 @@ module.exports = function (RED) {
                             binds = validateBindsValue(JSON.parse(node.binds));
                         }
                     } catch (parseErr) {
+                        if (operation.isClosing()) throw parseErr;
                         const err = new Error("Invalid binds: " + parseErr.message);
                         return dbError.handleNodeError(node, msg, err, done, {
                             statusText: "invalid binds",
@@ -464,6 +485,7 @@ module.exports = function (RED) {
                     }
                 }
 
+                operation.assertOpen();
                 try {
                     verifyBindParity(sql, binds);
                 } catch (bindParityErr) {
@@ -484,6 +506,7 @@ module.exports = function (RED) {
                     maxRows: maxRows
                 };
 
+                operation.assertOpen();
                 node.status({ fill: "yellow", shape: "dot", text: "connecting..." });
                 dbError.assertActiveTransaction(msg.transaction);
                 if (msg.transaction && msg.transaction.connection) {
@@ -493,8 +516,10 @@ module.exports = function (RED) {
                     ownConnection = true;
                 }
 
+                operation.assertOpen();
                 node.status({ fill: "yellow", shape: "dot", text: "executing..." });
                 const res = await connection.execute(sql, binds, options);
+                operation.assertOpen();
                 const hasRows = Array.isArray(res.rows);
                 const rows = hasRows ? res.rows : [];
                 const rowsAffected = typeof res.rowsAffected === "number"
@@ -527,6 +552,7 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
+                if (operation.isClosing()) return operation.stopped(err, lease, done);
                 dbError.handleNodeError(node, msg, err, done, { statusText: "query failed" });
             } finally {
                 if (lease) lease.release();
@@ -536,7 +562,7 @@ module.exports = function (RED) {
                     }
                 }
             }
-        });
+        }));
     }
 
     RED.nodes.registerType("sql", DbSqlNode);

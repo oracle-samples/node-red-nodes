@@ -36,7 +36,6 @@
 
 module.exports = function (RED) {
     var monitoring = require("oci-monitoring");
-    var ociError = require("../lib/oci-error.js");
 
     function validationError(message) {
         var err = new Error(message);
@@ -111,6 +110,9 @@ module.exports = function (RED) {
         node.dimensions = config.dimensions || "{}";
         node.metadata = config.metadata || "{}";
         var clientManager = require("../lib/oci-client.js")(node);
+        var submit = require("../lib/oci-monitoring-operation.js")(node, config, {
+            running: "publishing", success: "published", invalid: "invalid metric", failed: "publish failed"
+        });
 
         function getClient() {
             return clientManager.get("default", async function () {
@@ -135,8 +137,8 @@ module.exports = function (RED) {
             });
         }
 
-        node.on("input", async function (msg, send, done) {
-            try {
+        node.on("input", function (msg, send, done) {
+            submit(msg, send, done, async function (check) {
                 var input;
                 if (typeof msg.payload === "number") {
                     input = { value: msg.payload };
@@ -185,13 +187,14 @@ module.exports = function (RED) {
                 var resourceGroup = input.resourceGroup || node.resourceGroup;
                 if (resourceGroup) metric.resourceGroup = String(resourceGroup);
 
-                node.status({ fill: "yellow", shape: "dot", text: "publishing" });
                 var client = await getClient();
+                check();
                 var response = await client.postMetricData({
                     postMetricDataDetails: {
                         metricData: [metric]
                     }
                 });
+                check();
                 var details = response.postMetricDataResponseDetails || {};
                 var statusCode = response.__httpStatusCode || 200;
                 var publication = {
@@ -218,16 +221,9 @@ module.exports = function (RED) {
                 });
                 preserveTransaction(outMsg, msg);
 
-                node.status({ fill: "green", shape: "dot", text: "published" });
                 clientManager.assertOpen();
-                send(outMsg);
-                done();
-            } catch (err) {
-                ociError.handleNodeError(node, msg, err, done, {
-                    statusShape: err.isValidationError ? "ring" : "dot",
-                    statusText: err.isValidationError ? "invalid metric" : "publish failed"
-                });
-            }
+                return outMsg;
+            });
         });
     }
 

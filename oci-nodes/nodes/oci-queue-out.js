@@ -3,6 +3,7 @@
 module.exports = function (RED) {
     var queueSupport = require("../lib/oci-queue.js");
     var ociError = require("../lib/oci-error.js");
+    var createOperationState = require("../lib/oci-operation.js");
 
     function OciQueueOutNode(config) {
         RED.nodes.createNode(this, config);
@@ -14,7 +15,10 @@ module.exports = function (RED) {
             return;
         }
 
+        var operation = createOperationState(node);
+
         node.on("input", async function (msg, send, done) {
+            if (operation.isClosed()) return done();
             try {
                 var input = msg.ociQueue && typeof msg.ociQueue === "object" && !Array.isArray(msg.ociQueue)
                     ? msg.ociQueue
@@ -30,7 +34,9 @@ module.exports = function (RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "enqueueing" });
                 var client = await node.queueConfig.getClient();
+                if (operation.isClosed()) return done();
                 var response = await client.putMessages(request);
+                if (operation.isClosed()) return done();
                 var outMsg = Object.assign({}, msg, {
                     statusCode: response.__httpStatusCode || 200,
                     ociQueue: Object.assign({}, input, {
@@ -44,6 +50,7 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
+                if (operation.isClosed()) return done();
                 ociError.handleNodeError(node, msg, err, done, {
                     statusText: "enqueue failed",
                     statusShape: err.isValidation ? "ring" : "dot",

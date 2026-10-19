@@ -2,7 +2,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("oci-queue-ack", {
-    category: "oci",
+    category: "OCI Messaging",
     paletteLabel: "queue ack",
     defaults: {
         name: { value: "" },
@@ -50,4 +50,5 @@ RED.nodes.registerType("oci-queue-ack", {
 <p>An explicit batch from Queue In uses <code>msg.ociQueue.records</code>, not the payload's array type, to select one <code>DeleteMessages</code> request. Preserve the aligned payload, records, messageCount, queue, and consumer group. Batches require 1–20 distinct receipts. Process every entry before acknowledging.</p>
 <p>OCI may delete some messages and reject others. <code>acknowledged: true</code> is emitted only when every entry succeeds. Partial failure goes to Catch with the original payload and receipts, <code>msg.ociQueue.ackResults</code> (index, acknowledged, and any error detail), <code>acknowledgedCount</code>, and <code>failedCount</code>. If A and C were deleted but B failed, retry only B's deletion: keep B's payload and receipt together and set <code>messageCount</code> to <code>1</code>. Malformed responses or network failures leave acknowledgement false and outcomes unknown; do not assume nothing was deleted. No batch is inferred from an array-valued single message.</p>
 <p>All upstream properties are preserved. Missing or stale receipts fail through <code>done(err)</code> and can be handled with a Node-RED Catch node. Receipt values are not written to status text.</p>
+    <p>On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.</p>
 </script>

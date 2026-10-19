@@ -2,7 +2,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("oci-queue-out", {
-    category: "oci",
+    category: "OCI Messaging",
     paletteLabel: "queue out",
     defaults: {
         name: { value: "" },
@@ -53,4 +53,5 @@ RED.nodes.registerType("oci-queue-out", {
 </dl>
 <h3>Details</h3>
 <p>The output preserves the payload and upstream properties. A successful request reports <code>enqueued N</code> using the submitted message count. Failures call <code>done(err)</code> for a Node-RED Catch node.</p>
+    <p>On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.</p>
 </script>

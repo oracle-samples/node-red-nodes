@@ -281,28 +281,53 @@ RED.nodes.registerType("scm-lookup", {
                 if (parts === null) return;
                 var value = filters[key];
                 if (dedicatedParams.indexOf(key) === -1 && value !== undefined && value !== null && value !== "") {
-                    parts.push(key + "=" + value);
+                    try {
+                        parts.push(buildQueryEquality(key, value));
+                    } catch (err) {
+                        parts = null;
+                    }
                 }
             });
             if (parts === null) return null;
-            return parts.length > 0 ? ";" + parts.join(";") : "";
+            return parts.length > 0 ? " and " + parts.join(" and ") : "";
+        }
+
+        function buildQueryEquality(field, value, type) {
+            if (!/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/.test(field)) {
+                throw new Error("Query field name is invalid");
+            }
+            if ((typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") ||
+                (typeof value === "number" && !Number.isFinite(value))) {
+                throw new Error("Query values must be strings, finite numbers, or booleans");
+            }
+            if (type === "number") {
+                var numeric = String(value).trim();
+                if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(numeric) || !Number.isFinite(Number(numeric))) {
+                    throw new Error(field + " requires a numeric value");
+                }
+                return field + "=" + numeric;
+            }
+            if (typeof value === "string" || type === "string") {
+                return field + "='" + String(value).replace(/'/g, "''") + "'";
+            }
+            return field + "=" + String(value);
         }
 
         function buildDedicatedFilterSuffix(lookupType) {
             var parts = [];
             (dedicatedQueryFieldMap[lookupType] || []).forEach(function (field) {
-                var value = $("#node-input-" + field.id).val().trim();
-                if (value) {
-                    parts.push(field.queryParam + "=" + value);
+                var value = $("#node-input-" + field.id).val();
+                if (value.trim()) {
+                    parts.push(buildQueryEquality(field.queryParam, value, "string"));
                 }
             });
-            return parts.length > 0 ? ";" + parts.join(";") : "";
+            return parts.length > 0 ? " and " + parts.join(" and ") : "";
         }
 
         function updateEndpointPreview() {
             var lookupType = $("#node-input-lookupType").val();
             var $endpoint = $("#lookup-endpoint-display");
-            var queryValue = $("#node-input-queryValue").val().trim();
+            var queryValue = $("#node-input-queryValue").val();
 
             if (lookupType === "custom") {
                 var customUrl = $("#node-input-customUrl").val().trim();
@@ -357,13 +382,20 @@ RED.nodes.registerType("scm-lookup", {
                     queryValue + ",MntMeterCode=" + meterCode;
                 var meterUrl = base + "?finder=" + encodeURIComponent(finder);
                 if (filterSuffix) {
-                    meterUrl += "&q=" + encodeURIComponent(filterSuffix.substring(1));
+                    meterUrl += "&q=" + encodeURIComponent(filterSuffix.substring(5));
                 }
                 $endpoint.text(meterUrl);
                 return;
             }
             var dedicatedFilterSuffix = buildDedicatedFilterSuffix(lookupType);
-            $endpoint.text(queryValue ? base + "?q=" + queryParam + "=" + queryValue + dedicatedFilterSuffix + filterSuffix : base);
+            try {
+                var queryType = queryParam === "OrganizationId" || queryParam === "OperationSequenceNumber"
+                    ? "number" : "string";
+                var query = queryValue.trim() ? buildQueryEquality(queryParam, queryValue, queryType) + dedicatedFilterSuffix + filterSuffix : "";
+                $endpoint.text(query ? base + "?q=" + encodeURIComponent(query) : base);
+            } catch (err) {
+                $endpoint.text(err.message);
+            }
         }
 
         function updateSections() {
@@ -566,7 +598,7 @@ RED.nodes.registerType("scm-lookup", {
     <div class="form-row query-filters-section">
         <label for="node-input-queryFilters" style="vertical-align:top;margin-top:2px;width:160px;"><i class="fa fa-filter"></i> Additional Filters</label>
         <textarea id="node-input-queryFilters" rows="4" style="width:calc(100% - 167px);font-family:monospace;font-size:12px;"></textarea>
-        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional JSON object appended to the REST <code>q</code> expression for extra narrowing. Field names may contain letters, numbers, underscores, and dots. Dedicated fields above take precedence over matching keys. Values containing <code>;</code> are rejected. Can be overridden by <code>msg.queryFilters</code>.</div>
+        <div style="margin-left:165px;font-size:11px;color:#888;margin-top:2px;">Optional JSON object of literal equality filters, combined with <code>and</code>. Use string, number or boolean values. Field names may contain letters, numbers, underscores, and dots. Dedicated fields above take precedence over matching keys. Can be overridden by <code>msg.queryFilters</code>.</div>
     </div>
 </script>
 
@@ -594,7 +626,7 @@ RED.nodes.registerType("scm-lookup", {
 <dl class="message-properties">
     <dt>Query Value</dt><dd>Primary lookup key. Other required keys use dedicated editor fields; message overrides take precedence. Recipe and Batch are aliases for Work Definition and Manufacturing Work Order.</dd>
     <dt>Work Order ID / Operation ID</dt><dd>Parent resource IDs for child lookups, not displayed work order numbers or operation sequences.</dd>
-    <dt>Additional Filters</dt><dd>Optional JSON object of REST <code>q</code> criteria. Dedicated fields take precedence over matching keys. Names allow letters, numbers, underscores and dots. Query/filter values reject <code>;</code>; meter finder values also reject <code>,</code>.</dd>
+    <dt>Additional Filters</dt><dd>Optional JSON object of literal equality values, combined with <code>and</code>. Strings are quoted; JSON numbers and booleans retain their types. Dedicated fields take precedence over matching keys. Names allow letters, numbers, underscores and dots. Meter finder values reject <code>;</code> and <code>,</code>.</dd>
     <dt>Custom Endpoint</dt><dd>Complete GET URL or base endpoint. Requires HTTPS, no credentials or fragment, and the SCM Server's exact origin and API-version resource path. Redirects are not followed.</dd>
     <dt>Query Parameters</dt><dd>Optional static Custom-mode rows, such as <code>finder</code>, <code>q</code>, <code>fields</code>, <code>limit</code> and <code>offset</code>. Pasted query strings become rows; order and repeated names are preserved.</dd>
     <dt>Endpoint</dt><dd>Read-only preview of the complete URL.</dd>
@@ -617,6 +649,10 @@ RED.nodes.registerType("scm-lookup", {
     <dt>msg.workOrderOperationId <span class="property-type">string|number</span></dt><dd>Parent operation resource ID for material, resource, output and reservation lookups, not its sequence number.</dd>
 </dl>
 <h3>Details</h3>
+<p>Predefined lookups use REST framework 2. Query values are literal data, including quotes,
+punctuation and operator words; they cannot supply query expressions. Organization ID and operation
+sequence keys must be numeric. Objects, arrays and non-finite filter values are rejected before
+authentication. Custom mode retains its configured query syntax and the server's default framework.</p>
 <p>Custom requests may omit query parameters. Their parameters are static configuration; use a
 predefined lookup or Fusion Request when values must come from each message.</p>
 

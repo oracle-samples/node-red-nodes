@@ -14,12 +14,13 @@ Defines how Node-RED connects to the Oracle Database. All other DB nodes referen
 |-------|----------|-------------|
 | Name | No | Optional display name shown in config selectors and node labels |
 | Auth Type | Yes | Basic, DB Token — Config File, DB Token — Instance Principal, DB Token — Resource Principal, DB Token — Session Token, or DB Token — API Key |
-| Driver Mode | No | `thick` (default) or `thin`. Thick uses Oracle Client libraries; Thin uses the pure JavaScript driver |
+| Driver Mode | No | `thin` (default for new configurations) or `thick`. Thin uses the pure JavaScript driver; Thick uses Oracle Client libraries. Saved Thick selections remain unchanged |
 | External Auth | No | Enables external token authentication (required for all DB Token types) |
 | Username | Basic only | Authenticating database username. With proxy authentication, Oracle reports it as `PROXY_USER`; otherwise it is the session user. Existing `USERNAME[SESSION_USER]` values remain supported when Session User is blank. |
 | Password | Basic only | Database password |
 | TNS String | Yes | TNS alias or connect descriptor. When copying from `tnsnames.ora`, enter only the descriptor after `<alias> =`, not the complete assignment. |
 | Wallet Directory | No | Extracted wallet directory, not a wallet ZIP or `tnsnames.ora` file. Set it when the connection requires wallet-based configuration. |
+| Wallet Password | Encrypted Thin wallet only | Password set when downloading or creating the wallet, used to decrypt `ewallet.pem`. Stored as a credential, separate from the database password and OCI API-key passphrase. Ignored in Thick mode. |
 | Config File Location | Config File / Session Token | Path to OCI config file (default: `~/.oci/config`) |
 | Profile | Config File / Session Token | Profile name in config file (default: `DEFAULT`) |
 | Fingerprint | Simple only | API key fingerprint |
@@ -28,7 +29,7 @@ Defines how Node-RED connects to the Oracle Database. All other DB nodes referen
 | Region ID | Simple only | OCI region |
 | Tenancy OCID | Simple only | Tenancy OCID |
 | User OCID | Simple only | User OCID |
-| Session User | Basic / DB Token | Optional proxy target and effective schema reported by Oracle as `SESSION_USER`. With Basic auth, Username is the authenticating proxy user and the node composes Oracle's `USERNAME[SESSION_USER]` form. With DB Token auth, the IAM token identity authenticates. Supported in Thin and Thick modes with node-oracledb 7. |
+| Session User | Basic / DB Token | Optional proxy target and effective schema reported by Oracle as `SESSION_USER`. With Basic auth, Username is the authenticating proxy user and the node composes Oracle's `USERNAME[SESSION_USER]` form. With DB Token auth, the IAM token identity authenticates. Supported in Thin and Thick modes. |
 | Use Pool | No | Enables a reusable connection pool |
 | Pool Min | Pool only | Minimum connections in pool. Leave blank for driver default |
 | Pool Max | Pool only | Maximum connections in pool. Leave blank for driver default |
@@ -46,13 +47,16 @@ Defines how Node-RED connects to the Oracle Database. All other DB nodes referen
 
 NLS fields and Advanced SQL can be used separately or together; Advanced statements run last. Initialization must succeed before a connection is returned. Thin pools initialize new sessions without tags; Thick pools initialize new or differently tagged sessions using an opaque identity covering all configured statements. Warm pooled sessions reuse their initialization, while standalone connections initialize on every open. Initialization does not reset session changes made later by flow SQL.
 
+New DB Connection configurations default to **Thin**. Existing saved Thick selections remain unchanged.
+
 Driver mode behavior:
 
 | Behavior | Thick | Thin |
 |----------|-------|------|
 | Runtime scope | Process-wide after first DB connection initialization | Process-wide after first DB connection initialization |
-| Basic / DB Token + Session User | Supported with node-oracledb 7 | Supported with node-oracledb 7 |
+| Basic / DB Token + Session User | Supported | Supported |
 | Wallet Directory | Resolves a TNS alias from the directory's `tnsnames.ora` and applies the wallet to the descriptor | Supplies the network and wallet configuration directory to node-oracledb |
+| Wallet Password | Not used | Decrypts an encrypted `ewallet.pem`; applies to standalone connections, pools and Test Database Connection |
 
 > **Important:** Node-oracledb mode is process-wide in a single Node-RED runtime. The first
 > `db-connection` to initialize the driver sets the mode.
@@ -152,6 +156,8 @@ The predicate is evaluated during each dequeue and does not alter the subscriber
 
 **Continuous mode:** Starts on deploy with no input trigger, then dequeues with `AQ_DEQ_WAIT_FOREVER`. A successful batch shows `dequeued N` for two seconds while the next blocking dequeue starts immediately, then restores the blue-ring `listening` status. On DB/dequeue errors, the node retries when enabled. A terminal operational failure reports once to scoped Catch after retries are disabled or exhausted. On redeploy/stop, the node interrupts the blocking dequeue call (and any retry wait) so close can finish promptly without timing out. If Oracle returns `ORA-25231`, configure **Subscriber** with the AQ consumer name required by the multi-consumer queue; this missing-subscriber error stops immediately.
 
+**Standalone DB shutdown:** Dequeue, Enqueue and SQL wait for their pending operations to settle during removal. Late connections are released before starting new work. Uncommitted standalone dequeues are rolled back if shutdown is detected before commit; an already dispatched commit cannot be undone. Begin/End transaction ownership is unchanged.
+
 ### enqueue
 
 Enqueues JSON, RAW, or ADT messages into an Oracle AQ queue.
@@ -191,11 +197,14 @@ Executes SQL statements against the Oracle Database.
 | Binds Mapping | Editor only | Reorderable bind rows: bind variable + source type (`static text`, `number`, `boolean`, `date`, `msg property`, `JSONata`). JSONata rows include a `...` button to open the expression editor. `date` defaults to `SYSDATE` (current runtime time) but can be edited to any valid date/datetime string. |
 | Max Rows | No | Maximum rows returned (default: 1000, max: 10000) |
 
+Named binds follow Oracle naming rules, including `$` and `#`. Unquoted names are matched without case sensitivity; quoted names retain their exact case. For example, SQL `:VALUE` accepts `{ "value": 5 }`, while SQL `:"Mixed"` uses the quoted bind key `{ "\"Mixed\"": 5 }`.
+
 Clicking **Done** saves the current Binds Mapping rows; reopening the node restores them.
 
 **Outputs:** `msg.payload` remains an array of row objects (or an empty array for successful statements without rows). `msg.dbResult` contains `{ success, rowsReturned, rowsAffected }`; `rowsAffected` is `null` when Oracle does not report an affected-row count.
 
 Before opening a DB connection, SQL placeholder parity is validated: named placeholders require object binds, positional placeholders require array binds, and missing bind values fail fast with status "binds mismatch".
+Trigger DDL references such as `:NEW` and `:OLD` are Oracle pseudo-records, not application binds; they do not require entries in Binds.
 SQL execution failures route to Catch with the Oracle message and error number in `msg.error`; SQL text and bind values are not copied into `msg.error`.
 In SQL Source `Editor` mode, semicolon-chained multi-statement SQL is blocked before execute; a single statement is required (anonymous PL/SQL blocks remain allowed). Do not include the trailing `/` command used by SQLcl and SQL*Plus; a PL/SQL block should end with `END;`. If a standalone trailing `/` is present, the node identifies it separately and tells the user to remove it.
 
@@ -231,7 +240,7 @@ Stores the Fusion hostname, API version, OAuth credentials, and proxy settings. 
 
 > **Deploy-time validation:** Hostname, API Version, Token URL, and Scope must all be valid before deploying. Hostname must not include a protocol or path, and the Token URL must use HTTPS.
 
-Fusion SCM REST nodes keep their normal output success-only. Each failed input is reported once through `done(err)`, with normalized error fields `{ message, code }`. When Fusion returns a validation body, its detail text is used in the error message and `msg.payload` keeps the raw response body. Node-RED adds its standard Catch source metadata and preserves the prior normalized error in `msg._error`.
+Fusion SCM REST nodes keep their normal output success-only. Each failed input is reported once through `done(err)`, with normalized error fields `{ message, code }`. When Fusion returns a validation body, its detail text is used in the error message and `msg.payload` keeps the response body with recognized sensitive fields redacted. Node-RED adds its standard Catch source metadata and preserves the prior normalized error in `msg._error`.
 
 ### fusion-request
 
@@ -279,10 +288,12 @@ Unified SCM lookup node. Supports multiple query types.
 | Meter Code | Meter Reading only | Required meter identifier combined with Asset Number in the `MetersByAssetMeterUserKey` finder. |
 | Subinventory Code | On-Hand Quantity only | Optional subinventory scope. |
 | Query Value | Predefined lookups only | Primary value to search for (for example, Serial Number or Asset Number) |
-| Additional Filters | Predefined lookups only | Optional JSON object sent as a separate REST `q` expression for extra narrowing. Field names may contain letters, numbers, underscores, and dots; values containing `;` are rejected. Dedicated fields take precedence over matching keys. |
+| Additional Filters | Predefined lookups only | Optional JSON object adding conditions to the REST `q` expression. Field names may contain letters, numbers, underscores, and dots. String values are quoted as literals; finite numbers and booleans retain their types. Dedicated fields take precedence over matching keys. |
 | Custom Endpoint | Custom only | Complete Fusion GET URL or base resource endpoint. A pasted query string is normalized into Query Parameters. |
 | Query Parameters | Custom only | Optional ordered name/value rows for top-level parameters such as `finder`, `q`, `fields`, `limit`, and `offset`. Repeated names are preserved. |
 | Endpoint | Editor preview | Read-only preview of the complete request URL |
+
+Built-in equality filters use `REST-Framework-Version: 2`, escape apostrophes inside string values, and combine conditions with `and`. Supply values, not query expressions. For example, a JSON filter `{ "OrganizationCode": "O'Brien" }` becomes `OrganizationCode='O''Brien'`. Custom mode preserves your query parameters and remains responsible for the target API's query syntax.
 
 Prerequisite lookup types target `inventoryOrganizations` by the selected organization field, `itemsV2` by Item Number and Organization Code, `subinventories` by Subinventory Code and Organization Code, `inventoryOnhandBalances` by Item Number and Organization Code, `workDefinitions` by Work Definition Name, Organization Code, and Item Number, manufacturing `workOrders` by Work Order Number and Organization Code, and `maintenanceWorkOrders` by Work Order Number and Organization Code. Installed Base Asset uses Serial Number and Item Number. Meter Reading uses the `MetersByAssetMeterUserKey` finder with Asset Number and Meter Code and returns the complete matching history. Redwood aliases map to the same resources: Recipe maps to Work Definition, and Batch maps to Manufacturing Work Order.
 
@@ -316,7 +327,7 @@ history, the output is normalized: `items` and `count` cover all readings,
 `hasMore` is `false`, `offset` is `0`, `limit` remains Fusion's page size, and
 page-specific `links` are omitted.
 
-Primary Query Values and Additional Filter values containing `;` are rejected because Fusion uses semicolons to separate `q` filter expressions.
+Generated equality filters treat punctuation, including semicolons, as literal text. Meter Reading finder values still reject commas and semicolons because they delimit finder parameters.
 
 New nodes default to `Lookup Type = Custom` so the workspace label stays `scm lookup` until a lookup type is selected.
 
@@ -355,6 +366,8 @@ Palette label: `smart operations transformer`.
 **Outputs:** `msg.smoEvent` (structured Smart Operations event object, default) or `msg.payload` when Output Target is set to `msg.payload`.
 
 Composite fragments sharing one managed transaction retain that reference for End. When owners differ, SMO finalizes each distinct managed source once before merging; a managed/unmanaged mix finalizes only the managed source. This commits all work in those source transactions, including other dequeued records and branches. Successful automatic finalization removes closed references from the combined message. Independent commits are not an atomic group. `msg.dequeued` is not a collection of contributing originals; recover individual records before aggregation or preserve the required data explicitly.
+
+Composite identities preserve the separate entity, event-time and event-type values; underscores within values do not combine distinct identities. A later explicit `null` replaces a buffered value and does not satisfy a required field.
 
 A complete event replaces pending partial data after any required transaction finalization for the same entity, event time, and event type, and cancels that entry's timer. For an incomplete event receiving no further data, Stale Timeout `0` with Max Pending Age `60` emits the partial data after about 60 seconds and removes the pending entry.
 
@@ -596,13 +609,25 @@ for `scm-lookup` Meter Reading mode.
 
 **Outputs:** `msg.payload` (API response), `msg.statusCode`, `msg.error` (on failure, object: `{ message, code }`)
 
+`get-ib-asset` and `get-organization-id` use REST framework version 2 equality filters and quote the lookup value as data, including embedded apostrophes.
+
 Each node targets a fixed SCM endpoint. To query a different endpoint or use a custom query parameter, use `scm-lookup` in custom mode instead.
 
 ---
 
 ## OCI Nodes
 
-OCI, IoT REST, and ORDS action nodes keep their normal output success-only. Input failures are reported once through `done(err)`, with normalized `msg.error` fields `{ message, code }`. Server-side detail text is used when available. Node-RED adds its standard Catch source metadata and preserves the original error object in `msg._error`. Existing OCI/ORDS request nodes keep raw response bodies in `msg.payload` when available and add `msg.opcRequestId` when the upstream request ID is available. Streaming Out, Kafka Producer, Functions Invoke, Queue Out, and Queue Ack preserve their input payload on failure.
+| Palette category | Nodes |
+|------------------|-------|
+| OCI Streaming | Streaming In, Out and Commit; Kafka Consumer, Producer and Commit |
+| OCI Messaging | Queue In, Out and Ack; Notification |
+| OCI Observability | Monitoring Publish and Query; Logging; Log Analytics |
+| OCI Services | API Request; Functions Invoke; Object Storage; ORDS Request and Poll; Vault Secret; Certificate |
+| OCI IoT | Telemetry; Subscribe; Send Command; Get Content; Update Relationship |
+
+Configuration nodes are selected through the related node's editor. Palette categories do not change node types or saved flow configuration.
+
+OCI, IoT REST, and ORDS action nodes keep their normal output success-only. Input failures are reported once through `done(err)`, with normalized `msg.error` fields `{ message, code }`. Server-side detail text is used when available, with recognized credential fields and patterns redacted. Node-RED adds its standard Catch source metadata and preserves the prior normalized error in `msg._error`. Existing OCI/ORDS request nodes keep response bodies in `msg.payload` when available, with recognized sensitive fields redacted, and add `msg.opcRequestId` when the upstream request ID is available. Streaming Out, Kafka Producer, Functions Invoke, Queue Out, and Queue Ack preserve their input payload on failure. Redaction does not guarantee that arbitrary provider text contains no private data.
 
 ### oci-config (Config Node)
 
@@ -627,6 +652,8 @@ Shared authentication for all OCI REST API nodes. Uses the OCI SDK for TypeScrip
 
 > **Note:** Instance Principal and Resource Principal only work inside OCI. Config File and API Key work from any machine.
 
+OCI SDK error diagnostics redact credential-like text before server logging. Successful payloads and deliberate Debug output are unchanged.
+
 ### oci-api-request
 
 Sends one HTTPS request to an OCI API, signed using the credentials from `oci-config`.
@@ -640,13 +667,18 @@ Sends one HTTPS request to an OCI API, signed using the credentials from `oci-co
 | Query | No | JSON object of query parameters. Array values create repeated parameters |
 | Headers | No | JSON object of additional headers. Signing, host, date, content-length, digest, and delegation-token headers are protected |
 | Response | No | `auto` (default), `json`, `text`, or `buffer` |
+| Max Response Bytes | No | Maximum buffered successful or error response body. Default: `16777216` (16 MiB), including saved flows without this field. Messages cannot override it |
 | Timeout (ms) | No | Request timeout from 1 to 300000 milliseconds. Default: `30000` |
 
 **Runtime overrides:** `msg.method`, `msg.ociPath`, `msg.ociQuery`, and `msg.ociHeaders`. For `POST`, `PUT`, and `PATCH`, `msg.payload` is a JSON-serializable object or text request body. Buffer bodies are rejected; use a service-specific binary transfer node such as `oci-object-storage`. The configured endpoint cannot be overridden at runtime.
 
 **Outputs:** `msg.payload`, `msg.statusCode`, `msg.responseHeaders`, `msg.opcRequestId`, `msg.opcWorkRequestId`, `msg.nextPage`, `msg.ociUrl`, `msg.ociMethod`, and `msg.error` on failure (`{ message, code }`).
 
+Responses exceeding the configured limit stop reading and reach Catch with `OCI_RESPONSE_TOO_LARGE`, without normal output or partial response data. The request may already have completed on the service. Increase the limit only for trusted larger responses and available memory; JSON parsing and concurrent requests can use additional memory.
+
 Configure the complete endpoint for an API that accepts OCI request signatures; there is no service dropdown. The node rejects non-HTTPS and non-OCI-realm targets before loading credentials. It does not follow redirects, retry requests, or fetch additional pages automatically. Use an OAuth or ordinary HTTP node for endpoints that do not accept OCI signatures.
+
+**Shutdown:** On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely. Its owned HTTP request is cancelled when possible; cancellation does not undo remote processing.
 
 ### oci-monitoring-publish
 
@@ -661,12 +693,57 @@ Publishes one custom OCI Monitoring metric data point per input message.
 | Resource Group | No | Optional metric group within the namespace |
 | Dimensions | No | JSON object containing string dimension values. Default: `{}` |
 | Metadata | No | JSON object containing string metadata values. Default: `{}` |
+| Timeout (ms) | No | Under Advanced; default `30000`, whole number from `1000` to `300000` |
 
 **Input:** `msg.payload` is either a finite number or an object with required numeric `value` and optional `timestamp`, `count`, `compartmentId`, `namespace`, `name`, `resourceGroup`, `dimensions`, and `metadata`. Per-message dimensions and metadata replace their configured maps.
 
 **Outputs:** `msg.payload` contains `failedMetricsCount`, `failedMetrics`, `opcRequestId`, and `statusCode`; the node also sets `msg.statusCode`, `msg.opcRequestId`, and `msg.error` on failure (`{ message, code }`). A nonzero `failedMetricsCount` routes the message through Catch because this node submits exactly one metric data point; `msg.payload` retains the rejection details.
 
 The node derives the realm-correct regional `telemetry-ingestion` endpoint from the OCI SDK endpoint. Use it for selected operational measurements such as latency, availability, throughput, queue depth, and failure counts; send detailed diagnostic events to OCI Logging.
+
+Each node allows 4 active operations and 100 waiting messages. Excess inputs report `MonitoringQueueFull` through Catch. Timeout includes waiting, authentication and the SDK request; it reports `MonitoringTimeout` while retaining the active slot until the underlying work settles. Timeout and overload preserve the input payload. Redeployment reports `MonitoringNodeClosed` for unfinished work and suppresses late output. Pending work is memory-only; these limits count messages, not bytes. A timeout does not guarantee cancellation of a request already sent.
+
+A timeout may occur after OCI accepts the metrics. Treat the outcome as unknown, check the result before retrying, and do not route every timeout into an automatic retry. Catch retains the input payload for investigation. A timeout or shutdown cannot undo accepted metrics, and retrying can publish them again.
+
+### oci-vault-secret
+
+Retrieves one OCI Vault secret version through the Secrets service using OCI Config's identity and region.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| OCI Config | Yes | Shared authentication; IAM must permit reading the selected secret bundle |
+| Secret OCID | No* | Uses `msg.secretId` when blank; one must provide a value |
+| Version stage | Yes | Default `CURRENT`; also `PENDING`, `LATEST`, `PREVIOUS`, `DEPRECATED` |
+| Version number | No | Positive safe integer; takes precedence over stage |
+| Return | Yes | Decoded UTF-8 text (default), parsed JSON or binary Buffer |
+| Max concurrent | Yes | Default `4`; range `1–32` |
+| Max queued | Yes | Default `100`; range `1–10000` |
+| Timeout (ms) | Yes | Includes queue, authentication and request time. Default `30000`; range `1000–300000` |
+
+**Input:** Other message fields are preserved. A configured Secret OCID takes precedence over `msg.secretId`.
+
+**Output:** `msg.payload` contains the decoded secret; `msg.secretVersionNumber`, `msg.opcRequestId` and `msg.statusCode` contain metadata. JSON output fails if the secret is not valid JSON. Fetches the selected version for each input; does not cache, create or rotate secrets. Avoid sending secret output to Debug or persistent flow context.
+
+Retrieval, timeout and overload errors reach Catch once with sanitized `msg.error`; raw SDK messages and response bodies are omitted, and the input payload is preserved. Pending messages are held in memory. Limits count messages, not bytes; expired active work retains its concurrency slot until it settles. No automatic retries. Closing cancels pending work, suppresses late output and leaves shared authentication available.
+
+### oci-certificate
+
+Retrieves a certificate, CA bundle or certificate-authority bundle from OCI Certificates. This is material retrieval; it does not replace Node-RED TLS Config or refresh existing TLS connections.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| OCI Config | Yes | Shared authentication and region; IAM must permit the selected retrieval |
+| Certificate type | Yes | Certificate (default), CA bundle or Certificate authority |
+| Resource OCID | No* | Uses `msg.certificateResourceId` when blank; one must provide a value |
+| Version stage/number | No | Certificate and authority only; default `CURRENT`, explicit positive version number takes precedence |
+| Include private key | No | Certificate only, off by default. Requires corresponding IAM permission; messages cannot enable it |
+| Max concurrent | Yes | Default `4`; range `1–32` |
+| Max queued | Yes | Default `100`; range `1–10000` |
+| Timeout (ms) | Yes | Includes queue, authentication and request time. Default `30000`; range `1000–300000` |
+
+**Output:** `msg.payload` contains the SDK bundle. Certificate bundles include `certificatePem` and `certChainPem`, and `privateKeyPem` only when requested. If private-key retrieval is selected but the response has no key, the request fails. CA bundles contain `caBundlePem`; authority bundles contain `certificatePem`. Also sets `msg.opcRequestId` and `msg.statusCode`, preserving other properties and transaction references.
+
+Each input retrieves fresh material. Supplying it to an HTTP/MQTT/TCP TLS client requires separate integration; fetching a bundle alone does not configure those nodes. Do not log or persist private-key output. The same bounded queues, timeout, sanitized Catch and shutdown behavior as Vault Secret apply. Retrieval does not upload or rotate certificates.
 
 ### oci-monitoring-query
 
@@ -681,12 +758,15 @@ Queries OCI Monitoring metric series using Monitoring Query Language (MQL).
 | Resource Group | No | Optional resource group filter |
 | Resolution | No | Optional query resolution such as `1m` |
 | Lookback (min) | No | Relative time range ending now. Default: `60` |
+| Timeout (ms) | No | Under Advanced; default `30000`, whole number from `1000` to `300000` |
 
 **Runtime overrides:** `msg.metricQuery` may contain `compartmentId`, `namespace`, `query`, `resourceGroup`, `resolution`, `lookbackMinutes`, `startTime`, or `endTime`. Explicit times must be valid and start time must precede end time.
 
 **Outputs:** `msg.payload` is the array of returned metric streams and aggregated data points; the node also sets `msg.statusCode`, `msg.opcRequestId`, and `msg.error` on failure (`{ message, code }`).
 
-All three nodes preserve upstream message fields, including the opaque `msg._dbTransaction` reference. OCI operations are external side effects and are not rolled back by End Transaction. Route failures through a scoped Catch; each failed input reports once. Do not send transaction references to OCI services.
+API Request, Monitoring Publish and Monitoring Query preserve upstream message fields, including the opaque `msg._dbTransaction` reference. OCI operations are external side effects and are not rolled back by End Transaction. Route failures through a scoped Catch; each failed input reports once. Do not send transaction references to OCI services.
+
+Each node allows 4 active operations and 100 waiting messages. Excess inputs report `MonitoringQueueFull` through Catch. Timeout includes waiting, authentication and the SDK request; it reports `MonitoringTimeout` while retaining the active slot until the underlying work settles. Timeout and overload preserve the input payload. Redeployment reports `MonitoringNodeClosed` for unfinished work and suppresses late output. Pending work is memory-only; these limits count messages, not bytes. A timeout does not guarantee cancellation of a request already sent.
 
 ### oci-streaming-config (Config Node)
 
@@ -724,6 +804,8 @@ Keys are limited to 256 bytes. Each value and the total decoded keys plus values
 If OCI accepts the request but reports one or more per-record errors, the node retains the partial result metadata and routes the message through Catch. Validation and service failures also set `msg.error = { message, code }`; values and keys are not written to status or error logs.
 
 The node makes one PutMessages attempt per input. Retrying through a flow may duplicate records already accepted by OCI, including successful entries from a partially failed batch.
+
+**Shutdown:** On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.
 
 ### oci-streaming-in
 
@@ -803,6 +885,8 @@ Publishes telemetry or derived events to OCI Managed Kafka (OCI Streaming with A
 **Outputs:** Preserves the input payload and upstream properties; sets the resolved `msg.kafka.topic` and broker delivery metadata in `msg.kafka.result`.
 
 Kafka client retry behavior applies without an additional node-level retry loop. Validation or broker failures set `msg.error` and route through Catch.
+
+**Shutdown:** On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.
 
 ### oci-kafka-consumer
 
@@ -902,6 +986,8 @@ Publishes one message or an explicit batch to OCI Queue.
 
 After a successful request, status reports `enqueued N` using the actual number of messages submitted in the request.
 
+**Shutdown:** On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.
+
 ### oci-queue-in
 
 Starts polling on deploy and emits individual OCI Queue messages or a batch array per non-empty receive. This node has no input.
@@ -943,6 +1029,8 @@ Missing or stale receipts route through Catch. Receipt values are redacted if a 
 
 OCI may delete some messages and reject others. Partial failure goes to Catch with acknowledgement false, the original payload/receipts and `msg.ociQueue.ackResults`. If A and C were deleted but B failed, retry only B's deletion: keep B's payload and receipt together and set `messageCount` to `1`. Malformed responses or network failures leave outcomes unknown; do not assume no messages were deleted.
 
+**Shutdown:** On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.
+
 ### ords-config (Config Node)
 
 Shared ORDS OAuth settings for ORDS HTTP request and polling nodes.
@@ -960,6 +1048,8 @@ Shared ORDS OAuth settings for ORDS HTTP request and polling nodes.
 | Max Concurrent Polls | No | Maximum active `oci-ords-poll` jobs for this config. Regular ORDS request nodes ignore this setting. Default: `5` |
 | Max Queued Polls | No | Maximum waiting `oci-ords-poll` jobs for this config. New polling jobs fail fast when the queue is full. Default: `100` |
 | Test OAuth Token | — | Requests an OAuth token with the deployed credentials. Requires a Token URL. |
+
+Relative paths stay below the configured Base URL. Dot segments (`.` and `..`), encoded path separators and excessive nested encoding are rejected before requesting a token or sending the data request. Leading `/` remains relative to the base. Query parameter values are unaffected.
 
 `ords-config` caches OAuth access tokens, refreshes once after a 401 ORDS response, merges headers case-insensitively, rejects reserved object keys in header/query maps, and aborts active ORDS fetches when the config node closes.
 
@@ -1230,6 +1320,8 @@ Mapped Fusion action nodes support two mutually exclusive request-data modes:
 Mapped fields requires at least one usable mapping for operations that send a request body. An empty table is rejected before OAuth token acquisition even when the input contains an object in `msg.payload`. Parameterless `GET` and `DELETE` operations remain valid without mappings; use Entire msg.payload when a `GET` should derive query parameters from the input object.
 
 Direct payload mode requires a plain JSON-compatible object. It rejects arrays or scalar root values, circular references, unsupported values such as functions and `BigInt`, non-finite numbers, custom object prototypes, and prototype-pollution keys. Validation occurs before OAuth token acquisition, and nodes add their documented defaults or Fusion wrapper only to the copied object so the incoming message is not mutated.
+
+Nested arrays keep their positions and length. Empty positions become JSON `null`; named properties on arrays are ignored, matching JSON array serialization. Manufacturing Production Transaction requires one logical detail and rejects input already wrapped in `OperationTransactionDetail` or `MaterialTransactionDetail`.
 
 All SCM nodes that use payload mappings support structured mapping rows:
 

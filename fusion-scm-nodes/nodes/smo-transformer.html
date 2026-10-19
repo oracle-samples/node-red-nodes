@@ -841,12 +841,13 @@
       }
 
       var missingRequired = getMissingRequiredPreviewFields(preview.event, requiredFields);
+      var key = buildPreviewCompositeKey(preview.event);
       if (missingRequired.length === 0) {
+        if (key) delete store[key];
         outputs.push({ fragmentIndexes: [i], status: "complete", event: preview.event });
         continue;
       }
 
-      var key = buildPreviewCompositeKey(preview.event);
       if (!key) {
         errors.push({
           fragmentIndex: i,
@@ -903,7 +904,7 @@
 
   function buildPreviewCompositeKey(event) {
     if (event.entityCode == null || event.eventTime == null) return null;
-    return event.entityCode + "_" + event.eventTime + "_" + event.eventTypeCode;
+    return JSON.stringify([String(event.entityCode), String(event.eventTime), String(event.eventTypeCode)]);
   }
 
   function mergePreviewEvents(existing, incoming) {
@@ -1304,6 +1305,9 @@
   <h4>Composite buffering</h4>
   <p>Incomplete fragments require both <code>entityCode</code> and <code>eventTime</code>.
   A complete event replaces any pending partial with that identity and cancels its timer.</p>
+  <p>Composite identity keeps entity, time and event type separate, including values containing
+  underscores. A later <code>null</code> replaces the earlier field value, including an object;
+  a required field remains incomplete until it has a non-null value.</p>
   <p>Stale Timeout measures inactivity and restarts on each incomplete fragment. Max Pending Age measures
   time from the first fragment and never restarts. The earlier deadline emits valid partial data and
   removes the buffered entry, even without new input. Stale Timeout <code>0</code> still uses Max Pending
@@ -1331,6 +1335,7 @@
     <li><code>SMO_COMPOSITE_COMMIT_FAILED</code>: commit or cleanup failed. One Catch message includes transaction results; the buffered fragment is removed and no successful composite is emitted.</li>
     <li><code>SMO_COMPOSITE_TRANSACTION_INVALID</code>: an invalid incoming reference leaves the buffered fragment intact. An expired buffered fragment is removed; Catch preserves the incoming message and active reference for rollback, recording the expired source as <code>unknown</code>. Timer/capacity flushes send expired references to Catch instead of normal output.</li>
   </ul>
-  <p>Status is <code>transformed</code> on output or <code>waiting: key</code> while incomplete. Failures
+  <p>Status is <code>transformed</code> on output or <code>waiting: key</code> while incomplete;
+  the key is a JSON array of entity, time and event type strings. Failures
   retain their latest status; older timers do not clear newer statuses.</p>
 </script>

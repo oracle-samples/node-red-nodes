@@ -27,7 +27,7 @@ module.exports = function (RED) {
         var consumer = null;
         var startHandle = null;
         var startPromise = null;
-        var pendingCommits = {};
+        var pendingCommits = Object.create(null);
         var statusResetTimer = null;
         var durableStatusText = "consuming";
 
@@ -120,8 +120,10 @@ module.exports = function (RED) {
             if (settings.autoCommit) throw validationError("Kafka Consumer uses automatic commits");
             if (typeof token !== "string" || !token) throw validationError("Kafka commit token is required");
 
+            if (!Object.prototype.hasOwnProperty.call(pendingCommits, token)) {
+                throw validationError("Kafka commit token is stale or already committed");
+            }
             var entry = pendingCommits[token];
-            if (!entry) throw validationError("Kafka commit token is stale or already committed");
             if (entry.dispatchHandle) throw validationError("Kafka batch has not been emitted");
             if (entry.committing) throw validationError("Kafka commit is already in progress");
 

@@ -1,14 +1,14 @@
 {
   "name": "db-nodes",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Node-RED nodes for Oracle Database Functionality",
   "license": "UPL-1.0",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "oci-common": "2.141.0",
-    "oci-identitydataplane": "2.141.0",
+    "oci-common": "2.142.2",
+    "oci-identitydataplane": "2.142.2",
     "oracledb": "^7.0.1"
   },
   "keywords": [
@@ -50,6 +50,8 @@
     "nodes/enqueue.html",
     "nodes/enqueue.js",
     "nodes/sql.html",
-    "nodes/sql.js"
+    "nodes/sql.js",
+    "lib/db-operation.js",
+    "lib/sdk-diagnostics.js"
   ]
 }

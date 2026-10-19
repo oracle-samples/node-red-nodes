@@ -39,7 +39,9 @@ Browse and Locked read up to Batch Size one message at a time. Only the first re
 
 ## Driver Mode
 
-`db-connection` uses a process-wide node-oracledb driver mode. Thin and Thick remain selectable; an already-initialized Thick driver is reused. Restart Node-RED before switching modes or changing Oracle Client library settings.
+`db-connection` uses a process-wide node-oracledb driver mode. New configurations default to Thin. Thin and Thick remain selectable, and saved Thick selections are preserved; an already-initialized Thick driver is reused by existing processing nodes. Restart Node-RED before switching modes or changing Oracle Client library settings.
+
+For an encrypted Thin-mode wallet, set **Wallet Password** in the Connection tab to the password used when downloading or creating the wallet. It unlocks `ewallet.pem` and is separate from the database password and OCI API-key passphrase. Thick mode ignores this field.
 
 ## Session Initialization
 
@@ -71,13 +73,13 @@ gh repo clone oracle-samples/node-red-nodes
 ### Prerequisites
 
 - Node-RED v2.0+
-- Node.js v18+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md))
+- Node.js v18.0.0+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.8.0/docs/installation.md))
 - npm
 - Oracle Client libraries supported by node-oracledb (required only when DB `Driver Mode` is `Thick`)
 
 ### Install the Node Package
 
-Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.8.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 > If your DB connections use `Driver Mode = Thin`, Oracle Instant Client is not required.
 >

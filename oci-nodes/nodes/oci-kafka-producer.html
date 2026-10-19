@@ -36,7 +36,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("oci-kafka-producer", {
-    category: "oci",
+    category: "OCI Streaming",
     paletteLabel: "kafka producer",
     defaults: {
         name: { value: "" },
@@ -103,4 +103,5 @@ RED.nodes.registerType("oci-kafka-producer", {
 <h3>Details</h3>
 <p>The output preserves <code>msg.payload</code> and all other upstream properties. Kafka client retry behavior is used without an additional node-level retry loop.</p>
 <p>Validation and publish errors call <code>done(err)</code> and can be handled with a Node-RED Catch node. Payloads, headers, broker addresses, and credentials are not written to status text or logs by this node.</p>
+    <p>On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.</p>
 </script>

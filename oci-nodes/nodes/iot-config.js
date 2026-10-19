@@ -205,7 +205,8 @@ module.exports = function (RED) {
                     if (mqttTopicMatches(pattern, topic)) {
                         topicSubscriptions[pattern].forEach(function (sub) {
                             try {
-                                sub.callback(topic, payload);
+                                // Each subscription is an independent source message, including nested data.
+                                sub.callback(topic, RED.util.cloneMessage({ payload: payload }).payload);
                             } catch (err) {
                                 node.error("Subscriber callback error for topic " + topic + ": " + err.message);
                             }

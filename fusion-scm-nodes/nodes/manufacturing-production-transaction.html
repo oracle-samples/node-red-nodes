@@ -202,7 +202,7 @@ function outputMappings() {
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Mode</dt><dd>Selects the target endpoint and managed mode defaults. Operation modes use <code>operationTransactions</code> and <code>OperationTransactionDetail</code>. Material and output modes use <code>materialTransactions</code> and <code>MaterialTransactionDetail</code>.</dd>
     <dt>Endpoint</dt><dd>Auto-built from server config and the selected Mode.</dd>
-    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the transaction detail only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> uses the complete input object as the logical detail and ignores, but retains, saved mappings. Mode defaults and Fusion's required detail wrapper are applied in either mode.</dd>
+    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the transaction detail only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> uses the complete input object as the logical detail and ignores, but retains, saved mappings. Mode defaults and Fusion's required detail wrapper are applied in either mode. In <code>Entire msg.payload</code>, arrays retain their positions: empty slots become JSON <code>null</code>, and non-index properties are ignored.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map detail fields to values. Each row specifies:
         <ul>
@@ -225,6 +225,7 @@ function outputMappings() {
     <dt>error <span class="property-type">object</span></dt><dd>Error details on failure: <code>{ message, code }</code>.</dd>
 </dl>
 <h3>Details</h3>
+<p>Supply one logical transaction detail. Top-level <code>OperationTransactionDetail</code> and <code>MaterialTransactionDetail</code> wrappers are rejected before authentication; the selected mode adds the required wrapper.</p>
 <p>Operation modes accept operation transaction fields only. To issue or return an ingredient, use a Material mode instead of adding <code>InventoryItemNumber</code>, <code>SubinventoryCode</code>, or <code>TransactionUOMCode</code> to an Operation mode.</p>
 <p>Operation Complete sets <code>FromDispatchState=READY</code> and <code>ToDispatchState=COMPLETE</code>. Operation Reject sets <code>READY</code> to <code>REJECT</code>. Operation Scrap sets <code>READY</code> to <code>SCRAP</code>. Operation Reverse to Ready sets <code>COMPLETE</code> to <code>READY</code>.</p>
 <p>Material / Ingredient Issue sets <code>TransactionTypeCode=MATERIAL_ISSUE</code>. Material / Ingredient Return sets <code>TransactionTypeCode=MATERIAL_RETURN</code>. Output Product Complete sets <code>TransactionTypeCode=PRODUCT_COMPLETION</code> and <code>OutputTypeCode=PRODUCT</code>. Output Product Return sets <code>TransactionTypeCode=PRODUCT_RETURN</code> and <code>OutputTypeCode=PRODUCT</code>.</p>

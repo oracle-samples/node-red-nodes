@@ -5,7 +5,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("oci-monitoring-publish", {
-    category: "oci",
+    category: "OCI Observability",
     paletteLabel: "monitoring publish",
     defaults: {
         name: { value: "" },
@@ -15,12 +15,16 @@ RED.nodes.registerType("oci-monitoring-publish", {
         metricName: { value: "", required: true },
         resourceGroup: { value: "" },
         dimensions: { value: "{}" },
-        metadata: { value: "{}" }
+        metadata: { value: "{}" },
+        timeoutMs: { value: 30000, required: true, validate: function (value) {
+            return (typeof value === "number" || (typeof value === "string" && /^\d+$/.test(value))) &&
+                Number.isSafeInteger(Number(value)) && Number(value) >= 1000 && Number(value) <= 300000;
+        } }
     },
     inputs: 1,
     outputs: 1,
     color: "#F0CC72",
-    icon: "font-awesome/fa-line-chart",
+    icon: "font-awesome/fa-bar-chart",
     label: function () {
         return this.name || "monitoring publish";
     }
@@ -69,6 +73,14 @@ RED.nodes.registerType("oci-monitoring-publish", {
             Optional JSON object containing string values such as a display unit.
         </div>
     </div>
+    <details>
+        <summary>Advanced</summary>
+        <div class="form-row" style="margin-top:10px;">
+            <label style="width:130px;" for="node-input-timeoutMs"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
+            <input type="number" id="node-input-timeoutMs" min="1000" max="300000" step="1" style="width:100px;">
+            <div style="margin-left:135px;font-size:11px;color:#888;margin-top:2px;">Includes queueing, authentication and the request. Default: 30000 ms.</div>
+        </div>
+    </details>
     <div class="form-tips" style="margin-left:135px;">
         <b>Required input:</b> Set <code>msg.payload</code> to a finite number or an object containing a finite numeric <code>value</code>, for example <code>{&quot;value&quot;: 1}</code>. The number is the observation published to OCI Monitoring.
     </div>
@@ -107,5 +119,7 @@ RED.nodes.registerType("oci-monitoring-publish", {
 </dl>
 
 <h3>Details</h3>
+<p>Timeout defaults to 30000 ms (1000–300000), including queueing and authentication. Each node allows 4 active operations and 100 waiting messages. Excess inputs go to Catch with <code>MonitoringQueueFull</code>; deadlines report <code>MonitoringTimeout</code>. These errors preserve the input payload. A timed-out operation retains its slot until the underlying work settles. Pending messages are memory-only; limits count messages, not bytes.</p>
+<p>Redeployment rejects unfinished work with <code>MonitoringNodeClosed</code> and suppresses late output. A timeout may occur after OCI accepts the metrics. Check the result before retrying; do not automatically retry solely because of a timeout. Timeout or shutdown does not undo accepted metrics, and retrying can publish them again.</p>
 <p>The node uses OCI's regional <code>telemetry-ingestion</code> endpoint. Publish selected operational measurements such as latency, queue depth, availability, and failure counts; send detailed diagnostic events to OCI Logging.</p>
 </script>

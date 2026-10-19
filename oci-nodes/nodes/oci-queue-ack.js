@@ -3,6 +3,7 @@
 module.exports = function (RED) {
     var queueSupport = require("../lib/oci-queue.js");
     var ociError = require("../lib/oci-error.js");
+    var createOperationState = require("../lib/oci-operation.js");
 
     function OciQueueAckNode(config) {
         RED.nodes.createNode(this, config);
@@ -14,7 +15,10 @@ module.exports = function (RED) {
             return;
         }
 
+        var operation = createOperationState(node);
+
         node.on("input", async function (msg, send, done) {
+            if (operation.isClosed()) return done();
             var receipts = [];
             try {
                 var input = msg.ociQueue && typeof msg.ociQueue === "object" && !Array.isArray(msg.ociQueue)
@@ -46,7 +50,9 @@ module.exports = function (RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "acknowledging" });
                 var client = await node.queueConfig.getClient();
+                if (operation.isClosed()) return done();
                 var response = batch ? await client.deleteMessages(request) : await client.deleteMessage(request);
+                if (operation.isClosed()) return done();
                 if (batch) {
                     var results = readBatchResult(response.deleteMessagesResult, receipts);
                     msg.ociQueue = input = Object.assign({}, input, results, {
@@ -73,6 +79,7 @@ module.exports = function (RED) {
                 send(outMsg);
                 done();
             } catch (err) {
+                if (operation.isClosed()) return done();
                 var safeError = redactReceipts(err, receipts);
                 ociError.handleNodeError(node, msg, safeError, done, {
                     statusText: "acknowledge failed",

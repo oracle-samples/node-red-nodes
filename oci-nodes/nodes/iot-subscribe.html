@@ -36,7 +36,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("iot-subscribe", {
-    category: "oci",
+    category: "OCI IoT",
     paletteLabel: "subscribe",
     defaults: {
         name: { value: "" },
@@ -98,7 +98,8 @@ RED.nodes.registerType("iot-subscribe", {
 <h3>Outputs</h3>
 <dl class="message-properties">
     <dt>payload <span class="property-type">object | string</span></dt>
-    <dd>The incoming command payload. JSON payloads are parsed automatically; other payloads are passed as strings.</dd>
+    <dd>The incoming command payload. JSON payloads are parsed automatically; other payloads are passed as strings.
+    Each subscription receives its own copy, so nested payload changes in one flow do not affect other subscribers.</dd>
     <dt>topicSuffix <span class="property-type">string</span></dt>
     <dd>For wildcard topics ending in <code>/#</code>, this is the portion that matched <code>#</code>
     (e.g. <code>"shutdown"</code> from <code>iot/v1/cmd/shutdown</code>).

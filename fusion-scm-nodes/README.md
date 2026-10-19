@@ -51,12 +51,12 @@ gh repo clone oracle-samples/node-red-nodes
 ### Prerequisites
 
 - Node-RED v2.0+
-- Node.js v18+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md))
+- Node.js v18.0.0+ (see the [dependency compatibility note](https://github.com/oracle-samples/node-red-nodes/blob/v0.8.0/docs/installation.md))
 - npm
 
 ### Install the Node Package
 
-Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.7.1/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
+Install the node package using the [installation guide](https://github.com/oracle-samples/node-red-nodes/blob/v0.8.0/docs/installation.md). Its dependencies are installed automatically; installing dependency libraries alone does not register the nodes.
 
 ## Payload Sources and Mappings
 
@@ -94,7 +94,7 @@ Enter the Fusion hostname without a protocol or path, then enter the API version
 
 The `scm-lookup` Inventory Organization mode can search by Organization Name, Organization Code, or Organization ID. The selected field controls the Fusion query only; `msg.payload` still contains the complete matching organization response.
 
-Other predefined lookup modes expose all required business keys directly: organization-scoped item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups require **Organization Code**; asset and work definition lookups also show **Item Number** where required; meter readings require **Meter Code** and use Fusion's asset-meter business-key finder. On-Hand Quantity optionally accepts **Subinventory Code**. Use Additional Filters only for extra narrowing criteria; filter names may contain letters, numbers, underscores, and dots.
+Other predefined lookup modes expose all required business keys directly: organization-scoped item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups require **Organization Code**; asset and work definition lookups also show **Item Number** where required; meter readings require **Meter Code** and use Fusion's asset-meter business-key finder. On-Hand Quantity optionally accepts **Subinventory Code**. Use Additional Filters only for extra narrowing criteria; filter names may contain letters, numbers, underscores, and dots. Built-in equality filters use REST framework version 2 and treat supplied values as literals; Custom queries retain their configured syntax.
 
 Meter lookups follow all Fusion pages. Multi-page results are combined into one collection with complete `items` and `count`, `hasMore: false`, `offset: 0`, the original Fusion page-size `limit`, and no page-specific `links`.
 

@@ -36,7 +36,7 @@
 
 module.exports = function (RED) {
     const axios = require("axios");
-    const { HttpsProxyAgent } = require("https-proxy-agent");
+    const { HttpsProxyAgent } = require("../lib/proxy-agent.js");
     const { ensureHttps, formatFusionRestBaseUrl } = require("../lib/url.js");
     const scmError = require("../lib/scm-error.js");
 

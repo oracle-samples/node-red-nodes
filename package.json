@@ -1,6 +1,6 @@
 {
   "name": "node-red-nodes",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, and OCI services",
   "license": "UPL-1.0",
   "engines": {
@@ -11,18 +11,20 @@
     "axios": "1.20.0",
     "https-proxy-agent": "^7.0.6",
     "mqtt": "5.16.0",
-    "oci-common": "2.141.0",
-    "oci-functions": "2.141.0",
-    "oci-identity": "2.141.0",
-    "oci-identitydataplane": "2.141.0",
-    "oci-iot": "2.141.0",
-    "oci-loganalytics": "2.141.0",
-    "oci-loggingingestion": "2.141.0",
-    "oci-monitoring": "2.141.0",
-    "oci-objectstorage": "2.141.0",
-    "oci-ons": "2.141.0",
-    "oci-queue": "2.141.0",
-    "oci-streaming": "2.141.0",
+    "oci-certificates": "2.142.2",
+    "oci-common": "2.142.2",
+    "oci-functions": "2.142.2",
+    "oci-identity": "2.142.2",
+    "oci-identitydataplane": "2.142.2",
+    "oci-iot": "2.142.2",
+    "oci-loganalytics": "2.142.2",
+    "oci-loggingingestion": "2.142.2",
+    "oci-monitoring": "2.142.2",
+    "oci-objectstorage": "2.142.2",
+    "oci-ons": "2.142.2",
+    "oci-queue": "2.142.2",
+    "oci-secrets": "2.142.2",
+    "oci-streaming": "2.142.2",
     "oracledb": "^7.0.1"
   },
   "keywords": [
@@ -92,7 +94,9 @@
       "iot-get-content": "oci-nodes/nodes/iot-get-content.js",
       "iot-update-relationship": "oci-nodes/nodes/iot-update-relationship.js",
       "iot-subscribe": "oci-nodes/nodes/iot-subscribe.js",
-      "iot-telemetry": "oci-nodes/nodes/iot-telemetry.js"
+      "iot-telemetry": "oci-nodes/nodes/iot-telemetry.js",
+      "oci-vault-secret": "oci-nodes/nodes/oci-vault-secret.js",
+      "oci-certificate": "oci-nodes/nodes/oci-certificate.js"
     }
   },
   "files": [
@@ -263,6 +267,17 @@
     "oci-nodes/nodes/ords-config.html",
     "oci-nodes/nodes/ords-config.js",
     "oci-nodes/package.json",
-    "oci-nodes/lib/iot-identity.js"
+    "oci-nodes/lib/iot-identity.js",
+    "oci-nodes/nodes/oci-vault-secret.js",
+    "oci-nodes/nodes/oci-vault-secret.html",
+    "oci-nodes/nodes/oci-certificate.js",
+    "oci-nodes/nodes/oci-certificate.html",
+    "oci-nodes/lib/oci-sensitive.js",
+    "fusion-scm-nodes/lib/proxy-agent.js",
+    "db-nodes/lib/db-operation.js",
+    "db-nodes/lib/sdk-diagnostics.js",
+    "oci-nodes/lib/oci-operation.js",
+    "oci-nodes/lib/sdk-diagnostics.js",
+    "oci-nodes/lib/oci-monitoring-operation.js"
   ]
 }

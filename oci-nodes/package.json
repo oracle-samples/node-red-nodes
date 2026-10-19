@@ -1,6 +1,6 @@
 {
   "name": "oci-nodes",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Oracle Cloud Infrastructure (OCI) nodes for Node-RED",
   "keywords": [
     "node-red",
@@ -13,17 +13,19 @@
   "dependencies": {
     "@confluentinc/kafka-javascript": "1.10.1",
     "mqtt": "5.16.0",
-    "oci-common": "2.141.0",
-    "oci-functions": "2.141.0",
-    "oci-identity": "2.141.0",
-    "oci-iot": "2.141.0",
-    "oci-loganalytics": "2.141.0",
-    "oci-loggingingestion": "2.141.0",
-    "oci-monitoring": "2.141.0",
-    "oci-objectstorage": "2.141.0",
-    "oci-ons": "2.141.0",
-    "oci-queue": "2.141.0",
-    "oci-streaming": "2.141.0"
+    "oci-certificates": "2.142.2",
+    "oci-common": "2.142.2",
+    "oci-functions": "2.142.2",
+    "oci-identity": "2.142.2",
+    "oci-iot": "2.142.2",
+    "oci-loganalytics": "2.142.2",
+    "oci-loggingingestion": "2.142.2",
+    "oci-monitoring": "2.142.2",
+    "oci-objectstorage": "2.142.2",
+    "oci-ons": "2.142.2",
+    "oci-queue": "2.142.2",
+    "oci-secrets": "2.142.2",
+    "oci-streaming": "2.142.2"
   },
   "node-red": {
     "nodes": {
@@ -56,7 +58,9 @@
       "iot-update-relationship": "nodes/iot-update-relationship.js",
       "iot-config": "nodes/iot-config.js",
       "iot-subscribe": "nodes/iot-subscribe.js",
-      "iot-telemetry": "nodes/iot-telemetry.js"
+      "iot-telemetry": "nodes/iot-telemetry.js",
+      "oci-vault-secret": "nodes/oci-vault-secret.js",
+      "oci-certificate": "nodes/oci-certificate.js"
     }
   },
   "files": [
@@ -136,6 +140,17 @@
     "nodes/oci-streaming-out.js",
     "nodes/ords-config.html",
     "nodes/ords-config.js",
-    "lib/iot-identity.js"
-  ]
+    "lib/iot-identity.js",
+    "nodes/oci-vault-secret.js",
+    "nodes/oci-vault-secret.html",
+    "nodes/oci-certificate.js",
+    "nodes/oci-certificate.html",
+    "lib/oci-sensitive.js",
+    "lib/oci-operation.js",
+    "lib/sdk-diagnostics.js",
+    "lib/oci-monitoring-operation.js"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

@@ -5,7 +5,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("oci-api-request", {
-    category: "oci",
+    category: "OCI Services",
     paletteLabel: "api request",
     defaults: {
         name: { value: "" },
@@ -16,6 +16,10 @@ RED.nodes.registerType("oci-api-request", {
         query: { value: "{}" },
         headers: { value: "{}" },
         responseType: { value: "auto", required: true },
+        maxResponseBytes: { value: 16777216, required: true, validate: function(value) {
+            var number = typeof value === "string" && value.trim() ? Number(value) : value;
+            return typeof number === "number" && Number.isSafeInteger(number) && number > 0;
+        } },
         timeoutMs: { value: 30000, required: true, validate: RED.validators.number() }
     },
     inputs: 1,
@@ -24,53 +28,63 @@ RED.nodes.registerType("oci-api-request", {
     icon: "font-awesome/fa-globe",
     label: function () {
         return this.name || "api request";
+    },
+    oneditprepare: function () {
+        if (this.maxResponseBytes === undefined) {
+            $("#node-input-maxResponseBytes").val(16777216);
+        }
     }
 });
 </script>
 
 <script type="text/html" data-template-name="oci-api-request">
     <div class="form-row">
-        <label for="node-input-name" style="width:140px;"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" style="width:calc(100% - 147px);">
+        <label for="node-input-name" style="width:160px;"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" style="width:calc(100% - 167px);">
     </div>
     <div class="form-row">
-        <label for="node-input-ociConfig" style="width:140px;"><i class="fa fa-cloud"></i> OCI Config</label>
-        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 147px);">
+        <label for="node-input-ociConfig" style="width:160px;"><i class="fa fa-cloud"></i> OCI Config</label>
+        <input type="text" id="node-input-ociConfig" style="width:calc(100% - 167px);">
     </div>
     <fieldset><legend style="font-size:12px;font-weight:bold;">Request</legend>
     <div class="form-row">
-        <label for="node-input-method" style="width:140px;"><i class="fa fa-tasks"></i> Method</label>
+        <label for="node-input-method" style="width:160px;"><i class="fa fa-tasks"></i> Method</label>
         <select id="node-input-method" style="width:200px;"><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="PATCH">PATCH</option><option value="DELETE">DELETE</option><option value="HEAD">HEAD</option></select>
     </div>
     <div class="form-row">
-        <label for="node-input-endpoint" style="width:140px;"><i class="fa fa-globe"></i> Endpoint URL</label>
-        <input type="text" id="node-input-endpoint" placeholder="https://&lt;service-endpoint&gt;" style="width:calc(100% - 147px);">
-        <div style="margin-left:145px;font-size:11px;margin-top:4px;">Full HTTPS service endpoint. The relative path below is appended to this URL.</div>
+        <label for="node-input-endpoint" style="width:160px;"><i class="fa fa-globe"></i> Endpoint URL</label>
+        <input type="text" id="node-input-endpoint" placeholder="https://&lt;service-endpoint&gt;" style="width:calc(100% - 167px);">
+        <div style="margin-left:165px;font-size:11px;margin-top:4px;">Full HTTPS service endpoint. The relative path below is appended to this URL.</div>
     </div>
     <div class="form-row">
-        <label for="node-input-path" style="width:140px;"><i class="fa fa-code-fork"></i> Relative path</label>
-        <input type="text" id="node-input-path" placeholder="Optional API path" style="width:calc(100% - 147px);">
+        <label for="node-input-path" style="width:160px;"><i class="fa fa-code-fork"></i> Relative path</label>
+        <input type="text" id="node-input-path" placeholder="Optional API path" style="width:calc(100% - 167px);">
     </div>
     </fieldset>
     <fieldset><legend style="font-size:12px;font-weight:bold;">Request options</legend>
     <div class="form-row">
-        <label for="node-input-query" style="width:140px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Query</label>
-        <textarea id="node-input-query" rows="3" style="width:calc(100% - 147px);font-family:monospace;" placeholder="{}"></textarea>
-        <div style="margin-left:145px;font-size:11px;margin-top:4px;">JSON object; arrays create repeated query parameters.</div>
+        <label for="node-input-query" style="width:160px;vertical-align:top;margin-top:2px;"><i class="fa fa-filter"></i> Query</label>
+        <textarea id="node-input-query" rows="3" style="width:calc(100% - 167px);font-family:monospace;" placeholder="{}"></textarea>
+        <div style="margin-left:165px;font-size:11px;margin-top:4px;">JSON object; arrays create repeated query parameters.</div>
     </div>
     <div class="form-row">
-        <label for="node-input-headers" style="width:140px;vertical-align:top;margin-top:2px;"><i class="fa fa-list"></i> Headers</label>
-        <textarea id="node-input-headers" rows="3" style="width:calc(100% - 147px);font-family:monospace;" placeholder="{}"></textarea>
-        <div style="margin-left:145px;font-size:11px;margin-top:4px;">JSON object of unsigned headers. Authentication and signing headers are protected.</div>
+        <label for="node-input-headers" style="width:160px;vertical-align:top;margin-top:2px;"><i class="fa fa-list"></i> Headers</label>
+        <textarea id="node-input-headers" rows="3" style="width:calc(100% - 167px);font-family:monospace;" placeholder="{}"></textarea>
+        <div style="margin-left:165px;font-size:11px;margin-top:4px;">JSON object of unsigned headers. Authentication and signing headers are protected.</div>
     </div>
     </fieldset>
     <fieldset><legend style="font-size:12px;font-weight:bold;">Response</legend>
     <div class="form-row">
-        <label for="node-input-responseType" style="width:140px;"><i class="fa fa-arrow-left"></i> Return</label>
+        <label for="node-input-maxResponseBytes" style="width:160px;"><i class="fa fa-database"></i> Max Response Bytes</label>
+        <input type="number" id="node-input-maxResponseBytes" style="width:120px;" min="1" step="1">
+        <div style="margin-left:165px;font-size:11px;margin-top:4px;">Maximum response body size, including errors. Default: 16 MiB (16777216 bytes).</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-responseType" style="width:160px;"><i class="fa fa-arrow-left"></i> Return</label>
         <select id="node-input-responseType" style="width:200px;"><option value="auto">Automatic</option><option value="json">Parsed JSON object</option><option value="text">UTF-8 text</option><option value="buffer">Binary buffer</option></select>
     </div>
     <div class="form-row">
-        <label for="node-input-timeoutMs" style="width:140px;"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
+        <label for="node-input-timeoutMs" style="width:160px;"><i class="fa fa-clock-o"></i> Timeout (ms)</label>
         <input type="number" id="node-input-timeoutMs" placeholder="30000" style="width:120px;" min="1" max="300000">
     </div>
     </fieldset>
@@ -88,6 +102,7 @@ RED.nodes.registerType("oci-api-request", {
     <dt>Query</dt><dd>JSON object of query parameters. Arrays create repeated parameters.</dd>
     <dt>Headers</dt><dd>JSON object of additional headers. Authorization, host, date, content-length, body digest, and delegation-token headers cannot be overridden.</dd>
     <dt>Response</dt><dd>Automatic content-type detection, forced JSON, text, or Buffer.</dd>
+    <dt>Max Response Bytes</dt><dd>Maximum buffered response body size, including service errors. Default: <code>16777216</code> bytes (16 MiB), including saved flows without this field. Messages cannot override this limit.</dd>
     <dt>Timeout</dt><dd>Request timeout from 1 to 300000 milliseconds. Default: <code>30000</code>.</dd>
 </dl>
 
@@ -113,5 +128,7 @@ RED.nodes.registerType("oci-api-request", {
 </dl>
 
 <h3>Details</h3>
+<p>Oversized responses stop reading and reach Catch with <code>OCI_RESPONSE_TOO_LARGE</code>, without normal output or a partial response body. The request may already have completed on the service; this limit does not undo its effects. Raise the limit only for trusted larger responses and available memory. JSON parsing and concurrent requests can use additional memory.</p>
 <p>The endpoint must use a known OCI realm domain. Redirects are not followed and automatic retries are not performed, preventing ambiguous write operations from being repeated. The endpoint is configured on the node and cannot be replaced by an input message.</p>
+    <p>On removal or redeploy, pending client setup cannot start a new request and late results are not forwarded. A request already sent may still take effect remotely.</p>
 </script>

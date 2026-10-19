@@ -36,7 +36,7 @@
 
 module.exports = function(RED) {
     var axios = require("axios");
-    var HttpsProxyAgent = require("https-proxy-agent").HttpsProxyAgent;
+    var HttpsProxyAgent = require("../lib/proxy-agent.js").HttpsProxyAgent;
     var ensureHttps = require("../lib/url.js").ensureHttps;
     var appendPathSegments = require("../lib/url.js").appendPathSegments;
     var scmMapping = require("../lib/scm-mapping.js");

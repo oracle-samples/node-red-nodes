@@ -36,7 +36,7 @@
 
 module.exports = function(RED) {
     const axios = require("axios");
-    const { HttpsProxyAgent } = require("https-proxy-agent");
+    const { HttpsProxyAgent } = require("../lib/proxy-agent.js");
     const scmMapping = require("../lib/scm-mapping.js");
     const scmError = require("../lib/scm-error.js");
     const fusionRequestValidation = require("../lib/fusion-request-validation.js");

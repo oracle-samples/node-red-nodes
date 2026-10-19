@@ -502,7 +502,7 @@ window.scmEndpointPreview = (function () {
     <dt>SCM Server</dt><dd>Server configuration for authentication and connection.</dd>
     <dt>Mode</dt><dd><code>Custom</code> leaves mapped fields unchanged. The receipt and issue presets set <code>TransactionTypeName</code> to the selected transaction type: <code>Miscellaneous Receipt</code>, <code>Miscellaneous Issue</code>, <code>Account Alias Receipt</code>, or <code>Account Alias Issue</code>. Presets use <code>OrganizationId</code> for staged inventory transactions and do not include a <code>TransactionTypeName</code> mapping because the mode supplies it. The node does not alter <code>TransactionQuantity</code>.</dd>
     <dt>Endpoint</dt><dd>Auto-built from server config for this node type.</dd>
-    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> starts with a validated copy of the complete input object and ignores, but retains, saved mappings. A preset Mode still applies its transaction type to that copy.</dd>
+    <dt>Payload Source</dt><dd><code>Mapped fields</code> requires at least one mapping and builds the request only from that table; it never falls back to <code>msg.payload</code>. <code>Entire msg.payload</code> starts with a validated copy of the complete input object and ignores, but retains, saved mappings. A preset Mode still applies its transaction type to that copy. In <code>Entire msg.payload</code>, arrays retain their positions: empty slots become JSON <code>null</code>, and non-index properties are ignored.</dd>
     <dt>Payload Mappings</dt>
     <dd>Map SCM API fields to values. Each row specifies:
         <ul>

@@ -124,7 +124,7 @@ module.exports = function (RED) {
 
         node.usePool = !!config.usePool;
         node.authType = config.authType;
-        node.driverMode = normalizeDriverMode(config.driverMode);
+        node.driverMode = normalizeDriverMode(config.driverMode === undefined ? "thin" : config.driverMode);
         node.externalAuth = !!config.externalAuth;
         node.tnsString = config.tnsString || "";
         node.walletLocation = config.walletLocation || "";
@@ -134,6 +134,7 @@ module.exports = function (RED) {
         node.username = (this.credentials && this.credentials.username) || null;
         node.password = (this.credentials && this.credentials.password) || null;
         node.passphrase = (this.credentials && this.credentials.passphrase) || null;
+        node.walletPassword = (this.credentials && this.credentials.walletPassword) || null;
         node.fingerprint = config.fingerprint || "";
         node.privateKeyLocation = config.privateKeyLocation || "";
         node.regionId = config.regionId || "";
@@ -172,6 +173,7 @@ module.exports = function (RED) {
             const client = new identitydataplane.DataplaneClient({
                 authenticationDetailsProvider: provider
             });
+            require("../lib/sdk-diagnostics.js")(client);
             try {
                 const keyPair = await new Promise((resolve, reject) => {
                     generateKeyPair('rsa', {
@@ -287,6 +289,9 @@ module.exports = function (RED) {
             if (walletPath && effectiveMode === "thin") {
                 options.configDir = walletPath;
                 options.walletLocation = walletPath;
+            }
+            if (effectiveMode === "thin" && node.walletPassword) {
+                options.walletPassword = node.walletPassword;
             }
 
             switch (node.authType) {
@@ -461,7 +466,8 @@ module.exports = function (RED) {
         credentials: {
             username: { type: "text" },
             password: { type: "password" },
-            passphrase: { type: "password" }
+            passphrase: { type: "password" },
+            walletPassword: { type: "password" }
         }
     });
 
