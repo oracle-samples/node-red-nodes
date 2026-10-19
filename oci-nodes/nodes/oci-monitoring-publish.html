@@ -120,6 +120,6 @@ RED.nodes.registerType("oci-monitoring-publish", {
 
 <h3>Details</h3>
 <p>Timeout defaults to 30000 ms (1000–300000), including queueing and authentication. Each node allows 4 active operations and 100 waiting messages. Excess inputs go to Catch with <code>MonitoringQueueFull</code>; deadlines report <code>MonitoringTimeout</code>. These errors preserve the input payload. A timed-out operation retains its slot until the underlying work settles. Pending messages are memory-only; limits count messages, not bytes.</p>
-<p>Redeployment rejects unfinished work with <code>MonitoringNodeClosed</code> and suppresses late output. Timeout or shutdown does not undo a metric already accepted by OCI; retrying an uncertain result can publish it again.</p>
+<p>Redeployment rejects unfinished work with <code>MonitoringNodeClosed</code> and suppresses late output. A timeout may occur after OCI accepts the metrics. Check the result before retrying; do not automatically retry solely because of a timeout. Timeout or shutdown does not undo accepted metrics, and retrying can publish them again.</p>
 <p>The node uses OCI's regional <code>telemetry-ingestion</code> endpoint. Publish selected operational measurements such as latency, queue depth, availability, and failure counts; send detailed diagnostic events to OCI Logging.</p>
 </script>

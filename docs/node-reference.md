@@ -703,7 +703,7 @@ The node derives the realm-correct regional `telemetry-ingestion` endpoint from 
 
 Each node allows 4 active operations and 100 waiting messages. Excess inputs report `MonitoringQueueFull` through Catch. Timeout includes waiting, authentication and the SDK request; it reports `MonitoringTimeout` while retaining the active slot until the underlying work settles. Timeout and overload preserve the input payload. Redeployment reports `MonitoringNodeClosed` for unfinished work and suppresses late output. Pending work is memory-only; these limits count messages, not bytes. A timeout does not guarantee cancellation of a request already sent.
 
-A timeout or shutdown cannot undo a metric already accepted by OCI. Retrying an uncertain publication can publish it again.
+A timeout may occur after OCI accepts the metrics. Treat the outcome as unknown, check the result before retrying, and do not route every timeout into an automatic retry. Catch retains the input payload for investigation. A timeout or shutdown cannot undo accepted metrics, and retrying can publish them again.
 
 ### oci-vault-secret
 
