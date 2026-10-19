@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `oci-certificate` retrieves certificate and CA bundles, with optional private-key retrieval and request limits.
 
 ### Changed
+- `oci-monitoring-publish` uses a bar-chart icon to distinguish it from Monitoring Query.
 - `oci-monitoring-publish` and `oci-monitoring-query` add a Timeout setting under Advanced and limit pending requests, with overload and timeout errors sent to Catch.
 - `db-connection` defaults new configurations to Thin; saved Thick selections remain available.
 - `package.json` updates the OCI SDK components to 2.142.2.
