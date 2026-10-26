@@ -1,3 +1,5 @@
+var diagnosticText = require("./diagnostic-text.js");
+
 function assertActiveTransaction(transaction) {
     if (transaction === undefined || transaction === null) return;
     if (typeof transaction !== "object" || transaction.timedOut || transaction._ended || !transaction.connection) {
@@ -8,19 +10,13 @@ function assertActiveTransaction(transaction) {
 }
 
 function redactText(value) {
-    var text = String(value || "");
+    var text = diagnosticText.redactJwt(diagnosticText.boundedText(value), "[REDACTED TOKEN]");
     text = text.replace(
         /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi,
         "[REDACTED PRIVATE KEY]"
     );
-    text = text.replace(
-        /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
-        "[REDACTED TOKEN]"
-    );
-    text = text.replace(
-        /\b([A-Za-z0-9_-]*(?:password|passwd|passphrase|access[_-]?token|token|private[_-]?key|secret)[A-Za-z0-9_-]*)\s*[:=]\s*("[^"]*"|'[^']*'|[^\s,;]+)/gi,
-        "$1=[REDACTED]"
-    );
+    text = text.replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9+/_=.~\-]+/gi, "[REDACTED AUTHORIZATION]");
+    text = diagnosticText.redactAssignments(text, "[REDACTED]");
     text = text.replace(
         /\b(wallet(?:Location|Path)?|configDir|tns_admin|privateKeyLocation|configFileLocation)\s*[:=]\s*("[^"]*"|'[^']*'|[^\s,;]+)/gi,
         "$1=[REDACTED PATH]"

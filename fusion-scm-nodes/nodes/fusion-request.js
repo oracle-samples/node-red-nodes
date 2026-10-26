@@ -59,7 +59,7 @@ module.exports = function(RED) {
         }
 
         const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
-            ? new HttpsProxyAgent(node.server.proxyUrl) : null;
+            ? new HttpsProxyAgent(node.server.proxyUrl, node.server.credentials) : null;
 
         const mappings = scmMapping.parseMappings(config.mappings);
 

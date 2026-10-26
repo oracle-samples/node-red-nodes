@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.8.1] - 2026-10-27
+
+### Added
+- `scm-server` stores Proxy Username and Proxy Password as credentials and moves authentication out of existing proxy URLs when saved in the editor.
+
+### Changed
+- `db-error`, `scm-error`, `oci-error` and `sdk-diagnostics` omit diagnostic strings longer than 16,384 characters and scan credential assignments without repeated backtracking.
+- `get-meter-reading` and `scm-lookup` limit meter-history retrieval to 1,000 pages, 100,000 items and two minutes; incomplete results reach Catch instead of normal output.
+
+### Fixed
+- `sql` reads returned CLOB/NCLOB values as text and binary LOBs as Buffers before releasing the connection, including values in Oracle object attributes and collections, with a combined 16 MiB LOB limit per result.
+- `dequeue` reads ADT LOBs before committing queue removals, with a combined 16 MiB limit per batch and no partial output on read errors.
+- `dequeue` preserves JSON fields that resemble driver metadata and safely converts ADT attributes, including reserved property names and nested collections.
+- `get-meter-reading` and `scm-lookup` stop on empty pages claiming more results and cancel pending requests when removed.
+- `iot-config` uses a combined certificate/key PEM when Client Key Path is empty, including connection tests.
+- `manufacturing-work-order` and `maintenance-work-order` preserve edited JSON mappings when the action changes.
+- `smo-transformer` preview preserves reserved mapping names and uses the same own-field checks as runtime transformation.
+- `iot-telemetry` wraps arrays as `{ value, time }` when Auto Timestamp is enabled so the published JSON includes the timestamp.
+
+---
+
 ## [0.8.0] - 2026-10-19
 
 ### Added

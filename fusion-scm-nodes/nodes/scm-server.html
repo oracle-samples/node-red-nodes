@@ -35,6 +35,21 @@
 -->
  
 <script type="text/javascript">
+function moveScmProxyCredentials() {
+    var field = $("#node-config-input-proxyUrl");
+    try {
+        var proxy = new URL(field.val());
+        if (!proxy.username && !proxy.password) return;
+        var username = decodeURIComponent(proxy.username);
+        var password = decodeURIComponent(proxy.password);
+        $("#node-config-input-proxyUsername").val(username);
+        $("#node-config-input-proxyPassword").val(password).trigger("change");
+        proxy.username = "";
+        proxy.password = "";
+        field.val(proxy.toString());
+    } catch (err) { /* Invalid URLs remain visible for correction. */ }
+}
+
 RED.nodes.registerType("scm-server", {
     color: "#4F7D7B",
     category: "config",
@@ -51,14 +66,21 @@ RED.nodes.registerType("scm-server", {
     },
     credentials: {
         username: { type: "text" },
-        password: { type: "password" }
+        password: { type: "password" },
+        proxyUsername: { type: "text" },
+        proxyPassword: { type: "password" }
     },
     label: function() {
         if (this.name) return this.name;
         return this.hostname || "SCM Server";
     },
+    oneditsave: function() {
+        moveScmProxyCredentials();
+    },
     oneditprepare: function() {
         var nodeId = this.id;
+        moveScmProxyCredentials();
+        $("#node-config-input-proxyUrl").on("change", function () { moveScmProxyCredentials(); });
 
         function updateRestBasePreview() {
             var hostname = $("#node-config-input-hostname").val().trim() || "<fusion-host>";
@@ -73,7 +95,7 @@ RED.nodes.registerType("scm-server", {
 
         function toggleProxy() {
             var show = $("#node-config-input-useProxy").is(":checked");
-            $("#proxy-row").toggle(show);
+            $("#proxy-row,#proxy-username-row,#proxy-password-row").toggle(show);
         }
         toggleProxy();
         $("#node-config-input-useProxy").on("change", toggleProxy);
@@ -180,7 +202,16 @@ RED.nodes.registerType("scm-server", {
     </div>
     <div class="form-row" id="proxy-row">
         <label for="node-config-input-proxyUrl" style="width:160px;"><i class="fa fa-globe"></i> Proxy URL</label>
-        <input type="text" id="node-config-input-proxyUrl" placeholder="http://proxy.example.com:80" style="width:calc(100% - 167px);">
+        <input type="text" id="node-config-input-proxyUrl" placeholder="http://&lt;proxy-host&gt;:&lt;port&gt;" style="width:calc(100% - 167px);">
+    </div>
+    <div class="form-row" id="proxy-username-row">
+        <label for="node-config-input-proxyUsername" style="width:160px;"><i class="fa fa-user"></i> Proxy Username</label>
+        <input type="text" id="node-config-input-proxyUsername" style="width:calc(100% - 167px);">
+    </div>
+    <div class="form-row" id="proxy-password-row">
+        <label for="node-config-input-proxyPassword" style="width:160px;"><i class="fa fa-lock"></i> Proxy Password</label>
+        <input type="password" id="node-config-input-proxyPassword" style="width:calc(100% - 167px);">
+        <div class="form-tips" style="margin-left:165px;">Save this configuration and Deploy to move authentication out of a legacy proxy URL. Previously exported flows and backups are not rewritten.</div>
     </div>
     </fieldset>
     <div class="config-test-actions">
@@ -226,7 +257,7 @@ RED.nodes.registerType("scm-server", {
 <h3>Network</h3>
 <dl class="message-properties">
     <dt>Use Proxy / Proxy URL</dt>
-    <dd>Enable and configure an HTTP(S) proxy for outbound SCM API calls when required by your network.</dd>
+    <dd>Enable and configure an HTTP(S) proxy for outbound SCM API calls. Enter authentication in Proxy Username and Proxy Password; passwords are stored as Node-RED credentials. Open and save existing authenticated URLs to migrate them before deploying. URLs still containing authentication are rejected. Previously exported flows and backups are not rewritten.</dd>
 </dl>
 
 <h3>Notes</h3>

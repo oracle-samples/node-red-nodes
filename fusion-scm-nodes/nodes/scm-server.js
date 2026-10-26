@@ -89,8 +89,16 @@ module.exports = function (RED) {
         }
 
         let proxyAgent = null;
-        if (node.proxyUrl && node.useProxy) {
-            proxyAgent = new HttpsProxyAgent(node.proxyUrl);
+        try {
+            if (node.proxyUrl) {
+                proxyAgent = new HttpsProxyAgent(node.proxyUrl, node.credentials);
+                if (!node.useProxy) { proxyAgent.destroy(); proxyAgent = null; }
+            }
+        } catch (err) {
+            node.proxyUrl = "";
+            node.error(scmError.redactText(err.message));
+            node.status({ fill: "red", shape: "ring", text: "invalid proxy" });
+            return;
         }
 
         // In-flight token fetch — concurrent callers await this instead of each issuing a request.
@@ -206,7 +214,9 @@ module.exports = function (RED) {
     RED.nodes.registerType("scm-server", ScmServerNode, {
         credentials: {
             username: { type: "text" },
-            password: { type: "password" }
+            password: { type: "password" },
+            proxyUsername: { type: "text" },
+            proxyPassword: { type: "password" }
         }
     });
 

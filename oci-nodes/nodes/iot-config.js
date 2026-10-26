@@ -142,6 +142,7 @@ module.exports = function (RED) {
                         node.error("Failed to read client cert at " + node.clientCertPath + ": " + e.message);
                     }
                 }
+                if (!node.clientKeyPath && opts.cert) opts.key = opts.cert;
                 if (node.clientKeyPath && fs.existsSync(node.clientKeyPath)) {
                     try {
                         opts.key = fs.readFileSync(node.clientKeyPath);
@@ -428,6 +429,7 @@ module.exports = function (RED) {
                     return res.json({ success: false, message: "Failed to read client cert at " + configNode.clientCertPath + ": " + e.message });
                 }
             }
+            if (!configNode.clientKeyPath && opts.cert) opts.key = opts.cert;
             if (configNode.clientKeyPath && fs.existsSync(configNode.clientKeyPath)) {
                 try {
                     opts.key = fs.readFileSync(configNode.clientKeyPath);

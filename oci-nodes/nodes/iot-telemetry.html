@@ -104,6 +104,7 @@ RED.nodes.registerType("iot-telemetry", {
     <dt>Payload</dt>
     <dd><code>msg.payload</code> is the telemetry data to publish. Objects are JSON-stringified;
     non-object values are wrapped as <code>{ "value": &lt;payload&gt; }</code>.
+    With Auto Timestamp enabled, arrays are wrapped as <code>{ value: &lt;array&gt;, time: &lt;microseconds&gt; }</code>. With it disabled, arrays are published unchanged.
     Auto Timestamp rejects a null payload; with it disabled, null is published unchanged.
     Invalid JSON serialization and null timestamping report <code>invalid payload</code> and route to Catch without publishing.</dd>
 </dl>

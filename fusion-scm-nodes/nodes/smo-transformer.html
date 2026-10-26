@@ -949,7 +949,7 @@
     var parts = String(path).split(".");
     var value = source;
     for (var i = 0; i < parts.length; i++) {
-      if (value === undefined || value === null) return undefined;
+      if (value === undefined || value === null || !Object.prototype.hasOwnProperty.call(value, parts[i])) return undefined;
       value = value[parts[i]];
     }
     return value;
@@ -973,7 +973,7 @@
   }
 
   function applyPreviewSplitFields(payload, splitFields) {
-    var output = Object.assign({}, payload);
+    var output = Object.assign(Object.create(null), payload);
     for (var i = 0; i < splitFields.length; i++) {
       var sf = splitFields[i];
       var value = getByPath(payload, sf.incomingField);
@@ -991,14 +991,14 @@
   }
 
   function applyPreviewFieldMappings(payload, fieldMappings) {
-    var data = {};
+    var data = Object.create(null);
     for (var i = 0; i < fieldMappings.length; i++) {
       var mapping = fieldMappings[i];
       var incomingField = mapping.incomingField;
       var smoField = mapping.smoField;
       var transformType = mapping.transformType || "none";
 
-      if (data[smoField] !== undefined) continue;
+      if (Object.prototype.hasOwnProperty.call(data, smoField) && data[smoField] !== undefined) continue;
 
       if (transformType === "staticValue") {
         if (mapping.defaultValue !== undefined && mapping.defaultValue !== "") {
@@ -1008,7 +1008,7 @@
       }
 
       if (transformType === "collectFlat") {
-        var collected = {};
+        var collected = Object.create(null);
         var collectFields = mapping.collectFields || [];
         for (var k = 0; k < collectFields.length; k++) {
           var fieldName = collectFields[k];
@@ -1039,11 +1039,11 @@
           break;
         case "valueMap":
           var valueMap = mapping.valueMap || {};
-          if (valueMap["__present__"] !== undefined) {
+          if (Object.prototype.hasOwnProperty.call(valueMap, "__present__") && valueMap["__present__"] !== undefined) {
             data[smoField] = valueMap["__present__"];
           } else {
             var sv = String(value);
-            data[smoField] = valueMap[sv] !== undefined ? valueMap[sv] : value;
+            data[smoField] = Object.prototype.hasOwnProperty.call(valueMap, sv) && valueMap[sv] !== undefined ? valueMap[sv] : value;
           }
           break;
         case "nestedObject":
@@ -1051,7 +1051,7 @@
           break;
         case "dynamicSift":
           var excludeFields = mapping.excludeFields || [];
-          var sifted = {};
+          var sifted = Object.create(null);
           Object.keys(payload).forEach(function (key) {
             if (excludeFields.indexOf(key) === -1) sifted[key] = payload[key];
           });
@@ -1085,7 +1085,7 @@
     }
 
     if (config.enableComposite) {
-      var mappedFields = {};
+      var mappedFields = Object.create(null);
       fieldMappings.forEach(function (mapping) {
         if (mapping.smoField) mappedFields[mapping.smoField] = true;
       });
@@ -1280,6 +1280,7 @@
 
 
 <script type="text/html" data-help-name="smo-transformer">
+<p>Preview and runtime preserve mapped field names such as <code>constructor</code> and <code>__proto__</code>; inherited object properties do not count as input fields.</p>
   <p>Maps telemetry into Smart Operations event payloads. Composite mode combines fragments of the same event.</p>
   <h3>Configuration</h3>
   <p>Select an event type to populate mappings, transforms and composite settings. Paste a sample object

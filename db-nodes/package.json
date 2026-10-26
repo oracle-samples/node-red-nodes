@@ -1,6 +1,6 @@
 {
   "name": "db-nodes",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Node-RED nodes for Oracle Database Functionality",
   "license": "UPL-1.0",
   "engines": {
@@ -52,6 +52,8 @@
     "nodes/sql.html",
     "nodes/sql.js",
     "lib/db-operation.js",
-    "lib/sdk-diagnostics.js"
+    "lib/sdk-diagnostics.js",
+    "lib/diagnostic-text.js",
+    "lib/sql-result.js"
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "oci-nodes",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Oracle Cloud Infrastructure (OCI) nodes for Node-RED",
   "keywords": [
     "node-red",
@@ -148,7 +148,8 @@
     "lib/oci-sensitive.js",
     "lib/oci-operation.js",
     "lib/sdk-diagnostics.js",
-    "lib/oci-monitoring-operation.js"
+    "lib/oci-monitoring-operation.js",
+    "lib/diagnostic-text.js"
   ],
   "engines": {
     "node": ">=18.0.0"

@@ -1,3 +1,5 @@
+var diagnosticText = require("./diagnostic-text.js");
+
 function normalizeError(err) {
     var response = err && err.response;
     var responseData = response && response.data !== undefined
@@ -40,7 +42,7 @@ function handleNodeError(node, msg, err, done, options) {
 }
 
 function redactText(value) {
-    var text = String(value || "");
+    var text = diagnosticText.boundedText(value);
     if (/^\s*[\[{]/.test(text)) {
         try {
             var parsed = JSON.parse(text);
@@ -49,13 +51,12 @@ function redactText(value) {
             return sanitized === JSON.stringify(parsed) ? text : sanitized;
         } catch (err) { /* Non-JSON diagnostics use the text patterns below. */ }
     }
-    return text
+    text = diagnosticText.redactJwt(text, "[REDACTED TOKEN]")
         .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[REDACTED PRIVATE KEY]")
-        .replace(/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED TOKEN]")
         .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+\/._~=-]+/gi, "$1 [REDACTED]")
         .replace(/(^|\r?\n)((?:set-)?cookie|(?:proxy-)?authorization)\s*:[^\r\n]*/gi, "$1$2: [REDACTED]")
-        .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[REDACTED]@")
-        .replace(/\b([A-Za-z0-9_-]*(?:password|passwd|passphrase|token|private[_-]?key|secret|authorization|cookie)[A-Za-z0-9_-]*)(["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1$2\"[REDACTED]\"");
+        .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[REDACTED]@");
+    return diagnosticText.redactAssignments(text, '"[REDACTED]"');
 }
 
 function redactValue(value, active) {

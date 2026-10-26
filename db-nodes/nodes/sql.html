@@ -322,5 +322,6 @@ work as expected. DML statements (INSERT, UPDATE, DELETE) are <b>not committed</
 and will be rolled back when a standalone connection closes. To commit DML, use a PL/SQL block
 with an explicit <code>COMMIT</code>, or wire through the begin/end transaction nodes.</p>
 <p>On stop/redeploy, a connection acquired late closes without executing SQL. The node waits for SQL already submitted and suppresses output while closing. Interrupted managed work is marked rollback-only; its Begin/End owner still finalizes the transaction. Explicit SQL commits and Oracle DDL commits cannot be undone by shutdown.</p>
+<p>Oracle object attributes and collections become plain objects and arrays. Returned CLOB/NCLOB values are read as strings and binary LOBs as Buffers before the connection is released. Returned LOB data is limited to 16 MiB in total per execution; exceeding this reports <code>DB_LOB_TOO_LARGE</code> through Catch without emitting a partial result. Select a smaller range or convert/subset large LOBs in SQL when needed.</p>
 <p>Successful SELECT queries show <code>rows: N</code>, DML shows <code>affected: N</code>, and PL/SQL or DDL without a row count shows <code>completed</code>.</p>
 </script>

@@ -107,6 +107,7 @@ RED.nodes.registerType("get-meter-reading", {
 </script>
 
 <script type="text/x-red" data-help-name="get-meter-reading">
+<p>Meter-history retrieval stops at 1,000 pages, 100,000 items or two minutes. An empty page claiming more results, an exceeded limit or a request cancelled on removal reaches Catch without emitting a partial collection.</p>
 <p>Retrieves the complete reading history for one asset meter from Oracle Fusion SCM.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">

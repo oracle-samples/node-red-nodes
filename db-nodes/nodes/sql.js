@@ -37,6 +37,7 @@
 module.exports = function (RED) {
     const oracledb = require("oracledb");
     const dbError = require("../lib/db-error.js");
+    const sqlResult = require("../lib/sql-result.js");
     var transactions = require("../lib/db-transaction.js")(RED);
 
     // Blank string literals, quoted identifiers, and comments in sql so the
@@ -521,7 +522,7 @@ module.exports = function (RED) {
                 const res = await connection.execute(sql, binds, options);
                 operation.assertOpen();
                 const hasRows = Array.isArray(res.rows);
-                const rows = hasRows ? res.rows : [];
+                const rows = hasRows ? await sqlResult.materializeRows(res.rows, oracledb, operation.assertOpen) : [];
                 const rowsAffected = typeof res.rowsAffected === "number"
                     ? res.rowsAffected
                     : null;

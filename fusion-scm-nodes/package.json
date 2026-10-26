@@ -1,6 +1,6 @@
 {
   "name": "fusion-scm-nodes",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Node-RED nodes for Oracle Fusion SCM",
   "license": "UPL-1.0",
   "engines": {
@@ -92,6 +92,7 @@
     "nodes/smo-transformer.js",
     "nodes/subinventory-quantity-transfer.html",
     "nodes/subinventory-quantity-transfer.js",
-    "lib/proxy-agent.js"
+    "lib/proxy-agent.js",
+    "lib/diagnostic-text.js"
   ]
 }

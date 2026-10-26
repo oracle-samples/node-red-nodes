@@ -39,6 +39,7 @@ module.exports = function(RED) {
     const dbError = require("../lib/db-error.js");
     var transactions = require("../lib/db-transaction.js")(RED);
     const oracleAq = require("../lib/oracle-aq.js");
+    const sqlResult = require("../lib/sql-result.js");
     const RETRY_WARN_THROTTLE_MS = 30000;
 
     function DbDequeueNode(config) {
@@ -117,7 +118,10 @@ module.exports = function(RED) {
                     operation.assertOpen();
                     oracleAq.recordDequeueSelection(queue, oracledb, node, connection);
 
-                    const payloads = messages ? messages.map(m => oracleAq.dbObjectToPojo(m.payload)) : [];
+                    const payloads = messages ? messages.map(m => m.payload) : [];
+                    if (node.payloadType === "adt") {
+                        await sqlResult.materializeRows(payloads, oracledb, operation.assertOpen);
+                    }
 
                     if (ownConnection) {
                         await connection.commit();
@@ -301,9 +305,15 @@ module.exports = function(RED) {
 
                             if (messages && messages.length > 0) {
                                 var outputs = messages.map(function (message) {
-                                    var payload = oracleAq.dbObjectToPojo(message.payload);
+                                    var payload = message.payload;
                                     return { _msgid: RED.util.generateId(), dequeued: payload, payload: payload };
                                 });
+                                if (node.payloadType === "adt") {
+                                    await sqlResult.materializeRows(outputs, oracledb, function () {
+                                        if (!running) throw new Error("Dequeue stopped while reading LOB data");
+                                    });
+                                }
+                                if (!running) break;
                                 await connection.commit();
                                 showDequeuedStatus(messages.length);
                                 outputs.forEach(function (output) { node.send(output); });

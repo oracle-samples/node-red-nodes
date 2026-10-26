@@ -205,7 +205,7 @@ module.exports = function(RED) {
 
     function buildProxyAgent(server) {
         if (server.proxyUrl && server.useProxy) {
-            return new HttpsProxyAgent(server.proxyUrl);
+            return new HttpsProxyAgent(server.proxyUrl, server.credentials);
         }
         return null;
     }

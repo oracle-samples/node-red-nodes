@@ -121,3 +121,7 @@ review has been performed with respect to any software, material or content cont
 produced within this repository. In addition, and without limiting the foregoing,
 third parties may have posted software, material or content to this repository
 without any review. Use at your own risk.
+
+Oracle object attributes and collections in SQL results become plain objects and arrays, including nested LOB values. SQL materializes returned CLOB/NCLOB values as text and binary LOBs as Buffers before releasing the connection. Combined LOB data is limited to 16 MiB per execution; larger results reach Catch with `DB_LOB_TOO_LARGE`.
+
+Dequeue materializes ADT LOBs before committing, with a 16 MiB combined limit per batch. Read/limit failures do not emit partial payloads or commit queue removals.

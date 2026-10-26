@@ -311,6 +311,8 @@ RED.nodes.registerType("dequeue", {
 </script>
 
 <script type="text/x-red" data-help-name="dequeue">
+<p>ADT CLOB/NCLOB values become strings and binary LOBs become Buffers before dequeue commits. The combined LOB limit is 16 MiB per batch; read/limit errors produce no partial output and do not commit queue removals. Continuous mode applies its configured retry policy; terminal errors reach Catch with the error code (including <code>DB_LOB_TOO_LARGE</code>).</p>
+<p>JSON and RAW payloads are preserved without ADT conversion. ADT payloads become plain objects, with nested collections converted to arrays and attribute names preserved.</p>
 <p>Reads messages from an Oracle Advanced Queue (AQ), with optional database-side filtering.</p>
 
 <h3>Configuration</h3>

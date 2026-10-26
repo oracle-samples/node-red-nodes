@@ -97,7 +97,7 @@ module.exports = function (RED) {
                 if (node.addTimestamp && payload === null) {
                     throw new Error("Cannot add a timestamp to a null telemetry payload");
                 }
-                if (typeof payload !== "object") {
+                if (typeof payload !== "object" || (node.addTimestamp && Array.isArray(payload))) {
                     payload = { value: payload };
                 }
 
