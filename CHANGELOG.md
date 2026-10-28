@@ -6,12 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.8.1] - 2026-10-27
+## [0.8.1] - 2026-10-28
 
 ### Added
 - `scm-server` stores Proxy Username and Proxy Password as credentials and moves authentication out of existing proxy URLs when saved in the editor.
 
 ### Changed
+- `db-nodes` and `fusion-scm-nodes` use Oracle Database and Oracle Fusion SCM palette categories.
 - `db-error`, `scm-error`, `oci-error` and `sdk-diagnostics` omit diagnostic strings longer than 16,384 characters and scan credential assignments without repeated backtracking.
 - `get-meter-reading` and `scm-lookup` limit meter-history retrieval to 1,000 pages, 100,000 items and two minutes; incomplete results reach Catch instead of normal output.
 

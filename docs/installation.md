@@ -184,7 +184,7 @@ If your registry must be reached directly, set `NO_PROXY`/`no_proxy` for that re
 
 1. Fully restart the Node-RED process or container using the method appropriate to your installation. Deploying flows alone does not restart Node-RED.
 
-2. Confirm the nodes appear under `oracle db`, `oracle fusion scm`, and the OCI palette groups: `OCI Streaming`, `OCI Messaging`, `OCI Observability`, `OCI Services`, and `OCI IoT`. Vault Secret and Certificate appear under `oci`.
+2. Confirm the nodes appear under `Oracle Database`, `Oracle Fusion SCM`, and the OCI palette groups: `OCI Streaming`, `OCI Messaging`, `OCI Observability`, `OCI Services`, and `OCI IoT`. Vault Secret and Certificate appear under `oci`.
 
 3. Import an example JSON flow and deploy it:
    - See [Import Examples Guide](./import-examples.md)
