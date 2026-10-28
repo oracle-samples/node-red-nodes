@@ -894,7 +894,7 @@ Publishes telemetry or derived events to OCI Managed Kafka (OCI Streaming with A
 
 - `msg.payload` is the record value. Objects and arrays are JSON-serialized; strings and buffers are sent directly; finite numbers, booleans, and null become strings.
 - `msg.kafka.topic` overrides Topic.
-- `msg.kafka.key`, `msg.kafka.headers`, and non-negative integer `msg.kafka.partition` provide optional record attributes. Header values may be strings, buffers, finite numbers, booleans, or null. The header name `__proto__` is rejected before sending because the installed Kafka client cannot preserve it.
+- `msg.kafka.key`, `msg.kafka.headers`, and non-negative integer `msg.kafka.partition` provide optional record attributes. Header values may be strings, buffers, finite numbers, or booleans. Omitting `msg.kafka.headers` or setting it to null publishes without headers. The header name `__proto__` is rejected before sending because the installed Kafka client cannot preserve it.
 
 **Outputs:** Preserves the input payload and upstream properties; sets the resolved `msg.kafka.topic` and broker delivery metadata in `msg.kafka.result`.
 

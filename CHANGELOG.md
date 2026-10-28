@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `get-meter-reading` and `scm-lookup` limit meter-history retrieval to 1,000 pages, 100,000 items and two minutes; incomplete results reach Catch instead of normal output.
 
 ### Fixed
+- `oci-kafka-producer` normalizes omitted or null header maps and rejects null header values before publishing.
 - `sql` reads returned CLOB/NCLOB values as text and binary LOBs as Buffers before releasing the connection, including values in Oracle object attributes and collections, with a combined 16 MiB LOB limit per result.
 - `dequeue` reads ADT LOBs before committing queue removals, with a combined 16 MiB limit per batch and no partial output on read errors.
 - `dequeue` preserves JSON fields that resemble driver metadata and safely converts ADT attributes, including reserved property names and nested collections.
