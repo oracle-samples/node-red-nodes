@@ -77,7 +77,8 @@ function serializeValue(value, fieldName) {
 
 function normalizeHeaders(headers) {
     if (headers === undefined || headers === null) {
-        return undefined;
+        // The KafkaJS adapter converts missing headers to null, which is not a native header array.
+        return {};
     }
     if (!isPlainObject(headers)) {
         throw new Error("Kafka headers must be a plain object");
@@ -86,6 +87,9 @@ function normalizeHeaders(headers) {
     var normalized = {};
     Object.keys(headers).forEach(function (name) {
         var value = headers[name];
+        if (value === null) {
+            throw new Error("Kafka header values cannot be null; use a string, buffer, finite number, or boolean");
+        }
         if (typeof value === "number") {
             if (!Number.isFinite(value)) {
                 throw new Error("Kafka headers must contain finite scalar values or buffers");
@@ -93,7 +97,7 @@ function normalizeHeaders(headers) {
             value = String(value);
         } else if (typeof value === "boolean") {
             value = String(value);
-        } else if (!Buffer.isBuffer(value) && typeof value !== "string" && value !== null) {
+        } else if (!Buffer.isBuffer(value) && typeof value !== "string") {
             throw new Error("Kafka headers must contain scalar values or buffers");
         }
         Object.defineProperty(normalized, name, {
@@ -128,9 +132,7 @@ function buildMessage(payload, options) {
     if (options.key !== undefined) {
         message.key = serializeValue(options.key, "Kafka key");
     }
-    if (options.headers !== undefined) {
-        message.headers = normalizeHeaders(options.headers);
-    }
+    message.headers = normalizeHeaders(options.headers);
     if (options.partition !== undefined && options.partition !== null) {
         if (!Number.isInteger(options.partition) || options.partition < 0) {
             throw new Error("Kafka partition must be a non-negative integer");

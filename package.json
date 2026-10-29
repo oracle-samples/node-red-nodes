@@ -1,6 +1,6 @@
 {
   "name": "node-red-nodes",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Custom Node-RED nodes for Oracle Database, Advanced Queues (AQ), Oracle Fusion Cloud SCM, and OCI services",
   "license": "UPL-1.0",
   "engines": {
@@ -278,6 +278,10 @@
     "db-nodes/lib/sdk-diagnostics.js",
     "oci-nodes/lib/oci-operation.js",
     "oci-nodes/lib/sdk-diagnostics.js",
-    "oci-nodes/lib/oci-monitoring-operation.js"
+    "oci-nodes/lib/oci-monitoring-operation.js",
+    "db-nodes/lib/diagnostic-text.js",
+    "oci-nodes/lib/diagnostic-text.js",
+    "fusion-scm-nodes/lib/diagnostic-text.js",
+    "db-nodes/lib/sql-result.js"
   ]
 }

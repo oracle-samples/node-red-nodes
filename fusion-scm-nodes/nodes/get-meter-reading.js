@@ -53,10 +53,19 @@ module.exports = function(RED) {
         }
 
         const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
-            ? new HttpsProxyAgent(node.server.proxyUrl) : null;
+            ? new HttpsProxyAgent(node.server.proxyUrl, node.server.credentials) : null;
 
+        const active = new Set();
+        let closing = false;
+        node.on("close", function () {
+            closing = true;
+            active.forEach(function (controller) { controller.abort(); });
+        });
         node.on("input", async (msg, send, done) => {
+            const controller = new AbortController();
+            active.add(controller);
             try {
+                if (closing) throw new Error("SCM node is stopped");
                 const assetNumber = msg.assetNumber || config.assetNumber;
                 if (!hasValue(assetNumber)) {
                     const err = new Error("No AssetNumber provided");
@@ -83,10 +92,12 @@ module.exports = function(RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
+                if (closing) throw new Error("SCM node is stopped");
 
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
                 const requestOptions = {
                     timeout: 30000,
+                    signal: controller.signal,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
                     headers: {
@@ -96,11 +107,13 @@ module.exports = function(RED) {
                 };
                 const response = await scmQuery.fetchAllCollectionPages(
                     finalUrl,
-                    function (url) {
-                        return axios.get(url, requestOptions);
-                    }
+                    function (url, signal) {
+                        return axios.get(url, Object.assign({}, requestOptions, { signal: signal }));
+                    },
+                    { signal: controller.signal }
                 );
 
+                if (closing) throw new Error("SCM node is stopped");
                 msg.statusCode = response.status;
                 msg.payload = response.data;
                 if (isEmptyCollection(response.data)) {
@@ -112,6 +125,8 @@ module.exports = function(RED) {
                 done();
             } catch (err) {
                 scmError.handleNodeError(node, msg, err, done, { statusText: "read failed" });
+            } finally {
+                active.delete(controller);
             }
         });
     }

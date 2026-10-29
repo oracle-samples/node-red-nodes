@@ -104,19 +104,22 @@ function createEnqueueMessages(payloadType, queue, payloads, recipients) {
     });
 }
 
-function dbObjectToPojo(obj) {
-    if (obj && obj._objType && obj._objType.attributes) {
-        var result = {};
-        for (var i = 0; i < obj._objType.attributes.length; i++) {
-            var attr = obj._objType.attributes[i];
-            var val = obj[attr.name];
-            result[attr.name] = (val && val._objType && val._objType.attributes)
-                ? dbObjectToPojo(val)
-                : val;
-        }
-        return result;
+function dbObjectToPojo(obj, oracledb) {
+    oracledb = oracledb || require("oracledb");
+    // JSON documents may legitimately contain fields resembling driver internals.
+    if (!obj || !(obj instanceof oracledb.BaseDbObject)) return obj;
+    if (obj.isCollection) {
+        return obj.getValues().map(function (value) { return dbObjectToPojo(value, oracledb); });
     }
-    return obj;
+    var result = {};
+    obj._objType.attributes.forEach(function (attribute) {
+        var name = attribute.name;
+        Object.defineProperty(result, name, {
+            value: dbObjectToPojo(obj[name], oracledb),
+            enumerable: true, configurable: true, writable: true
+        });
+    });
+    return result;
 }
 
 function configureEnqueueQueue(queue, oracledb, config) {

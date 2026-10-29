@@ -36,7 +36,7 @@
 
 <script type="text/javascript">
 RED.nodes.registerType("manufacturing-work-order", {
-    category: "oracle fusion scm",
+    category: "Oracle Fusion SCM",
     paletteLabel: "manufacturing work order",
     defaults: {
         name: { value: "" },
@@ -122,7 +122,7 @@ RED.nodes.registerType("manufacturing-work-order", {
             mappings: JSON.stringify(mappings),
             readOnlyFields: (node.action || "create") === "create" ? ["WorkDefinitionName"] : []
         });
-        $("#scm-mappings-container").on("change input", ".scm-field,.scm-value,.scm-boolean-value,.scm-source-type", function() {
+        $("#scm-mappings-container").on("change input", ".scm-field,.scm-value,.scm-json-value,.scm-boolean-value,.scm-source-type", function() {
             userEditedMappings = true;
         });
 
@@ -445,6 +445,7 @@ window.scmMappingEditor = (function () {
 </script>
 
 <script type="text/x-red" data-help-name="manufacturing-work-order">
+<p>Once a mapping is edited, including a static JSON value, changing Action preserves the edited mappings.</p>
 <p>Creates or updates a discrete manufacturing work order header in Oracle Fusion SCM.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">

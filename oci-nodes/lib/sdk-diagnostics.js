@@ -1,17 +1,18 @@
 /* Copyright (c) 2026 Oracle and/or its affiliates. Licensed under the UPL, Version 1.0. */
 
+var diagnosticText = require("./diagnostic-text.js");
+
 // Kept identical in the independently installable DB and OCI packages.
 var guarded = new WeakSet();
 
 function redactText(value) {
-    return String(value)
+    var text = diagnosticText.redactJwt(diagnosticText.boundedText(value), "[redacted token]")
         .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[redacted private key]")
-        .replace(/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[redacted token]")
         .replace(/(^|\r?\n)((?:set-)?cookie|(?:proxy-)?authorization)\s*:[^\r\n]*/gi, "$1$2: [redacted]")
         .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[redacted]@")
         .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9+/_=.-]+/gi, "[redacted authorization]")
-        .replace(/(["']?\b(?:authorization|proxy-authorization|cookie|set-cookie)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,;]+)/gi, "$1[redacted]")
-        .replace(/(["']?\b[A-Za-z0-9_-]*(?:password|passwd|passphrase|secret|token|private[_-]?key)[A-Za-z0-9_-]*["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}\]]+)/gi, "$1[redacted]");
+        .replace(/(["']?\b(?:authorization|proxy-authorization|cookie|set-cookie)["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,;]+)/gi, "$1[redacted]");
+    return diagnosticText.redactAssignments(text, "[redacted]");
 }
 
 function redactBody(text) {

@@ -153,10 +153,19 @@ module.exports = function(RED) {
         }
 
         const proxyAgent = (node.server.proxyUrl && node.server.useProxy)
-            ? new HttpsProxyAgent(node.server.proxyUrl) : null;
+            ? new HttpsProxyAgent(node.server.proxyUrl, node.server.credentials) : null;
 
+        const active = new Set();
+        let closing = false;
+        node.on("close", function () {
+            closing = true;
+            active.forEach(function (controller) { controller.abort(); });
+        });
         node.on("input", async (msg, send, done) => {
+            const controller = new AbortController();
+            active.add(controller);
             try {
+                if (closing) throw new Error("SCM node is stopped");
                 const lookupType = config.lookupType || "custom";
                 const lookup = LOOKUP_TYPES[lookupType] || LOOKUP_TYPES.custom;
 
@@ -261,10 +270,12 @@ module.exports = function(RED) {
 
                 node.status({ fill: "yellow", shape: "dot", text: "retrieving token..." });
                 const token = await node.server.getToken();
+                if (closing) throw new Error("SCM node is stopped");
 
                 node.status({ fill: "yellow", shape: "dot", text: "reading..." });
                 const requestOptions = {
                     timeout: 30000,
+                    signal: controller.signal,
                     maxRedirects: lookupType === "custom" ? 0 : undefined,
                     httpsAgent: proxyAgent || undefined,
                     proxy: false,
@@ -279,12 +290,14 @@ module.exports = function(RED) {
                 const response = lookupType === "meterReading"
                     ? await scmQuery.fetchAllCollectionPages(
                         finalUrl,
-                        function (url) {
-                            return axios.get(url, requestOptions);
-                        }
+                        function (url, signal) {
+                            return axios.get(url, Object.assign({}, requestOptions, { signal: signal }));
+                        },
+                        { signal: controller.signal }
                     )
                     : await axios.get(finalUrl, requestOptions);
 
+                if (closing) throw new Error("SCM node is stopped");
                 msg.statusCode = response.status;
                 msg.payload = response.data;
                 if (isEmptyCollection(response.data)) {
@@ -296,6 +309,8 @@ module.exports = function(RED) {
                 done();
             } catch (err) {
                 scmError.handleNodeError(node, msg, err, done, { statusText: "lookup failed" });
+            } finally {
+                active.delete(controller);
             }
         });
     }

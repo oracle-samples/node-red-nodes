@@ -84,7 +84,7 @@ function _buildScmLookupCustomUrl(baseUrl, queryParams) {
 }
 
 RED.nodes.registerType("scm-lookup", {
-    category: "oracle fusion scm",
+    category: "Oracle Fusion SCM",
     paletteLabel: "scm lookup",
     defaults: {
         name: { value: "" },
@@ -603,6 +603,7 @@ RED.nodes.registerType("scm-lookup", {
 </script>
 
 <script type="text/x-red" data-help-name="scm-lookup">
+<p>Meter-history retrieval stops at 1,000 pages, 100,000 items or two minutes. An empty page claiming more results, an exceeded limit or a request cancelled on removal reaches Catch without emitting a partial collection.</p>
 <p>Looks up Oracle Fusion SCM records using predefined business keys or a custom GET endpoint.</p>
 <h3>Configuration</h3>
 <dl class="message-properties">

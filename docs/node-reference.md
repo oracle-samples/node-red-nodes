@@ -4,6 +4,8 @@ This page documents each node, its configuration fields, outputs, and usage.
 
 ## Database Nodes
 
+DB, OCI and Fusion error helpers mask credentials and omit diagnostic strings longer than 16,384 characters as `[oversized diagnostic omitted]`. Shorter error details and codes remain available through Catch.
+
 Message-triggered DB nodes keep their normal output success-only. On Catch-path failures, they set `msg.error` to `{ message, code }` using the Oracle/node-oracledb error text and code when available; DB nodes leave the current `msg.payload` unchanged on failure.
 
 ### db-connection (Config Node)
@@ -102,6 +104,9 @@ If an imported flow provides an invalid Action value, the node logs a warning an
 
 ### dequeue
 
+ADT CLOB/NCLOB values become strings and binary LOBs become Buffers before dequeue commits. The combined LOB limit is 16 MiB per batch; read/limit errors produce no partial output and do not commit queue removals. Continuous mode applies its configured retry policy; terminal errors reach Catch with the error code (including `DB_LOB_TOO_LARGE`).
+JSON and RAW payloads are preserved without ADT conversion. ADTs become plain objects with original attribute names; nested collections become arrays.
+
 Dequeues messages from an Oracle AQ queue.
 
 | Field | Required | Description |
@@ -186,6 +191,8 @@ Enqueues JSON, RAW, or ADT messages into an Oracle AQ queue.
 
 ### sql
 
+Oracle object attributes and collections in SQL results become plain objects and arrays, including nested LOB values. Returned CLOB/NCLOB values are materialized as strings and binary LOBs as Buffers before releasing the connection. The combined LOB limit is 16 MiB per execution; `DB_LOB_TOO_LARGE` reaches Catch without partial output. Select a smaller range or subset/convert large LOBs in SQL when needed.
+
 Executes SQL statements against the Oracle Database.
 
 | Field | Required | Description |
@@ -235,8 +242,11 @@ Stores the Fusion hostname, API version, OAuth credentials, and proxy settings. 
 | Use Expiry Fallback | No | When enabled, uses the configured fallback lifetime when the token response omits `expires_in`. When disabled (default), tokens without an expiry are not cached for later requests. Concurrent requests still share an in-flight token request. |
 | Expiry Fallback (min) | No | Token cache duration used only when Use Expiry Fallback is enabled and `expires_in` is absent. Default: `60`. A reported lifetime takes precedence, with a 30-second safety buffer; lifetimes of 30 seconds or less are not reused. |
 | Use Proxy | No | Enables proxy for outbound requests |
-| Proxy URL | Proxy only | Proxy URL used by axios |
+| Proxy URL | Proxy only | HTTP(S) proxy URL without embedded authentication |
+| Proxy Username / Proxy Password | No | Separate Node-RED credentials for proxy authentication |
 | Test SCM Connection | No | Acquires an OAuth token, then verifies that the configured Fusion REST host is reachable. Reports OAuth-only success as a partial failure. |
+
+Open and save existing authenticated proxy URLs in the SCM Server editor, then Deploy, to migrate authentication into credentials. Unsaved URLs containing authentication are rejected at runtime. Previously exported flows and backups are not rewritten.
 
 > **Deploy-time validation:** Hostname, API Version, Token URL, and Scope must all be valid before deploying. Hostname must not include a protocol or path, and the Token URL must use HTTPS.
 
@@ -322,7 +332,9 @@ must remain at or below the configured SCM Server's exact
 redirects. Query Parameters are static node configuration; use `fusion-request`
 GET mappings when parameter values must come from each incoming message.
 
-Meter Reading mode follows every Fusion collection page. For a multi-page
+Meter-history retrieval stops at 1,000 pages, 100,000 items or two minutes. An empty page claiming more results, an exceeded limit or a request cancelled on removal reaches Catch without emitting a partial collection.
+
+Meter Reading mode follows Fusion collection pages within these limits. For a multi-page
 history, the output is normalized: `items` and `count` cover all readings,
 `hasMore` is `false`, `offset` is `0`, `limit` remains Fusion's page size, and
 page-specific `links` are omitted.
@@ -591,6 +603,8 @@ New nodes default to `Delete Type = Custom` so the workspace label stays `delete
 In custom mode, the node uses the configured Custom Endpoint as the base endpoint. It must use HTTPS and match the configured SCM Server host; query parameters are rejected. The resource ID is URL-encoded before path append, and delete requests time out after 30 seconds.
 
 ### get-ib-asset / get-meter-reading / get-organization-id
+
+Meter-history retrieval stops at 1,000 pages, 100,000 items or two minutes. An empty page claiming more results, an exceeded limit or a request cancelled on removal reaches Catch without emitting a partial collection.
 
 Individual SCM lookup nodes. Each queries a specific REST endpoint.
 
@@ -880,7 +894,7 @@ Publishes telemetry or derived events to OCI Managed Kafka (OCI Streaming with A
 
 - `msg.payload` is the record value. Objects and arrays are JSON-serialized; strings and buffers are sent directly; finite numbers, booleans, and null become strings.
 - `msg.kafka.topic` overrides Topic.
-- `msg.kafka.key`, `msg.kafka.headers`, and non-negative integer `msg.kafka.partition` provide optional record attributes. Header values may be strings, buffers, finite numbers, booleans, or null. The header name `__proto__` is rejected before sending because the installed Kafka client cannot preserve it.
+- `msg.kafka.key`, `msg.kafka.headers`, and non-negative integer `msg.kafka.partition` provide optional record attributes. Header values may be strings, buffers, finite numbers, or booleans. Omitting `msg.kafka.headers` or setting it to null publishes without headers. The header name `__proto__` is rejected before sending because the installed Kafka client cannot preserve it.
 
 **Outputs:** Preserves the input payload and upstream properties; sets the resolved `msg.kafka.topic` and broker delivery metadata in `msg.kafka.result`.
 
@@ -1211,6 +1225,8 @@ When advanced numeric fields are left empty, the editor/runtime default values a
 
 ### iot-telemetry
 
+With Auto Timestamp enabled, arrays are wrapped as `{ value: <array>, time: <microseconds> }`; without it they remain arrays.
+
 Publishes telemetry data to the IoT Platform via MQTT.
 
 | Field | Required | Description |
@@ -1304,7 +1320,7 @@ Updates digital twin relationship content through the OCI IoT REST API.
 
 **Notes:**
 - This node resolves `relationshipKey` to a relationship OCID before update.
-- V1 intentionally supports relationship-content update only; full relationship CRUD is deferred.
+- Supports updating the content of an existing relationship.
 - Runtime values take precedence over editor defaults:
   - `iotDomainId`: `msg.iotDomainId` -> editor field
   - `relationshipKey`: `msg.relationshipKey` -> `msg.payload.relationshipKey` -> Default Relationship Key

@@ -96,7 +96,7 @@ The `scm-lookup` Inventory Organization mode can search by Organization Name, Or
 
 Other predefined lookup modes expose all required business keys directly: organization-scoped item, inventory, work definition/recipe, manufacturing work order/batch, and maintenance work order lookups require **Organization Code**; asset and work definition lookups also show **Item Number** where required; meter readings require **Meter Code** and use Fusion's asset-meter business-key finder. On-Hand Quantity optionally accepts **Subinventory Code**. Use Additional Filters only for extra narrowing criteria; filter names may contain letters, numbers, underscores, and dots. Built-in equality filters use REST framework version 2 and treat supplied values as literals; Custom queries retain their configured syntax.
 
-Meter lookups follow all Fusion pages. Multi-page results are combined into one collection with complete `items` and `count`, `hasMore: false`, `offset: 0`, the original Fusion page-size `limit`, and no page-specific `links`.
+Meter lookups follow Fusion pages within a limit of 1,000 pages, 100,000 items and two minutes. Invalid pagination and limit failures reach Catch without partial output. Multi-page results are combined into one collection with complete `items` and `count`, `hasMore: false`, `offset: 0`, the original Fusion page-size `limit`, and no page-specific `links`.
 
 Work-order, child, delete and lookup nodes encode resource IDs as individual URL path segments. Enter the original ID, without URL encoding; `.` and `..` are not valid resource IDs.
 
@@ -182,3 +182,5 @@ review has been performed with respect to any software, material or content cont
 produced within this repository. In addition, and without limiting the foregoing,
 third parties may have posted software, material or content to this repository
 without any review. Use at your own risk.
+
+Proxy authentication uses separate SCM Server credential fields. Open and save legacy proxy URLs containing authentication, then Deploy, to migrate them; prior exports and backups remain unchanged.
